@@ -25,3 +25,11 @@ export {
   getNodeAnchors,
   resolveNodePath
 } from './layout';
+
+export * from './svg-generator';
+export {
+  SvgGenerator,
+  SvgGenerationOptions,
+  defaultSvgGenerator,
+  generateSVG
+} from './svg-generator';
