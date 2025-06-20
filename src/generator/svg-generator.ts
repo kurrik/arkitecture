@@ -3,7 +3,7 @@
  */
 
 import { Document, ContainerNode, Arrow } from '../types';
-import { LayoutResult, NodeDimensions, AnchorPosition, findAnchorPosition } from './layout';
+import { LayoutResult, NodeDimensions, findAnchorPosition } from './layout';
 
 export interface SvgGenerationOptions {
   fontSize?: number;
@@ -82,7 +82,7 @@ export class SvgGenerator {
   /**
    * Generate rectangle element for a node
    */
-  private generateNodeRect(nodeId: string, dimensions: NodeDimensions): string {
+  private generateNodeRect(_nodeId: string, dimensions: NodeDimensions): string {
     return `  <rect x="${dimensions.x}" y="${dimensions.y}" ` +
            `width="${dimensions.width}" height="${dimensions.height}" ` +
            `fill="white" stroke="black" stroke-width="1" />`;

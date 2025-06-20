@@ -3,9 +3,8 @@
  */
 
 import { SvgGenerator, generateSVG } from '../../src/generator/svg-generator';
-import { Document, ContainerNode } from '../../src/types';
-import { LayoutResult, NodeDimensions, AnchorPosition, calculateLayout } from '../../src/generator/layout';
-import { TextMeasurement } from '../../src/generator/text-measurement';
+import { Document } from '../../src/types';
+import { calculateLayout } from '../../src/generator/layout';
 
 describe('SvgGenerator', () => {
   let svgGenerator: SvgGenerator;
