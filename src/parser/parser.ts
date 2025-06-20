@@ -1,0 +1,312 @@
+/**
+ * Parser for Arkitecture DSL
+ */
+
+import { Token, TokenType } from './tokenizer';
+import { ContainerNode, ParseResult, ValidationError } from '../types';
+
+export class ParseError extends Error {
+  constructor(
+    message: string,
+    public line: number,
+    public column: number
+  ) {
+    super(`${message} at line ${line}, column ${column}`);
+    this.name = 'ParseError';
+  }
+}
+
+export class Parser {
+  private tokens: Token[];
+  private current: number;
+  private errors: ValidationError[];
+
+  constructor(tokens: Token[]) {
+    this.tokens = tokens;
+    this.current = 0;
+    this.errors = [];
+  }
+
+  parseDocument(): ParseResult {
+    try {
+      const nodes = this.parseNodes();
+      
+      if (this.errors.length > 0) {
+        return {
+          success: false,
+          errors: this.errors,
+        };
+      }
+
+      return {
+        success: true,
+        document: {
+          nodes,
+          arrows: [], // Step 3 doesn't handle arrows yet
+        },
+        errors: [],
+      };
+    } catch (error) {
+      if (error instanceof ParseError) {
+        this.addError('syntax', error.message, error.line, error.column);
+      } else {
+        this.addError('syntax', (error as Error).message || 'Unknown error', 1, 1);
+      }
+
+      return {
+        success: false,
+        errors: this.errors,
+      };
+    }
+  }
+
+  private parseNodes(): ContainerNode[] {
+    const nodes: ContainerNode[] = [];
+    
+    while (!this.isAtEnd() && !this.check(TokenType.EOF)) {
+      // Skip newlines between top-level nodes
+      if (this.check(TokenType.NEWLINE)) {
+        this.advance();
+        continue;
+      }
+
+      const node = this.parseNode();
+      if (node) {
+        nodes.push(node);
+      }
+    }
+
+    return nodes;
+  }
+
+  private parseNode(): ContainerNode | null {
+    if (!this.check(TokenType.IDENTIFIER)) {
+      if (!this.isAtEnd() && !this.check(TokenType.EOF)) {
+        const token = this.peek();
+        this.addError(
+          'syntax',
+          `Expected node identifier, got ${token.type}`,
+          token.line,
+          token.column
+        );
+        this.advance(); // Skip invalid token
+      }
+      return null;
+    }
+
+    const idToken = this.advance();
+    const id = idToken.value;
+
+    if (!this.check(TokenType.LBRACE)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected '{' after node id '${id}', got ${token.type}`,
+        token.line,
+        token.column
+      );
+      // Skip remaining tokens until we find a valid node start or EOF
+      this.skipUntilNodeOrEOF();
+      return null;
+    }
+
+    this.advance(); // consume '{'
+
+    const node: ContainerNode = {
+      id,
+      children: [], // Step 3 doesn't handle nested children yet
+    };
+
+    // Parse node properties
+    this.parseNodeProperties(node);
+
+    if (!this.check(TokenType.RBRACE)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected '}' to close node '${id}', got ${token.type}`,
+        token.line,
+        token.column
+      );
+      return node;
+    }
+
+    this.advance(); // consume '}'
+    return node;
+  }
+
+  private parseNodeProperties(node: ContainerNode): void {
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      // Skip newlines within node body
+      if (this.check(TokenType.NEWLINE)) {
+        this.advance();
+        continue;
+      }
+
+      if (!this.check(TokenType.IDENTIFIER)) {
+        const token = this.peek();
+        this.addError(
+          'syntax',
+          `Expected property name, got ${token.type}`,
+          token.line,
+          token.column
+        );
+        this.advance(); // Skip invalid token
+        continue;
+      }
+
+      const propertyToken = this.advance();
+      const propertyName = propertyToken.value;
+
+      if (!this.check(TokenType.COLON)) {
+        const token = this.peek();
+        this.addError(
+          'syntax',
+          `Expected ':' after property '${propertyName}', got ${token.type}`,
+          token.line,
+          token.column
+        );
+        // Skip tokens until we find a colon, property name, or closing brace
+        this.skipUntilRecovery();
+        continue;
+      }
+
+      this.advance(); // consume ':'
+
+      switch (propertyName) {
+        case 'label':
+          this.parseLabel(node);
+          break;
+        case 'direction':
+          this.parseDirection(node);
+          break;
+        default: {
+          this.addError(
+            'syntax',
+            `Unknown property '${propertyName}'`,
+            propertyToken.line,
+            propertyToken.column
+          );
+          // Skip the value
+          if (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+            this.advance();
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  private parseLabel(node: ContainerNode): void {
+    if (!this.check(TokenType.STRING)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected string value for label, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      if (!this.check(TokenType.RBRACE)) {
+        this.advance(); // Skip invalid token
+      }
+      return;
+    }
+
+    const labelToken = this.advance();
+    node.label = labelToken.value;
+  }
+
+  private parseDirection(node: ContainerNode): void {
+    if (!this.check(TokenType.STRING)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected string value for direction, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      if (!this.check(TokenType.RBRACE)) {
+        this.advance(); // Skip invalid token
+      }
+      return;
+    }
+
+    const directionToken = this.advance();
+    const direction = directionToken.value;
+
+    if (direction !== 'vertical' && direction !== 'horizontal') {
+      this.addError(
+        'syntax',
+        `Invalid direction '${direction}', expected 'vertical' or 'horizontal'`,
+        directionToken.line,
+        directionToken.column
+      );
+      return;
+    }
+
+    node.direction = direction as 'vertical' | 'horizontal';
+  }
+
+  private expectToken(type: TokenType): Token | null {
+    if (!this.check(type)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected ${type}, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      return null;
+    }
+    return this.advance();
+  }
+
+  private check(type: TokenType): boolean {
+    if (this.isAtEnd()) return false;
+    return this.peek().type === type;
+  }
+
+  private advance(): Token {
+    if (!this.isAtEnd()) {
+      this.current++;
+    }
+    return this.previous();
+  }
+
+  private peek(): Token {
+    return this.tokens[this.current];
+  }
+
+  private previous(): Token {
+    return this.tokens[this.current - 1];
+  }
+
+  private isAtEnd(): boolean {
+    return this.current >= this.tokens.length || this.peek().type === TokenType.EOF;
+  }
+
+  private addError(type: 'syntax' | 'reference' | 'constraint', message: string, line: number, column: number): void {
+    this.errors.push({
+      type,
+      message,
+      line,
+      column,
+    });
+  }
+
+  private skipUntilNodeOrEOF(): void {
+    while (!this.isAtEnd() && !this.check(TokenType.IDENTIFIER) && !this.check(TokenType.EOF)) {
+      this.advance();
+    }
+  }
+
+  private skipUntilRecovery(): void {
+    while (!this.isAtEnd() && 
+           !this.check(TokenType.COLON) && 
+           !this.check(TokenType.IDENTIFIER) && 
+           !this.check(TokenType.RBRACE) && 
+           !this.check(TokenType.EOF)) {
+      this.advance();
+    }
+  }
+}
