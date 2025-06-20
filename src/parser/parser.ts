@@ -34,6 +34,10 @@ export class Parser {
       if (this.errors.length > 0) {
         return {
           success: false,
+          document: {
+            nodes,
+            arrows: [], // Step 3 doesn't handle arrows yet
+          },
           errors: this.errors,
         };
       }
@@ -206,6 +210,12 @@ export class Parser {
         break;
       case 'direction':
         this.parseDirection(node);
+        break;
+      case 'size':
+        this.parseSize(node);
+        break;
+      case 'anchors':
+        this.parseAnchors(node);
         break;
       default: {
         this.addError(
@@ -433,6 +443,261 @@ export class Parser {
     node.direction = direction as 'vertical' | 'horizontal';
   }
 
+  private parseSize(node: ContainerNode): void {
+    if (!this.check(TokenType.NUMBER)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected number value for size, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      if (!this.check(TokenType.RBRACE)) {
+        this.advance(); // Skip invalid token
+      }
+      return;
+    }
+
+    const sizeToken = this.advance();
+    const sizeValue = parseFloat(sizeToken.value);
+
+    if (isNaN(sizeValue)) {
+      this.addError(
+        'syntax',
+        `Invalid size value '${sizeToken.value}', expected a number`,
+        sizeToken.line,
+        sizeToken.column
+      );
+      return;
+    }
+
+    if (sizeValue < 0.0 || sizeValue > 1.0) {
+      this.addError(
+        'constraint',
+        `Size value ${sizeValue} is out of range, expected 0.0-1.0`,
+        sizeToken.line,
+        sizeToken.column
+      );
+      return;
+    }
+
+    node.size = sizeValue;
+  }
+
+  private parseAnchors(node: ContainerNode): void {
+    if (!this.check(TokenType.LBRACE)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected '{' to start anchors object, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      if (!this.check(TokenType.RBRACE)) {
+        this.advance(); // Skip invalid token
+      }
+      return;
+    }
+
+    this.advance(); // consume '{'
+
+    const anchors: Record<string, [number, number]> = {};
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      // Skip newlines within anchors object
+      if (this.check(TokenType.NEWLINE)) {
+        this.advance();
+        continue;
+      }
+
+      if (!this.check(TokenType.IDENTIFIER)) {
+        const token = this.peek();
+        this.addError(
+          'syntax',
+          `Expected anchor identifier, got ${token.type}`,
+          token.line,
+          token.column
+        );
+        this.advance(); // Skip invalid token
+        continue;
+      }
+
+      const anchorIdToken = this.advance();
+      const anchorId = anchorIdToken.value;
+
+      // Check for duplicate anchor IDs
+      if (anchors[anchorId]) {
+        this.addError(
+          'syntax',
+          `Duplicate anchor ID '${anchorId}'`,
+          anchorIdToken.line,
+          anchorIdToken.column
+        );
+      }
+
+      if (!this.check(TokenType.COLON)) {
+        const token = this.peek();
+        this.addError(
+          'syntax',
+          `Expected ':' after anchor ID '${anchorId}', got ${token.type}`,
+          token.line,
+          token.column
+        );
+        this.skipUntilRecovery();
+        continue;
+      }
+
+      this.advance(); // consume ':'
+
+      const coordinate = this.parseCoordinate();
+      if (coordinate) {
+        anchors[anchorId] = coordinate;
+      }
+
+      // Optional comma
+      if (this.check(TokenType.COMMA)) {
+        this.advance();
+      }
+    }
+
+    if (!this.check(TokenType.RBRACE)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected '}' to close anchors object, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      return;
+    }
+
+    this.advance(); // consume '}'
+
+    if (Object.keys(anchors).length > 0) {
+      node.anchors = anchors;
+    }
+  }
+
+  private parseCoordinate(): [number, number] | null {
+    if (!this.check(TokenType.LBRACKET)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected '[' to start coordinate array, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      if (!this.check(TokenType.RBRACE) && !this.check(TokenType.COMMA) && !this.isAtEnd()) {
+        this.advance(); // Skip invalid token
+      }
+      return null;
+    }
+
+    this.advance(); // consume '['
+
+    // Parse X coordinate
+    if (!this.check(TokenType.NUMBER)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected number for X coordinate, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      this.skipUntilBracketOrComma();
+      return null;
+    }
+
+    const xToken = this.advance();
+    const x = parseFloat(xToken.value);
+
+    if (isNaN(x)) {
+      this.addError(
+        'syntax',
+        `Invalid X coordinate '${xToken.value}', expected a number`,
+        xToken.line,
+        xToken.column
+      );
+      this.skipUntilBracketOrComma();
+      return null;
+    }
+
+    if (x < 0.0 || x > 1.0) {
+      this.addError(
+        'constraint',
+        `X coordinate ${x} is out of range, expected 0.0-1.0`,
+        xToken.line,
+        xToken.column
+      );
+    }
+
+    if (!this.check(TokenType.COMMA)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected ',' between coordinates, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      this.skipUntilBracketOrComma();
+      return null;
+    }
+
+    this.advance(); // consume ','
+
+    // Parse Y coordinate
+    if (!this.check(TokenType.NUMBER)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected number for Y coordinate, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      this.skipUntilBracketOrComma();
+      return null;
+    }
+
+    const yToken = this.advance();
+    const y = parseFloat(yToken.value);
+
+    if (isNaN(y)) {
+      this.addError(
+        'syntax',
+        `Invalid Y coordinate '${yToken.value}', expected a number`,
+        yToken.line,
+        yToken.column
+      );
+      this.skipUntilBracketOrComma();
+      return null;
+    }
+
+    if (y < 0.0 || y > 1.0) {
+      this.addError(
+        'constraint',
+        `Y coordinate ${y} is out of range, expected 0.0-1.0`,
+        yToken.line,
+        yToken.column
+      );
+    }
+
+    if (!this.check(TokenType.RBRACKET)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected ']' to close coordinate array, got ${token.type}`,
+        token.line,
+        token.column
+      );
+      this.skipUntilBracketOrComma();
+      return null;
+    }
+
+    this.advance(); // consume ']'
+
+    return [x, y];
+  }
+
   private expectToken(type: TokenType): Token | null {
     if (!this.check(type)) {
       const token = this.peek();
@@ -497,6 +762,16 @@ export class Parser {
     while (!this.isAtEnd() && 
            !this.check(TokenType.COLON) && 
            !this.check(TokenType.IDENTIFIER) && 
+           !this.check(TokenType.RBRACE) && 
+           !this.check(TokenType.EOF)) {
+      this.advance();
+    }
+  }
+
+  private skipUntilBracketOrComma(): void {
+    while (!this.isAtEnd() && 
+           !this.check(TokenType.RBRACKET) && 
+           !this.check(TokenType.COMMA) && 
            !this.check(TokenType.RBRACE) && 
            !this.check(TokenType.EOF)) {
       this.advance();

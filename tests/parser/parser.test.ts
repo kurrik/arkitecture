@@ -261,7 +261,8 @@ describe('Parser', () => {
       expect(result.errors.length).toBeGreaterThan(1);
       
       // Should still have created nodes despite errors
-      expect(result.document).toBeUndefined();
+      expect(result.document).toBeDefined();
+      expect(result.document!.nodes).toHaveLength(2);
     });
   });
 

@@ -147,7 +147,7 @@ No nested nodes yet - just flat container nodes with basic properties.
 
 ---
 
-## Step 4: Nested Node Structure
+## Step 4: Nested Node Structure ✅ COMPLETED
 
 ### Context
 Extend the parser to handle nested container nodes and groups. This adds the hierarchical structure that makes arkitecture useful for representing complex architectures.
@@ -212,7 +212,7 @@ The parser should now handle the hierarchical node structure from the DSL specif
 
 ---
 
-## Step 5: Property Parsing - Size and Anchors
+## Step 5: Property Parsing - Size and Anchors ✅ COMPLETED
 
 ### Context
 Add support for the remaining node properties: size values and anchor coordinates. This completes the node property parsing before moving to arrows.
