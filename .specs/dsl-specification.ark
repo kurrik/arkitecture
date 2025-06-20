@@ -1,0 +1,55 @@
+# Comments are supported
+
+# This is a node with ID c1
+c1 {
+  # This sets the label for the node
+  label: "Container 1"
+  # This sets the direction of layout for children.  Can either be "vertical" or "horizontal"
+  direction: "vertical"
+
+  # This node is a child of c1.  Since c1 is vertical, n2 is at the top of c1 and takes the full width of c1
+  n2 {
+    label: "Node 1"
+    # In the direction of the parent layout, nodes size to their contents.  E.g. in a vertical parent,
+    # nodes will size to the height of their contents.  In a horizontal parent, nodes will size to the
+    # width of their content.
+    # In the orthogonal context, nodes will default size to 100% of the parent dimension.  E.g. in a
+    # vertical parent, node widths will be 100% of the parent width by default.  In a horizontal parent,
+    # node widths are 100% of the height of the parent.  This 100% value can be overridden by the size
+    # attribute below.  0.5 is half of the parent width.
+    size: 0.5
+  }
+
+  # Groups are used only for layout.  They do not have IDs or presentational attributes like "label"
+  # Otherwise, they work like nodes
+  group {
+    direction: "horizontal"
+
+    # This node is effectively a child of c1 since groups are only used for layout.
+    n3 {
+      label: "Node 3"
+      # Anchors are used to adjust the placement of arrows.
+      anchors: {
+        # This anchor has an ID of a1 and is positioned at the right top corner of n3.
+        a1: [1.0, 0.0],
+        # This anchor has an ID of c and is positioned at the center of n3.
+        # All nodes have an implicit anchor equivalent to c, which is used for arrows if no anchor is specified.
+        c: [0.5, 0.5]
+      }
+    }
+
+    # This node is also a child of c1.
+    n4 {
+      label: "Node 4"
+      anchors: {
+        a1: [0.0, 0.0]
+      }
+    }
+  }
+}
+
+# Draws an arrow from the center of n2 to the top right corner of n3
+c1.n2 --> c1.n3#a1
+
+# Draws an arrow from the center of n2 to the top left corner of n4
+c1.n2 --> c1.n4#a1
