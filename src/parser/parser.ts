@@ -3,7 +3,7 @@
  */
 
 import { Token, TokenType } from './tokenizer';
-import { ContainerNode, GroupNode, ParseResult, ValidationError } from '../types';
+import { ContainerNode, GroupNode, Arrow, ParseResult, ValidationError } from '../types';
 
 export class ParseError extends Error {
   constructor(
@@ -29,14 +29,18 @@ export class Parser {
 
   parseDocument(): ParseResult {
     try {
+      // Phase 1: Parse all nodes
       const nodes = this.parseNodes();
+      
+      // Phase 2: Parse all arrows
+      const arrows = this.parseArrows();
       
       if (this.errors.length > 0) {
         return {
           success: false,
           document: {
             nodes,
-            arrows: [], // Step 3 doesn't handle arrows yet
+            arrows,
           },
           errors: this.errors,
         };
@@ -46,7 +50,7 @@ export class Parser {
         success: true,
         document: {
           nodes,
-          arrows: [], // Step 3 doesn't handle arrows yet
+          arrows,
         },
         errors: [],
       };
@@ -72,6 +76,11 @@ export class Parser {
       if (this.check(TokenType.NEWLINE)) {
         this.advance();
         continue;
+      }
+
+      // Stop node parsing when we encounter arrow syntax
+      if (this.isArrowStatement()) {
+        break;
       }
 
       try {
@@ -776,5 +785,195 @@ export class Parser {
            !this.check(TokenType.EOF)) {
       this.advance();
     }
+  }
+
+  private isArrowStatement(): boolean {
+    // Look ahead to see if this is an arrow statement
+    // Pattern: IDENTIFIER (DOT (IDENTIFIER|GROUP))* (#IDENTIFIER)? ARROW
+    if (!this.check(TokenType.IDENTIFIER)) {
+      return false;
+    }
+
+    let position = this.current;
+    
+    // Skip over node path (identifier.identifier.... or identifier.group....)
+    while (position < this.tokens.length && 
+           (this.tokens[position].type === TokenType.IDENTIFIER || this.tokens[position].type === TokenType.GROUP)) {
+      position++;
+      
+      // If we find an arrow, this is an arrow statement
+      if (position < this.tokens.length && this.tokens[position].type === TokenType.ARROW) {
+        return true;
+      }
+      
+      // If we find a dot, continue to next identifier/group
+      if (position < this.tokens.length && this.tokens[position].type === TokenType.DOT) {
+        position++;
+        continue;
+      }
+      
+      // If we find a hash (anchor), skip the anchor identifier then look for arrow
+      if (position < this.tokens.length && this.tokens[position].type === TokenType.HASH) {
+        position++; // skip hash
+        if (position < this.tokens.length && this.tokens[position].type === TokenType.IDENTIFIER) {
+          position++; // skip anchor identifier
+          if (position < this.tokens.length && this.tokens[position].type === TokenType.ARROW) {
+            return true;
+          }
+        }
+        return false;
+      }
+      
+      // If we find a brace, this is a node declaration
+      if (position < this.tokens.length && this.tokens[position].type === TokenType.LBRACE) {
+        return false;
+      }
+      
+      // If we find anything else, it's not an arrow
+      break;
+    }
+    
+    return false;
+  }
+
+  private parseArrows(): Arrow[] {
+    const arrows: Arrow[] = [];
+    
+    while (!this.isAtEnd() && !this.check(TokenType.EOF)) {
+      // Skip newlines between arrows
+      if (this.check(TokenType.NEWLINE)) {
+        this.advance();
+        continue;
+      }
+
+      try {
+        const arrow = this.parseArrow();
+        if (arrow) {
+          arrows.push(arrow);
+        }
+      } catch (error) {
+        // Skip to next token and continue parsing
+        if (!this.isAtEnd()) {
+          this.advance();
+        }
+      }
+    }
+
+    return arrows;
+  }
+
+  private parseArrow(): Arrow | null {
+    if (!this.check(TokenType.IDENTIFIER)) {
+      if (!this.isAtEnd() && !this.check(TokenType.EOF)) {
+        const token = this.peek();
+        this.addError(
+          'syntax',
+          `Expected arrow source identifier, got ${token.type}`,
+          token.line,
+          token.column
+        );
+        this.advance(); // Skip invalid token
+      }
+      return null;
+    }
+
+    const source = this.parseTargetWithAnchor(); // Sources can also have anchors
+    if (!source) {
+      return null;
+    }
+
+    if (!this.check(TokenType.ARROW)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected '-->' arrow operator after source '${source}', got ${token.type}`,
+        token.line,
+        token.column
+      );
+      // Skip remaining tokens until we find a valid arrow start or EOF
+      this.skipUntilNodeOrEOF();
+      return null;
+    }
+
+    this.advance(); // consume '-->'
+
+    if (!this.check(TokenType.IDENTIFIER)) {
+      const token = this.peek();
+      this.addError(
+        'syntax',
+        `Expected arrow target identifier after '-->', got ${token.type}`,
+        token.line,
+        token.column
+      );
+      this.skipUntilNodeOrEOF();
+      return null;
+    }
+
+    const target = this.parseTargetWithAnchor();
+    if (!target) {
+      return null;
+    }
+
+    return {
+      source,
+      target,
+    };
+  }
+
+  private parseNodePath(): string | null {
+    if (!this.check(TokenType.IDENTIFIER)) {
+      return null;
+    }
+
+    const pathParts: string[] = [];
+    pathParts.push(this.advance().value);
+
+    // Parse dot-separated path: node.child.grandchild (including groups)
+    while (this.check(TokenType.DOT)) {
+      this.advance(); // consume '.'
+      
+      if (!this.check(TokenType.IDENTIFIER) && !this.check(TokenType.GROUP)) {
+        const token = this.peek();
+        this.addError(
+          'syntax',
+          `Expected identifier after '.', got ${token.type}`,
+          token.line,
+          token.column
+        );
+        return pathParts.join('.');
+      }
+      
+      pathParts.push(this.advance().value);
+    }
+
+    return pathParts.join('.');
+  }
+
+  private parseTargetWithAnchor(): string | null {
+    const nodePath = this.parseNodePath();
+    if (!nodePath) {
+      return null;
+    }
+
+    // Check for optional anchor reference: #anchorId
+    if (this.check(TokenType.HASH)) {
+      this.advance(); // consume '#'
+      
+      if (!this.check(TokenType.IDENTIFIER)) {
+        const token = this.peek();
+        this.addError(
+          'syntax',
+          `Expected anchor identifier after '#', got ${token.type}`,
+          token.line,
+          token.column
+        );
+        return nodePath;
+      }
+      
+      const anchorId = this.advance().value;
+      return `${nodePath}#${anchorId}`;
+    }
+
+    return nodePath;
   }
 }

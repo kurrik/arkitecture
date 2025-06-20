@@ -272,7 +272,7 @@ Parser should now handle all node properties defined in the specification.
 
 ---
 
-## Step 6: Arrow Parsing
+## Step 6: Arrow Parsing ✅ COMPLETED
 
 ### Context
 Add arrow parsing to connect nodes with the `-->` syntax. This completes the core DSL parsing functionality by handling relationships between nodes.
