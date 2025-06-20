@@ -12,8 +12,16 @@ export interface NodeDimensions {
   y: number;
 }
 
+export interface AnchorPosition {
+  x: number;
+  y: number;
+  nodeId: string;
+  anchorId: string;
+}
+
 export interface LayoutResult {
   nodeDimensions: Record<string, NodeDimensions>;
+  anchorPositions: AnchorPosition[];
   canvasWidth: number;
   canvasHeight: number;
 }
@@ -60,8 +68,12 @@ export class LayoutEngine {
     // Phase 3: Calculate canvas size
     const { canvasWidth, canvasHeight } = this.calculateCanvasSize(rootLayouts);
 
+    // Phase 4: Calculate anchor positions
+    const anchorPositions = this.calculateAnchorPositions(document, nodeDimensions);
+
     return {
       nodeDimensions,
+      anchorPositions,
       canvasWidth,
       canvasHeight,
     };
@@ -215,13 +227,114 @@ export class LayoutEngine {
 
     return { canvasWidth, canvasHeight };
   }
+
+  /**
+   * Calculate absolute anchor positions for all nodes
+   */
+  private calculateAnchorPositions(document: Document, nodeDimensions: Record<string, NodeDimensions>): AnchorPosition[] {
+    const anchorPositions: AnchorPosition[] = [];
+
+    // Calculate anchors for all container nodes
+    this.collectNodeAnchors(document.nodes, nodeDimensions, anchorPositions);
+
+    return anchorPositions;
+  }
+
+  /**
+   * Recursively collect anchor positions from nodes
+   */
+  private collectNodeAnchors(
+    nodes: (ContainerNode | GroupNode)[],
+    nodeDimensions: Record<string, NodeDimensions>,
+    anchorPositions: AnchorPosition[]
+  ): void {
+    for (const node of nodes) {
+      if ('id' in node) {
+        // Container node - calculate its anchors
+        const dimensions = nodeDimensions[node.id];
+        if (dimensions) {
+          const nodeAnchors = this.resolveNodeAnchors(node, dimensions);
+          anchorPositions.push(...nodeAnchors);
+        }
+      }
+
+      // Recursively process children
+      this.collectNodeAnchors(node.children, nodeDimensions, anchorPositions);
+    }
+  }
+
+  /**
+   * Resolve anchor positions for a specific node
+   */
+  private resolveNodeAnchors(node: ContainerNode, dimensions: NodeDimensions): AnchorPosition[] {
+    const anchors: AnchorPosition[] = [];
+
+    // Always add implicit center anchor
+    anchors.push({
+      x: dimensions.x + dimensions.width * 0.5,
+      y: dimensions.y + dimensions.height * 0.5,
+      nodeId: node.id,
+      anchorId: 'center',
+    });
+
+    // Add custom anchors if defined
+    if (node.anchors) {
+      for (const [anchorId, [relativeX, relativeY]] of Object.entries(node.anchors)) {
+        // Validate anchor coordinates are in range [0.0, 1.0]
+        if (relativeX < 0 || relativeX > 1 || relativeY < 0 || relativeY > 1) {
+          continue; // Skip invalid anchors (validation should have caught this)
+        }
+
+        anchors.push({
+          x: dimensions.x + dimensions.width * relativeX,
+          y: dimensions.y + dimensions.height * relativeY,
+          nodeId: node.id,
+          anchorId,
+        });
+      }
+    }
+
+    return anchors;
+  }
 }
 
 // Default instance for convenience
 export const defaultLayoutEngine = new LayoutEngine();
 
-// Utility function
+// Utility functions
 export function calculateLayout(document: Document, textMeasurement?: TextMeasurement): LayoutResult {
   const engine = textMeasurement ? new LayoutEngine(textMeasurement) : defaultLayoutEngine;
   return engine.calculateLayout(document);
+}
+
+/**
+ * Find an anchor position by node path and anchor ID
+ */
+export function findAnchorPosition(
+  anchorPositions: AnchorPosition[],
+  nodePath: string,
+  anchorId: string = 'center'
+): AnchorPosition | null {
+  return anchorPositions.find(
+    anchor => anchor.nodeId === nodePath && anchor.anchorId === anchorId
+  ) || null;
+}
+
+/**
+ * Get all anchor positions for a specific node
+ */
+export function getNodeAnchors(
+  anchorPositions: AnchorPosition[],
+  nodeId: string
+): AnchorPosition[] {
+  return anchorPositions.filter(anchor => anchor.nodeId === nodeId);
+}
+
+/**
+ * Resolve a node path to get the final node ID (handles nested paths like "parent.child")
+ */
+export function resolveNodePath(path: string): string {
+  // For now, just return the path as-is
+  // In the future, this could handle nested paths like "parent.child.grandchild"
+  return path;
 }

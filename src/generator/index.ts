@@ -18,6 +18,10 @@ export {
   LayoutEngine,
   NodeDimensions,
   LayoutResult,
+  AnchorPosition,
   defaultLayoutEngine,
-  calculateLayout
+  calculateLayout,
+  findAnchorPosition,
+  getNodeAnchors,
+  resolveNodePath
 } from './layout';
