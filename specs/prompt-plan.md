@@ -16,6 +16,7 @@ This document provides a step-by-step implementation plan for building the Arkit
 ## Step 1: Project Foundation & TypeScript Setup ✅ COMPLETED
 
 ### Context
+
 Establish the basic project structure with TypeScript, testing framework, and core AST type definitions. This creates the foundation for all subsequent development.
 
 ### Implementation Prompt
@@ -59,6 +60,7 @@ Ensure all tests pass and the project builds successfully.
 ## Step 2: Basic DSL Tokenizer
 
 ### Context
+
 Create a simple tokenizer that can break DSL text into meaningful tokens. This is the foundation of the parser and handles the most basic level of syntax analysis.
 
 ### Implementation Prompt
@@ -104,6 +106,7 @@ The tokenizer should successfully process the example DSL from the specification
 ## Step 3: Simple Node Parser
 
 ### Context
+
 Build a parser that can handle basic container nodes with labels and direction. This establishes the core parsing patterns and AST building without the complexity of nested structures.
 
 ### Implementation Prompt
@@ -150,6 +153,7 @@ No nested nodes yet - just flat container nodes with basic properties.
 ## Step 4: Nested Node Structure ✅ COMPLETED
 
 ### Context
+
 Extend the parser to handle nested container nodes and groups. This adds the hierarchical structure that makes arkitecture useful for representing complex architectures.
 
 ### Implementation Prompt
@@ -171,22 +175,24 @@ Extend the parser to support nested nodes and groups:
 
 3. Support the following syntax:
    ```
+
    parent {
      label: "Parent Node"
      direction: "vertical"
-     
+
      child1 {
        label: "Child 1"
      }
-     
+
      group {
        direction: "horizontal"
-       
+
        child2 {
          label: "Child 2"
        }
      }
    }
+
    ```
 
 4. Error handling improvements:
@@ -215,6 +221,7 @@ The parser should now handle the hierarchical node structure from the DSL specif
 ## Step 5: Property Parsing - Size and Anchors ✅ COMPLETED
 
 ### Context
+
 Add support for the remaining node properties: size values and anchor coordinates. This completes the node property parsing before moving to arrows.
 
 ### Implementation Prompt
@@ -236,6 +243,7 @@ Add support for size and anchors properties in node parsing:
 
 3. Support this syntax:
    ```
+
    node1 {
      label: "Node with anchors"
      size: 0.75
@@ -245,6 +253,7 @@ Add support for size and anchors properties in node parsing:
        center: [0.5, 0.5]
      }
    }
+
    ```
 
 4. Validation and error handling:
@@ -275,6 +284,7 @@ Parser should now handle all node properties defined in the specification.
 ## Step 6: Arrow Parsing ✅ COMPLETED
 
 ### Context
+
 Add arrow parsing to connect nodes with the `-->` syntax. This completes the core DSL parsing functionality by handling relationships between nodes.
 
 ### Implementation Prompt
@@ -296,14 +306,19 @@ Implement arrow parsing to handle node connections:
 
 3. Support these arrow formats:
    ```
-   # Simple arrows
+
+# Simple arrows
+
    node1 --> node2
-   
-   # With anchor references
+
+# With anchor references
+
    node1 --> node2#top
-   
-   # Nested node paths
+
+# Nested node paths
+
    parent.child1 --> parent.group.child2#center
+
    ```
 
 4. Parser architecture changes:
@@ -336,9 +351,10 @@ Parser should now handle complete DSL documents with nodes and arrows.
 
 ---
 
-## Step 7: Basic Validation Engine
+## Step 7: Basic Validation Engine ✅ COMPLETED
 
 ### Context
+
 Create a validation system that checks references and constraints after parsing. This ensures parsed ASTs are semantically correct before SVG generation.
 
 ### Implementation Prompt
@@ -399,6 +415,7 @@ Validator should catch all semantic errors defined in the specification.
 ## Step 8: Text Measurement Foundation
 
 ### Context
+
 Implement text dimension calculation using the string-width library. This is essential for the sizing algorithm that follows.
 
 ### Implementation Prompt
@@ -455,6 +472,7 @@ Text measurement should provide accurate, consistent results for layout calculat
 ## Step 9: Basic Layout Algorithm
 
 ### Context
+
 Implement the bottom-up sizing algorithm for calculating node dimensions. This is the core of the layout system before SVG generation.
 
 ### Implementation Prompt
@@ -511,6 +529,7 @@ Layout engine should correctly size all nodes according to the specification.
 ## Step 10: Anchor Position Calculation
 
 ### Context
+
 Add anchor position calculation to the layout system. This enables precise arrow positioning by resolving anchor coordinates to absolute positions.
 
 ### Implementation Prompt
@@ -568,6 +587,7 @@ Anchor system should provide precise positioning for arrow connections.
 ## Step 11: Basic SVG Generation
 
 ### Context
+
 Create SVG output generation using the layout results. This transforms the calculated layout into visual SVG representation.
 
 ### Implementation Prompt
@@ -598,7 +618,7 @@ Implement SVG generation from layout results:
    - Use anchor positions from layout results
 
 5. SVG structure:
-   ```xml
+   xml
    <svg xmlns="http://www.w3.org/2000/svg" width="..." height="...">
      <defs>
        <marker id="arrowhead">...</marker>
@@ -607,7 +627,7 @@ Implement SVG generation from layout results:
      <!-- Node labels -->
      <!-- Arrows -->
    </svg>
-   ```
+
 
 6. Create tests in tests/generator/svg-generator.test.ts:
    - Test single node SVG generation
@@ -637,6 +657,7 @@ SVG generator should produce valid, renderable SVG from layout results.
 ## Step 12: Main API Integration
 
 ### Context
+
 Create the main arkitectureToSVG function that ties together parsing, validation, layout, and SVG generation. This provides the primary API for library users.
 
 ### Implementation Prompt
@@ -701,6 +722,7 @@ Main API should provide both convenience and flexibility for different use cases
 ## Step 13: CLI Foundation
 
 ### Context
+
 Create a basic command-line interface that uses the library to process DSL files. This makes arkitecture usable as a standalone tool.
 
 ### Implementation Prompt
@@ -764,6 +786,7 @@ CLI should provide a user-friendly interface to arkitecture functionality.
 ## Step 14: CLI Watch Mode
 
 ### Context
+
 Add watch mode functionality to the CLI that monitors input files for changes and automatically regenerates output. This improves the development experience.
 
 ### Implementation Prompt
@@ -826,6 +849,7 @@ Watch mode should provide smooth, responsive development experience.
 ## Step 15: Error Enhancement & Final Integration
 
 ### Context
+
 Polish error handling, add comprehensive integration tests, and ensure the entire system works together seamlessly. This is the final step before packaging.
 
 ### Implementation Prompt
