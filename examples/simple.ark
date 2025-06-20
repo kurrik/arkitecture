@@ -1,0 +1,4 @@
+# Simple example diagram
+node1 {
+  label: "Simple Node"
+}

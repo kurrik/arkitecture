@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+
+/**
+ * Arkitecture CLI executable
+ */
+
+const { CliApp } = require('../dist/cli/index.js');
+
+async function main() {
+  const app = new CliApp();
+  const exitCode = await app.run(process.argv);
+  process.exit(exitCode);
+}
+
+main().catch((error) => {
+  console.error('Fatal error:', error.message);
+  process.exit(2);
+});

@@ -1,0 +1,49 @@
+# Specification example from architecture.md
+api {
+  label: "API Gateway"
+  direction: "vertical"
+  anchors: {
+    south: [0.5, 1.0]
+  }
+  
+  auth {
+    label: "Authentication"
+  }
+  
+  routing {
+    label: "Request Routing"
+  }
+}
+
+services {
+  label: "Microservices"
+  direction: "horizontal"
+  anchors: {
+    north: [0.5, 0.0]
+  }
+  
+  userService {
+    label: "User Service"
+    anchors: {
+      db: [0.5, 1.0]
+    }
+  }
+  
+  orderService {
+    label: "Order Service"
+    anchors: {
+      db: [0.5, 1.0]
+    }
+  }
+}
+
+database {
+  label: "Database Cluster"
+  anchors: {
+    north: [0.5, 0.0]
+  }
+}
+
+api#south --> services#north
+services.userService#db --> database#north
+services.orderService#db --> database#north

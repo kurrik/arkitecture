@@ -4,6 +4,9 @@
   "description": "A Domain Specific Language for generating SVG architecture diagrams with precise manual positioning control",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "arkitecture": "./bin/arkitecture"
+  },
   "scripts": {
     "build": "tsc",
     "test": "jest",
@@ -34,6 +37,8 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^14.0.0",
     "string-width": "^4.2.3"
   }
 }
