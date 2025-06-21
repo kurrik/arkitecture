@@ -1,4 +1,6 @@
-# Developer workflow
+---
+description: Developer workflow
+---
 
 Read @specs/architecture.md and then read @specs/prompt-plan.md - determine what needs to be implemented next.
 
