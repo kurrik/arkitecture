@@ -235,7 +235,7 @@ export class LayoutEngine {
     const anchorPositions: AnchorPosition[] = [];
 
     // Calculate anchors for all container nodes
-    this.collectNodeAnchors(document.nodes, nodeDimensions, anchorPositions);
+    this.collectNodeAnchors(document.nodes, nodeDimensions, anchorPositions, '');
 
     return anchorPositions;
   }
@@ -246,34 +246,40 @@ export class LayoutEngine {
   private collectNodeAnchors(
     nodes: (ContainerNode | GroupNode)[],
     nodeDimensions: Record<string, NodeDimensions>,
-    anchorPositions: AnchorPosition[]
+    anchorPositions: AnchorPosition[],
+    parentPath: string
   ): void {
     for (const node of nodes) {
       if ('id' in node) {
         // Container node - calculate its anchors
         const dimensions = nodeDimensions[node.id];
         if (dimensions) {
-          const nodeAnchors = this.resolveNodeAnchors(node, dimensions);
+          const fullPath = parentPath ? `${parentPath}.${node.id}` : node.id;
+          const nodeAnchors = this.resolveNodeAnchors(node, dimensions, fullPath);
           anchorPositions.push(...nodeAnchors);
         }
+        
+        // Recursively process children with updated path
+        const childPath = parentPath ? `${parentPath}.${node.id}` : node.id;
+        this.collectNodeAnchors(node.children, nodeDimensions, anchorPositions, childPath);
+      } else {
+        // Group node - just process children with same path
+        this.collectNodeAnchors(node.children, nodeDimensions, anchorPositions, parentPath);
       }
-
-      // Recursively process children
-      this.collectNodeAnchors(node.children, nodeDimensions, anchorPositions);
     }
   }
 
   /**
    * Resolve anchor positions for a specific node
    */
-  private resolveNodeAnchors(node: ContainerNode, dimensions: NodeDimensions): AnchorPosition[] {
+  private resolveNodeAnchors(node: ContainerNode, dimensions: NodeDimensions, fullPath: string): AnchorPosition[] {
     const anchors: AnchorPosition[] = [];
 
     // Always add implicit center anchor
     anchors.push({
       x: dimensions.x + dimensions.width * 0.5,
       y: dimensions.y + dimensions.height * 0.5,
-      nodeId: node.id,
+      nodeId: fullPath,
       anchorId: 'center',
     });
 
@@ -288,7 +294,7 @@ export class LayoutEngine {
         anchors.push({
           x: dimensions.x + dimensions.width * relativeX,
           y: dimensions.y + dimensions.height * relativeY,
-          nodeId: node.id,
+          nodeId: fullPath,
           anchorId,
         });
       }

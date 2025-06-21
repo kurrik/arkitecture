@@ -50,9 +50,9 @@ export class Validator {
       }
     } else {
       // Group node - process children but don't add to map
-      // Groups pass through their parent path for ID uniqueness checking
+      // Groups pass through their parent path directly - they don't create new path segments
       for (const child of node.children) {
-        this.buildNodeMapRecursive(child, parentPath ? `${parentPath}.group` : 'group');
+        this.buildNodeMapRecursive(child, parentPath);
       }
     }
   }

@@ -143,12 +143,12 @@ export class SvgGenerator {
    * Generate a single arrow line element
    */
   private generateArrow(arrow: Arrow, layout: LayoutResult): string | null {
-    // Parse source and target
-    const sourceNodePath = arrow.source;
+    // Parse source and target (both can have anchor references)
+    const [sourceNodePath, sourceAnchorId] = this.parseTarget(arrow.source);
     const [targetNodePath, targetAnchorId] = this.parseTarget(arrow.target);
 
     // Find anchor positions
-    const sourceAnchor = findAnchorPosition(layout.anchorPositions, sourceNodePath, 'center');
+    const sourceAnchor = findAnchorPosition(layout.anchorPositions, sourceNodePath, sourceAnchorId);
     const targetAnchor = findAnchorPosition(layout.anchorPositions, targetNodePath, targetAnchorId);
 
     if (!sourceAnchor || !targetAnchor) {

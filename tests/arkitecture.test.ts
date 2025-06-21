@@ -157,7 +157,7 @@ describe('Main API Integration', () => {
         
         // Should contain multiple arrows
         const arrowMatches = result.svg.match(/<line[^>]*marker-end="url\(#arrowhead\)"/g);
-        expect(arrowMatches).toHaveLength(1); // Only one arrow renders because the second one can't find the anchor
+        expect(arrowMatches).toHaveLength(2); // Both arrows should now render correctly
       }
     });
   });

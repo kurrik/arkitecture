@@ -350,10 +350,10 @@ describe('Anchor Position Calculation', () => {
         anchor => anchor.nodeId === 'parent' && anchor.anchorId === 'top'
       );
       const child1Anchor = result.anchorPositions.find(
-        anchor => anchor.nodeId === 'child1' && anchor.anchorId === 'left'
+        anchor => anchor.nodeId === 'parent.child1' && anchor.anchorId === 'left'
       );
       const child2Anchor = result.anchorPositions.find(
-        anchor => anchor.nodeId === 'child2' && anchor.anchorId === 'right'
+        anchor => anchor.nodeId === 'parent.child2' && anchor.anchorId === 'right'
       );
 
       expect(parentAnchor).toBeDefined();

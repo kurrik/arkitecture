@@ -128,8 +128,8 @@ describe('Validator', () => {
         ],
         arrows: [
           {
-            source: 'container.group.item1',
-            target: 'container.group.item2'
+            source: 'container.item1',
+            target: 'container.item2'
           }
         ]
       };
@@ -787,14 +787,14 @@ describe('Validator', () => {
         arrows: [
           {
             source: 'c1.n2',
-            target: 'c1.group.n3'
+            target: 'c1.n3'
           },
           {
-            source: 'c1.group.n3',
-            target: 'c1.group.n4'
+            source: 'c1.n3',
+            target: 'c1.n4'
           },
           {
-            source: 'c1.group.n3#a2',
+            source: 'c1.n3#a2',
             target: 'c2#input'
           },
           {
