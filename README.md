@@ -1,5 +1,8 @@
 # Arkitecture
 
+[![CI](https://github.com/kurrik/arkitecture/actions/workflows/ci.yml/badge.svg)](https://github.com/kurrik/arkitecture/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kurrik/arkitecture/graph/badge.svg?token=CMALEUETRC)](https://codecov.io/gh/kurrik/arkitecture)
+
 A Domain Specific Language (DSL) for generating SVG architecture diagrams with precise manual positioning control. Arkitecture is designed for creating high-level architecture diagrams such as Domain-Driven Design (DDD) domain boundaries and bounded context relationships.
 
 Unlike traditional graphing tools that use automatic layout algorithms, Arkitecture provides fine-grained control over element positioning and sizing to create professional architectural diagrams.
@@ -48,14 +51,14 @@ Groups provide layout organization without visual representation:
 services {
   label: "Microservices"
   direction: "horizontal"
-  
+
   group {
     direction: "vertical"
-    
+
     userService {
       label: "User Service"
     }
-    
+
     orderService {
       label: "Order Service"
     }
@@ -218,7 +221,7 @@ All functions return structured error information:
 ```typescript
 interface ValidationError {
   line: number;           // Line number in DSL
-  column: number;         // Column number in DSL  
+  column: number;         // Column number in DSL
   message: string;        // Human-readable error message
   type: 'syntax' | 'reference' | 'constraint'; // Error category
 }
@@ -281,7 +284,7 @@ Golden tests validate output by comparing against reference files:
 # Generate/update golden test outputs
 npm run golden:generate
 
-# Run only golden tests  
+# Run only golden tests
 npm test -- tests/golden
 ```
 
