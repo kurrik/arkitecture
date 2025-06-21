@@ -79,7 +79,7 @@ export default function arkitectureToSVG(dslContent: string, options?: Options):
 /**
  * Parse DSL content into AST
  */
-export function parseArkitecture(dslContent: string) {
+export function parseArkitecture(dslContent: string): ReturnType<typeof parseArkitectureDSL> {
   return parseArkitectureDSL(dslContent);
 }
 

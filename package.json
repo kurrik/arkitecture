@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
-    "lint": "eslint {src,scripts}/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\"",
     "format": "prettier --write src/**/*.ts",
     "test:watch": "jest --watch",
     "dev": "tsc --watch",
