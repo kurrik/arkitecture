@@ -88,6 +88,7 @@ services.userService#db --> database#north
 ### Coordinate System
 
 Anchors use relative coordinates within the node bounding box:
+
 - `[0.0, 0.0]` = top-left corner
 - `[0.5, 0.5]` = center (default anchor for all nodes)
 - `[1.0, 1.0]` = bottom-right corner
@@ -285,6 +286,7 @@ npm test -- tests/golden
 ```
 
 The golden test system:
+
 - Automatically discovers `.ark` test files in `tests/golden/examples/`
 - Compares generated SVG against `.svg` reference files
 - Validates error cases against `.error` reference files
