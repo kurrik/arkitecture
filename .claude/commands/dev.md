@@ -6,6 +6,8 @@ Read @specs/architecture.md and then read @specs/prompt-plan.md - determine what
 
 Double check that it hasn't been implemented yet.
 
+Create a new git branch using the pattern `claude/short-branch-description-here`.  I recommend referencing the prompt plan step if applicable, e.g. `claude/step-14-cli-watch-mode`.
+
 Work to implement the next step of the plan. Add tests and run tests regularly.
 
 Fix all test errors you find.
