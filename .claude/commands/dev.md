@@ -1,6 +1,7 @@
 ---
 description: Developer workflow
 ---
+Check out the `main` git branch and pull an updated view of the main branch.
 
 Read @specs/architecture.md and then read @specs/prompt-plan.md - determine what needs to be implemented next.
 
