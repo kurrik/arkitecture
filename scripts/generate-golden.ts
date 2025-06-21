@@ -12,7 +12,7 @@ import { Options } from '../src/types';
 
 const goldenDir = path.join(__dirname, '..', '..', 'tests', 'golden', 'examples');
 
-function generateGoldenOutputs() {
+function generateGoldenOutputs(): void {
   if (!fs.existsSync(goldenDir)) {
     console.error(`Golden test directory not found: ${goldenDir}`);
     process.exit(1);
@@ -30,7 +30,7 @@ function generateGoldenOutputs() {
 
   arkFiles.forEach(testCase => {
     console.log(`\nProcessing: ${testCase}`);
-    
+
     const arkFile = path.join(goldenDir, `${testCase}.ark`);
     const configFile = path.join(goldenDir, `${testCase}.json`);
     const svgFile = path.join(goldenDir, `${testCase}.svg`);
@@ -39,7 +39,7 @@ function generateGoldenOutputs() {
     try {
       // Read input files
       const arkContent = fs.readFileSync(arkFile, 'utf-8');
-      
+
       let config: Options = {};
       if (fs.existsSync(configFile)) {
         const configContent = fs.readFileSync(configFile, 'utf-8');
@@ -54,13 +54,13 @@ function generateGoldenOutputs() {
         // Write SVG output
         fs.writeFileSync(svgFile, result.svg);
         console.log(`  ✓ Generated SVG: ${path.basename(svgFile)}`);
-        
+
         // Remove error file if it exists (this is now a success case)
         if (fs.existsSync(errorFile)) {
           fs.unlinkSync(errorFile);
           console.log(`  ✓ Removed old error file: ${path.basename(errorFile)}`);
         }
-        
+
         generated++;
       } else {
         // Write error output
@@ -70,16 +70,16 @@ function generateGoldenOutputs() {
           column: result.errors[0]?.column,
           messageContains: extractKeyMessage(result.errors[0]?.message || ''),
         };
-        
+
         fs.writeFileSync(errorFile, JSON.stringify(errorOutput, null, 2));
         console.log(`  ✓ Generated error file: ${path.basename(errorFile)}`);
-        
+
         // Remove SVG file if it exists (this is now an error case)
         if (fs.existsSync(svgFile)) {
           fs.unlinkSync(svgFile);
           console.log(`  ✓ Removed old SVG file: ${path.basename(svgFile)}`);
         }
-        
+
         errors++;
       }
     } catch (error) {
