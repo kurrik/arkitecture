@@ -119,6 +119,7 @@ export class TextMeasurement {
    */
   private normalizeText(text: string): string {
     // Remove any null characters or other control characters that might interfere
+    // eslint-disable-next-line no-control-regex
     return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
   }
 }

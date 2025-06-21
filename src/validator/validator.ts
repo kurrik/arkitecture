@@ -111,27 +111,31 @@ export class Validator {
 
   private validateArrowReferences(): void {
     for (const arrow of this.document.arrows) {
-      // Validate source node reference
-      const sourceNodePath = this.extractNodePath(arrow.source);
-      if (!this.nodeMap.has(sourceNodePath)) {
-        this.addError(
-          'reference',
-          `Arrow source node '${sourceNodePath}' does not exist`,
-          1,
-          1
-        );
-      }
+      this.validateSingleArrow(arrow);
+    }
+  }
 
-      // Validate target node reference
-      const targetNodePath = this.extractNodePath(arrow.target);
-      if (!this.nodeMap.has(targetNodePath)) {
-        this.addError(
-          'reference',
-          `Arrow target node '${targetNodePath}' does not exist`,
-          1,
-          1
-        );
-      }
+  private validateSingleArrow(arrow: Arrow): void {
+    // Validate source node reference
+    const sourceNodePath = this.extractNodePath(arrow.source);
+    if (!this.nodeMap.has(sourceNodePath)) {
+      this.addError(
+        'reference',
+        `Arrow source node '${sourceNodePath}' does not exist`,
+        1,
+        1
+      );
+    }
+
+    // Validate target node reference
+    const targetNodePath = this.extractNodePath(arrow.target);
+    if (!this.nodeMap.has(targetNodePath)) {
+      this.addError(
+        'reference',
+        `Arrow target node '${targetNodePath}' does not exist`,
+        1,
+        1
+      );
     }
   }
 

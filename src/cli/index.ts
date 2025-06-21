@@ -31,7 +31,12 @@ export class CliApp {
       .option('--validate-only', 'Parse and validate without generating SVG')
       .option('--font-size <size>', 'Override default font size (12px)', '12')
       .option('--font-family <family>', 'Override default font family (Arial)', 'Arial')
-      .action(async (input: string, output?: string, options?: any) => {
+      .action(async (input: string, output?: string, options?: {
+        verbose?: boolean;
+        validateOnly?: boolean;
+        fontSize?: string;
+        fontFamily?: string;
+      }) => {
         const exitCode = await this.processFiles(input, output, options);
         process.exit(exitCode);
       });
