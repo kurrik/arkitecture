@@ -12,5 +12,8 @@ module.exports = {
     'text',
     'lcov',
     'html'
-  ]
+  ],
+  moduleNameMapper: {
+    '^chalk$': '<rootDir>/tests/__mocks__/chalk.js'
+  }
 };

@@ -57,7 +57,7 @@ Ensure all tests pass and the project builds successfully.
 
 ---
 
-## Step 2: Basic DSL Tokenizer
+## Step 2: Basic DSL Tokenizer ✅ COMPLETED
 
 ### Context
 
@@ -103,7 +103,7 @@ The tokenizer should successfully process the example DSL from the specification
 
 ---
 
-## Step 3: Simple Node Parser
+## Step 3: Simple Node Parser ✅ COMPLETED
 
 ### Context
 
@@ -783,7 +783,7 @@ CLI should provide a user-friendly interface to arkitecture functionality.
 
 ---
 
-## Step 14: CLI Watch Mode
+## Step 14: CLI Watch Mode ✅ COMPLETED
 
 ### Context
 
