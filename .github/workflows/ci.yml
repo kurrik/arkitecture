@@ -34,7 +34,7 @@ jobs:
       run: npm run build
 
     - name: Run tests
-      run: npm test
+      run: npm run test:coverage
 
     - name: Test CLI functionality
       run: |
