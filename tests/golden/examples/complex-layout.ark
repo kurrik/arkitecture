@@ -1,0 +1,36 @@
+# Complex layout with nested containers and arrows
+root {
+  direction: "horizontal"
+  
+  frontend {
+    label: "Frontend"
+    
+    react {
+      label: "React App"
+    }
+    assets {
+      label: "Static Assets"
+    }
+  }
+  
+  backend {
+    label: "Backend Services" 
+    direction: "vertical"
+    
+    api {
+      label: "REST API"
+    }
+    auth {
+      label: "Auth Service"
+    }
+  }
+  
+  database {
+    label: "Database"
+  }
+}
+
+# Arrows showing data flow
+root.frontend.react --> root.backend.api
+root.backend.api --> root.database
+root.backend.auth --> root.database

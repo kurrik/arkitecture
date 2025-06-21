@@ -1,0 +1,7 @@
+# Test case with reference error
+node1 {
+  label: "Valid Node"
+}
+
+# Arrow pointing to non-existent node
+node1 --> nonexistent

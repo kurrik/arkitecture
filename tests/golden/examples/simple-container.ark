@@ -1,0 +1,13 @@
+# Simple container with children
+parent {
+  label: "Parent Container"
+  direction: "vertical"
+  
+  child1 {
+    label: "Child One"
+  }
+  
+  child2 {
+    label: "Child Two"
+  }
+}

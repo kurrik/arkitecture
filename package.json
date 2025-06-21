@@ -13,7 +13,8 @@
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts",
     "test:watch": "jest --watch",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "golden:generate": "npm run build && node dist/scripts/generate-golden.js"
   },
   "keywords": [
     "svg",

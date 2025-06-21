@@ -1,0 +1,6 @@
+{
+  "type": "syntax",
+  "line": 4,
+  "column": 26,
+  "messageContains": "Expected '}' to close node 'node1', got EOF"
+}

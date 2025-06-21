@@ -1,0 +1,4 @@
+# Test case one - basic node
+node1 {
+  label: "Test Node"
+}

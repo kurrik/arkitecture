@@ -1,0 +1,6 @@
+{
+  "type": "reference",
+  "line": 1,
+  "column": 1,
+  "messageContains": "Arrow target node 'nonexistent' does not exist"
+}

@@ -1,0 +1,4 @@
+# Test case with syntax error
+node1 {
+  label: "Test Node"
+  # Missing closing brace
