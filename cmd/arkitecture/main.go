@@ -83,10 +83,7 @@ func run(args []string) int {
 	}
 
 	if watch {
-		// fsnotify-based watch mode is part of the generator/CLI port still in
-		// progress; surface that clearly rather than silently ignoring -w.
-		fmt.Fprintln(os.Stderr, "error: watch mode is not yet ported to Go")
-		return 2
+		return runWatch(input, output, validateOnly, verbose, fontSize, fontFamily)
 	}
 
 	return process(input, output, validateOnly, verbose, fontSize, fontFamily)
