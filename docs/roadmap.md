@@ -6,54 +6,49 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
-- Adopt the project-template docs structure — `CLAUDE.md` + `docs/` (design,
-  architecture, roadmap, decisions) — replacing the old `specs/` + `.claude`
-  scaffolding (2026-06-17).
-- Tokenizer + recursive-descent parser: container nodes, nested children,
-  layout-only groups, `size`/`anchors`, and arrows.
-- Validator: ID uniqueness, arrow + anchor reference resolution, range
-  constraints, non-fail-fast error collection.
-- Layout engine: bottom-up sizing with vertical/horizontal rules, `size`
-  overrides, absolute anchor resolution; `string-width` text measurement.
-- SVG generator: node rects + labels, groups as layout-only, straight arrows with
-  arrowhead markers, exact-fit canvas.
-- Main API (`arkitectureToSVG` + `parseArkitecture` / `validate` / `generateSVG`)
-  and CLI with `--validate-only`, `--verbose`, `--watch`, font overrides, and exit
-  codes.
-- Golden-file suite and Jest unit tests across all stages; CI on Node 20/22 with
-  coverage.
+- **Go rewrite at parity with TypeScript v0.1** — the full pipeline ported and
+  building on one switchover branch (2026-06-17):
+  - module + library-first layout (`ast`, root `arkitecture`, `cmd/arkitecture`,
+    `wasm/`); tokenizer + recursive-descent parser
+  - validator: scoped ID uniqueness, arrow/anchor reference resolution, range
+    constraints (non-fail-fast)
+  - generator: deterministic text measurement, bottom-up layout with `size`
+    overrides + anchor resolution, byte-for-byte-stable SVG emission
+  - CLI (parse/validate/generate + `--watch` via a stdlib polling watcher) and a
+    `GOOS=js GOARCH=wasm` shim, both thin wrappers over the library
+  - golden tests reproducing the TypeScript SVG/error fixtures exactly; Go CI
+    (gofmt + vet + race tests + CLI/WASM builds) on Go 1.23/1.24
+- Adopt the project-template docs structure — `CLAUDE.md` + `docs/` (2026-06-17).
+- *(Historical)* TypeScript v0.1 — removed in the rewrite; in git history as the
+  porting reference.
 
 ## In progress
 
-- (none)
+- (none) — the rewrite PR is ready for review; merging it flips `main` to Go.
 
 ## Planned
 
-### P0 — Restart housekeeping
+### P1 — Distribution
 
-- Audit the public API and CLI against this doc set; fix any drift between the code
-  and the new `docs/`.
-- Confirm the golden fixtures still match current output; regenerate if an
-  intentional change has landed.
+- Publish portable binary builds (per-OS/arch release artifacts).
+- Wire the `wasm/` build into a usable JS/TS package plus a small example.
 
-### P1 — Error & DX polish
+### P2 — Error & DX polish
 
-- Richer diagnostics: stable error codes, fix suggestions, and consistent message
-  formatting across stages.
-- Expand integration + performance tests (large and deeply-nested documents).
+- Richer diagnostics: stable error codes, fix suggestions, consistent formatting.
+- Attach source positions to validator errors (the AST carries none today, so
+  they all report at line 1, column 1).
+- Integration + performance tests (large and deeply-nested documents).
 
-### P2 — Layout & rendering reach
+### P3 — Layout & rendering reach
 
 - Optional spacing/padding controls (currently fixed at zero).
 - Arrow labels and/or non-straight routing.
-- Basic styling hooks (fill, stroke, per-node font) without giving up deterministic
-  output.
+- Basic styling hooks (fill, stroke, per-node font) without giving up determinism.
 
 ## Ideas / parking lot
 
-Long-term, not yet scheduled:
-
 - Additional output targets (PNG/PDF) via downstream conversion.
-- A web playground that renders `.ark` live in the browser (the library already
-  runs there).
-- Library distribution polish: published types, usage examples, versioning policy.
+- A web playground that renders `.ark` live in the browser (via the WASM build).
+- Revisit text measurement if pixel-accurate fitting is ever needed (currently a
+  rune-width approximation, not true font metrics).

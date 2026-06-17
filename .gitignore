@@ -1,4 +1,10 @@
-node_modules/
-coverage/
-dist/
+# Build artifacts
+/arkitecture
+*.wasm
+*.test
+
+# Coverage
+coverage.out
+
+# OS
 .DS_Store
