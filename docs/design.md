@@ -23,6 +23,11 @@ boxes — it never moves anything you didn't ask it to.
 the same diagram, and every position is a consequence of a rule visible in the
 source. There is no hidden layout engine to second-guess.
 
+The design separates *semantic structure* from *presentation* into two authored
+layers — modelled on HTML/CSS, but deliberately **without the cascade** — so
+layout can be retuned, reused, or swapped without touching semantics while every
+position stays traceable to a local rule. See *Semantic vs. layout* below.
+
 ## Target user & goals
 
 Target user: an engineer or architect sketching system structure who wants the
@@ -40,7 +45,8 @@ choose controllable.
 - **(Container) node** — a labelled box with an ID. The primary building block;
   may contain child nodes and groups. Sizes to its contents.
 - **Group** — a layout-only container with no ID, label, or border. Exists purely
-  to arrange its children; invisible in the output.
+  to arrange its children; invisible in the output. *(Being replaced — see
+  Semantic vs. layout: a node with `box: none`, or a presentational `@group`.)*
 - **Direction** — `vertical` or `horizontal`: how a node or group stacks its
   children. Defaults to `vertical`.
 - **Anchor** — a named point on a node in relative `[x, y]` coordinates (`[0, 0]`
@@ -50,6 +56,13 @@ choose controllable.
   (possibly dotted) node path with an optional `#anchor`.
 - **Size** — an override in `[0, 1]` for a node's *orthogonal* dimension, as a
   fraction of what the parent would otherwise give it.
+- **Semantic vs. layout layers** *(planned)* — structure (`id`, `label`, `kind`,
+  anchor *names*, nesting, arrows) is authored separately from presentation
+  (`@layout`: `direction`, `size`, anchor *positions*, `box`, child arrangement).
+  See the section below.
+- **Kind** *(planned)* — an arbitrary semantic classification on a node
+  (`kind: database`) that implicitly applies the layout block of the same name
+  (`@use database`) as an overridable style baseline.
 
 ## The workflow
 
@@ -80,6 +93,134 @@ Layout is bottom-up and deterministic:
 - Groups add no visual space — they only group children for direction.
 - The canvas is sized to exactly fit all top-level content — no padding.
 
+## Semantic vs. layout (the `@layout` model)
+
+> 🚧 The model below is the agreed design direction, not yet built. It is
+> introduced in phases (see [roadmap.md](roadmap.md)); today's inline `size` /
+> `direction` / `anchors` properties are the starting point it generalises.
+
+The diagram is authored in two layers, like HTML + CSS — but **without CSS's
+cascade**, because that cascade is exactly the action-at-a-distance the core
+principle rejects.
+
+- **Semantic layer** — *what* the components are and how they relate: a node's
+  `id`, optional `label`, its `kind`, the named anchors it exposes, containment
+  (nesting = "is part of"), and arrows (relations). The stable part.
+- **Layout layer** (`@layout`) — *where and how* things are drawn: `direction`,
+  `size`, anchor *positions*, whether a node draws a box, and how a node's
+  children are arranged. The frequently-tweaked part, editable without touching
+  semantics.
+
+One semantic model can drive multiple layouts (e.g. a wide layout for slides, a
+tall one for docs) — the headline reason the separation earns its complexity.
+
+### One node type
+
+Every component is a **node** (`id`, optional `label`, optional `kind`, named
+anchors, children). The old layout-only "group" goes away: a node that should not
+draw a border just sets `box: none` in layout — the spiritual twin of CSS
+`display: contents`.
+
+### What's semantic vs. what's layout
+
+| Semantic (in the `.ark` structure)  | Layout (in `@layout`)            |
+| ----------------------------------- | -------------------------------- |
+| node `id`, `label`                  | `direction`, `size`              |
+| `kind` (e.g. `database`)            | implicit `@use database` baseline |
+| anchor **names** (`db`, `north`)    | anchor **positions** (`[x, y]`)  |
+| containment (nesting)               | child **arrangement** + regroup  |
+| arrows (`a#db --> b`)               | `box: none`, future styling      |
+
+An arrow connects *named* anchors (semantic); where a named anchor sits on the box
+is layout.
+
+### Selectors and resolution — no cascade
+
+Layout rules target nodes by **exact dotted path** (`services.userService`) — no
+wildcards, no specificity, no inheritance. A node's resolved layout is the
+declarations that name it, expanded **in source order, last-write-wins**, so the
+final value is always traceable by reading top to bottom. The one hard rule that
+keeps it deterministic: **two *separate* rules setting the same property on the
+same node is a validation error**, never a silent cascade resolution.
+
+### Reusable blocks (`@block` / `@use`)
+
+Shared layout is opt-in and explicit — a named bundle you pull in, not a class
+that matches at a distance:
+
+```
+@layout {
+  @block service { size: 0.75 }
+
+  services.userService  { @use service }
+  services.orderService { @use service; size: 0.5 }   # local override (last wins)
+}
+```
+
+Blocks are parameterless in v1 (no mixin arguments) and may compose (cycles are an
+error).
+
+### Kind — a semantic class that hooks layout
+
+A node may declare a `kind` — an arbitrary semantic classification (`kind:
+database`, `kind: external`). It is semantic (it says *what the component is*) and
+it implicitly applies the layout block of the same name as a **style baseline**:
+`kind: database` behaves as a leading `@use database`. This is the one good part
+of CSS classes — a semantic hook for shared style — without the specificity,
+because the binding is a 1:1 name match, not a selector contest.
+
+```
+external {                 # semantic
+  label: "Payment Provider"
+  kind: invisible
+}
+
+@layout {
+  external { @use service }   # explicit layout still wins over the kind baseline
+}
+```
+
+Rules:
+
+- A node has **one** `kind` (v1); it expands to a single implicit `@use`.
+- The kind baseline is the **lowest-precedence** layer: explicit layout (inline or
+  sheet) overrides it without conflict — the "redeclare for explicit control"
+  path. Conflicts *between explicit selectors* are still errors.
+- A small set of **built-in kinds** ships (e.g. `invisible` → `box: none`); any
+  kind can be (re)declared with `@block <kind> { … }` to take full control.
+- v1 layout is structural (box, size, direction, anchors), so built-in kinds can
+  only touch those for now. `kind` is the natural hook for visual styling (colour,
+  fonts) if/when that layer lands — part of why the bridge is worth building now.
+
+### Presentational regrouping (`@group`)
+
+Inside a node's arrangement, an anonymous `@group` wraps sibling children for
+purely visual nesting — the layout-layer equivalent of an HTML wrapper `<div>`:
+
+```
+@layout {
+  services {
+    direction: horizontal
+    @group { direction: vertical; userService; orderService }
+    payments
+  }
+}
+```
+
+Two rules keep the picture honest:
+
+- **Same-parent only** — a `@group` may contain only direct semantic children of
+  the enclosing node (and nested `@group`s thereof). This guarantees the **layout
+  tree is always a refinement of the semantic tree**: a node never appears
+  visually inside a box it isn't semantically part of.
+- **Completeness** — once you arrange a node's children, reference each exactly
+  once (no omissions, duplicates, or foreigners).
+
+### Both inline and standalone
+
+`@layout { … }` may sit inside a node body (local presentation) or stand alone as
+a sheet of selectors (separation / theming). Same declarations either way.
+
 ## Distribution
 
 Arkitecture ships as a single self-contained binary (no runtime to install) and,
@@ -91,8 +232,14 @@ wrappers over one library API, so both stay in lock-step.
 
 - **Automatic layout / routing** — the entire point is manual control; no
   force-directed or hierarchical auto-placement.
-- **Styling and theming** — output is intentionally plain (white fill, 1px black
-  border, one font). Colour, per-node fonts, and CSS are not modelled yet.
+- **CSS-style cascade** — selectors are exact-path; no wildcards, specificity, or
+  inheritance. A deliberate non-feature (see *Semantic vs. layout*).
+- **Parameterized layout blocks** — `@block`/`@use` is parameterless; no mixin
+  arguments yet.
+- **Visual styling / theming** — output is intentionally plain (white fill, 1px
+  black border, one font). Colour and per-node fonts are not modelled; the
+  `@layout` layer is structural (size, direction, anchors, box). `kind` is the
+  intended hook for a future styling layer.
 - **Interactivity** — static SVG only; no links, tooltips, or animation.
 - **Curved / orthogonal arrow routing** — arrows are straight lines between
   anchors.
@@ -102,8 +249,18 @@ wrappers over one library API, so both stay in lock-step.
 
 - Should spacing/padding (between siblings and inside nodes) become configurable,
   or stay at zero for predictability?
+- For a declared but unpositioned named anchor, default to centre, or require a
+  position (or error)?
+- Is an unknown `kind` (no matching block) an error (like a dangling `@use`), or a
+  no-op semantic tag with a lint warning?
+- Should a node be allowed *multiple* kinds later, and if so how do their blocks
+  combine?
+- Does an arrow's *choice* of anchor belong in the layout layer too (routing), or
+  stay on the arrow?
+- Precedence when both an inline `@layout` and a sheet selector touch the same
+  node — treat both as selectors (so the same property in both is the conflict
+  error), or give one priority?
+- Cross-file layout sheets / an `@import` for sharing layout across diagrams?
 - Should arrows support labels, and if so where do they sit in the layout?
 - How should very long labels behave — wrap, truncate, or keep requiring explicit
   `\n` line breaks (current behaviour)?
-- Is there demand for size *constraints* (max canvas, scaling) beyond the current
-  exact-fit canvas?
