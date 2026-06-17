@@ -7,6 +7,14 @@ A Domain Specific Language (DSL) for generating SVG architecture diagrams with p
 
 Unlike traditional graphing tools that use automatic layout algorithms, Arkitecture provides fine-grained control over element positioning and sizing to create professional architectural diagrams.
 
+## Documentation
+
+- **[CLAUDE.md](CLAUDE.md)** — how to work in this repo (commands, conventions, workflow)
+- **[docs/design.md](docs/design.md)** — what Arkitecture is and who it's for
+- **[docs/architecture.md](docs/architecture.md)** — code layout and the processing pipeline
+- **[docs/roadmap.md](docs/roadmap.md)** — done / in progress / planned
+- **[docs/decisions.md](docs/decisions.md)** — why the key technical choices were made
+
 ## Features
 
 - **Precise positioning control** with custom anchor points
