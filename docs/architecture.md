@@ -4,10 +4,6 @@ How the code is laid out and how the runtime fits together. Update when the
 structure changes — adding a package, introducing a stage, or establishing a new
 pattern.
 
-> 🚧 **Rewrite in progress (TypeScript → Go).** The module, AST, tokenizer, and
-> parser are ported. The validator and generator are stubs pending their ports;
-> this document describes the target Go structure and flags what is still a stub.
-
 ## App shape
 
 Arkitecture is a Go library with two thin wrappers on top: a CLI
@@ -37,10 +33,10 @@ github.com/kurrik/arkitecture        (module)
   ast/               package ast — Document, ContainerNode, GroupNode, Arrow,
                      Error, ParseResult; no deps, so every stage can import it
   parser/            tokenizer + recursive-descent parser → ast.Document
-  validator/         Document → []ast.Error            (stub: port pending)
-  generator/         Document → SVG string             (stub: port pending)
-    testdata/golden/ .ark fixtures + .svg/.error references for the port
-  cmd/arkitecture/   package main — the CLI (flags, file I/O); imports the library
+  validator/         Document → []ast.Error (references, ID uniqueness, ranges)
+  generator/         Document → SVG string (text measurement, layout, emit)
+    testdata/golden/ .ark fixtures + .svg/.error references for the golden test
+  cmd/arkitecture/   package main — the CLI (flags, file I/O, watch); imports the library
   wasm/              package main — js,wasm shim exposing ToSVG to JS (+ host stub)
 examples/            sample .ark inputs
 ```
@@ -77,10 +73,17 @@ The AST (`ast` package) is the contract every stage shares:
   container nodes, nested children, layout-only groups, `size`/`anchors`, then
   arrows in a second phase. Collects syntax and range errors with positions and
   recovers to keep going. `parser.Parse` wires the tokenizer and parser together.
-- **Validator** (`validator/`) — *stub.* Will check ID uniqueness within a scope,
-  arrow/anchor reference resolution, and range constraints; non-fail-fast.
-- **Generator** (`generator/`) — *stub.* Will do text measurement → bottom-up
-  layout + anchor resolution → SVG emission, reproducing the golden fixtures.
+- **Validator** (`validator/validator.go`) — semantic checks over a parsed
+  `Document`: ID uniqueness within a scope (groups don't introduce a scope), arrow
+  source/target resolution against a flat node map, anchor existence (with the
+  implicit `center`), and range constraints; non-fail-fast. Diagnostics report at
+  line 1, column 1 — the AST carries no node positions.
+- **Generator** (`generator/`) — `text.go` measures labels with a deterministic,
+  dependency-free rune-width approximation (no font metrics); `layout.go` sizes
+  bottom-up applying the vertical/horizontal rules and `size` overrides, positions
+  top-down, sizes the canvas to fit, and resolves anchor coordinates; `svg.go`
+  emits `<rect>` + `<text>` per visible node (groups render nothing) and `<line>`
+  + arrowhead `<marker>` per arrow. Output is byte-for-byte stable.
 
 ## Public API
 
@@ -97,29 +100,31 @@ The AST (`ast` package) is the contract every stage shares:
 ## Persistence
 
 None. Arkitecture is stateless: input is a `.ark` string/file, output is an SVG
-string. Only the CLI touches the filesystem (read input, write SVG). There is no
-database, config file, or cache.
+string. Only the CLI touches the filesystem (read input, write SVG, poll the
+input in watch mode). There is no database, config file, or cache.
 
 ## CLI
 
 `cmd/arkitecture` parses arguments with the standard-library `flag` package
 (flags may appear before or after the input/output paths), reads the input, runs
 `arkitecture.ToSVG`, and writes the SVG (defaulting the output to the input name
-with a `.svg` extension). Flags: `--validate-only`, `--verbose`, `--watch`
-(pending), `--font-size`, `--font-family`, `--version`. Exit codes: `0` success,
-`1` validation/parse errors, `2` filesystem errors.
+with a `.svg` extension). Flags: `--validate-only`, `--verbose`, `--watch`,
+`--font-size`, `--font-family`, `--version`. Exit codes: `0` success, `1`
+validation/parse errors, `2` filesystem errors. `--watch` re-renders on change
+using a stdlib modtime poller and stops on SIGINT/SIGTERM.
 
 ## Concurrency
 
-Single-threaded and synchronous. The library has no goroutines. Watch mode
-(`--watch`), once ported, will be the only asynchrony — a debounced file-event
-loop re-running the same synchronous pipeline; runs never overlap.
+Single-threaded and synchronous. The library has no goroutines. The only
+asynchrony is the CLI watch loop — a `time.Ticker` polling the input's modtime,
+plus a signal channel for shutdown — which re-runs the same synchronous pipeline
+per change; runs never overlap.
 
 ## Build & test
 
 `go build ./...` builds the library, CLI, and the host wasm stub;
 `GOOS=js GOARCH=wasm go build ./wasm` builds the real WASM module. Tests use the
-standard `testing` package (table-driven). The generator port will add a
-**golden** test that renders `generator/testdata/golden/*.ark` and diffs against
-the checked-in `.svg`/`.error` references, regenerated with a `-update` flag. CI
-runs gofmt + vet + `go test -race` + the CLI and WASM builds on Go 1.23 and 1.24.
+standard `testing` package (table-driven). The **golden** test renders
+`generator/testdata/golden/*.ark` through the full pipeline and diffs against the
+checked-in `.svg`/`.error` references, regenerated with `-update`. CI runs gofmt +
+vet + `go test -race` + the CLI and WASM builds on Go 1.23 and 1.24.

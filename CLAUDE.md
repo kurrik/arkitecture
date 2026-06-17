@@ -10,7 +10,7 @@ See [docs/design.md](docs/design.md) for the product model and [docs/architectur
 
 Target platform: Go 1.23+ (CI covers 1.23 and 1.24). Ships as a single portable binary and, from the same library, as a `GOOS=js GOARCH=wasm` module for JS/TS interop. The library is pure and side-effect-free.
 
-> 🚧 **Rewrite in progress (TypeScript → Go), on one branch toward a single switchover PR.** The module, AST, tokenizer, and parser are ported; the validator and generator are stubs. The pre-rewrite TypeScript is in git history as the reference to port each stage from. See [docs/roadmap.md](docs/roadmap.md).
+> 🚧 **TypeScript → Go rewrite on one branch toward a single switchover PR.** The full pipeline is ported and at parity with the old TypeScript; the PR awaits review and merge, which flips `main` to Go. The pre-rewrite TypeScript remains in git history as the reference. See [docs/roadmap.md](docs/roadmap.md).
 
 ## Edit discipline
 
@@ -29,6 +29,7 @@ This repo uses an ordinary feature-branch workflow — there is no `.claude/work
 - Test (one package): `go test ./parser`
 - Test (one test): `go test ./parser -run TestParseArrows`
 - Test (race + coverage): `go test -race -coverprofile=coverage.out ./...`
+- Update golden fixtures: `go test . -run TestGolden -update` (only after an *intentional* output change — review the diff)
 - Run (CLI): `go run ./cmd/arkitecture input.ark output.svg`
 - Format: `gofmt -w .` (check: `gofmt -l .`)
 - Vet: `go vet ./...`
@@ -41,8 +42,8 @@ A one-way, side-effect-free pipeline: each stage is a pure function of its input
 
 - **`ast`** — the syntax tree + the shared `Error` type. No dependencies (this is what avoids an import cycle between the root package and the stages).
 - **`parser`** — tokenizer + recursive-descent build of the `ast.Document`.
-- **`validator`** — semantic checks (references, ID uniqueness, range constraints); returns *all* errors, non-fail-fast. *(stub: port pending)*
-- **`generator`** — text measurement → bottom-up layout + anchor resolution → SVG string. *(stub: port pending)*
+- **`validator`** — semantic checks (references, ID uniqueness, range constraints); returns *all* errors, non-fail-fast.
+- **`generator`** — text measurement → bottom-up layout + anchor resolution → SVG string.
 - **`arkitecture` (root)** — `ToSVG()` wires the pipeline; `Parse`/`Validate`/`GenerateSVG` expose the stages; the AST types are re-exported as aliases.
 - **`cmd/arkitecture`** / **`wasm/`** — CLI and WASM entry points over the library.
 
@@ -52,20 +53,21 @@ None — Arkitecture is stateless. Input is a `.ark` string/file; output is an S
 
 ### Concurrency
 
-Single-threaded and synchronous. The library has no goroutines. Watch mode (once ported) is the only asynchrony: a debounced file-event loop re-running the same synchronous pipeline; runs never overlap.
+Single-threaded and synchronous. The library has no goroutines. The only asynchrony is the CLI watch loop (a modtime poller re-running the same synchronous pipeline per change); runs never overlap.
 
 ## Language & framework conventions
 
 - Standard Go style; `gofmt` is mandatory and CI-enforced. Run `go vet ./...`.
 - The `ast` package is the shared contract between stages — change it deliberately. Use pointers/zero values so "unset" stays distinguishable from a real value.
 - Errors are data: every failure is an `ast.Error` (`Line`, `Column`, `Message`, `Type`) collected into a slice. Don't `panic` across stage boundaries; only the top-level `ToSVG` recovers an unexpected panic and wraps it.
+- Output must stay deterministic: sort before iterating maps (e.g. anchors), never let map order leak into SVG.
 - Keep stages pure — a function of input with no global state. The CLI/WASM wrappers depend on the library, never the reverse.
 - Keep packages flat until a stage genuinely needs sub-packages; prefer the standard library (the portable-binary and WASM goals reward minimal dependencies).
 
 ## Testing
 
 - Standard `testing` package, table-driven where it helps. Tests live beside the code (`parser/parser_test.go`); external-API tests use `package arkitecture_test`.
-- **Golden tests** (coming with the generator port) render `generator/testdata/golden/*.ark` and diff against checked-in `.svg`/`.error` references, regenerated with a `-update` flag — review the diff before committing.
+- **Golden test** (`golden_test.go`) renders `generator/testdata/golden/*.ark` through the full pipeline and diffs against checked-in `.svg`/`.error` references. When output changes *intentionally*, run `go test . -run TestGolden -update` and review the diff before committing.
 - Add tests with each behavioural change. Test the pipeline stages and pure logic; let golden fixtures cover the exact SVG output rather than asserting it byte-for-byte inline.
 
 ## Project state in `docs/`
