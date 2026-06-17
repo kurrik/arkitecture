@@ -6,54 +6,52 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
-- Adopt the project-template docs structure — `CLAUDE.md` + `docs/` (design,
-  architecture, roadmap, decisions) — replacing the old `specs/` + `.claude`
-  scaffolding (2026-06-17).
-- Tokenizer + recursive-descent parser: container nodes, nested children,
-  layout-only groups, `size`/`anchors`, and arrows.
-- Validator: ID uniqueness, arrow + anchor reference resolution, range
-  constraints, non-fail-fast error collection.
-- Layout engine: bottom-up sizing with vertical/horizontal rules, `size`
-  overrides, absolute anchor resolution; `string-width` text measurement.
-- SVG generator: node rects + labels, groups as layout-only, straight arrows with
-  arrowhead markers, exact-fit canvas.
-- Main API (`arkitectureToSVG` + `parseArkitecture` / `validate` / `generateSVG`)
-  and CLI with `--validate-only`, `--verbose`, `--watch`, font overrides, and exit
-  codes.
-- Golden-file suite and Jest unit tests across all stages; CI on Node 20/22 with
-  coverage.
+- Adopt the project-template docs structure — `CLAUDE.md` + `docs/` (2026-06-17).
+- Go rewrite, part 1: module + library-first layout (`ast`, root `arkitecture`,
+  `cmd/arkitecture`, `wasm/`), tokenizer + recursive-descent parser ported with
+  tests, and Go CI (gofmt + vet + race tests + CLI/WASM builds) on Go 1.23/1.24
+  (2026-06-17).
+- *(Historical)* TypeScript v0.1 — full parser, validator, generator, and CLI.
+  Removed in the Go rewrite; preserved in git history as the porting reference.
 
 ## In progress
 
-- (none)
+- **Rewrite to Go (single switchover PR).** Port the remaining stages to reach
+  parity with the removed TypeScript, then this one PR flips the project to Go.
+  Done: tokenizer + parser. Remaining: validator, generator, CLI watch.
 
 ## Planned
 
-### P0 — Restart housekeeping
+Dependency-ordered. The goal is parity with the old TypeScript, then breadth.
 
-- Audit the public API and CLI against this doc set; fix any drift between the code
-  and the new `docs/`.
-- Confirm the golden fixtures still match current output; regenerate if an
-  intentional change has landed.
+### P0 — Reach parity (Go port)
 
-### P1 — Error & DX polish
+- **Validator**: ID uniqueness within scope, arrow source/target + anchor
+  reference resolution, range constraints; non-fail-fast.
+- **Generator**: text measurement (a Go rune-width function replacing
+  `string-width`), bottom-up layout with `size` overrides, absolute anchor
+  resolution, and SVG emission.
+- **Golden tests**: render `generator/testdata/golden/*.ark` and diff against the
+  checked-in `.svg`/`.error` references, with a `-update` flag to regenerate.
+- **CLI watch** (`--watch`): a debounced file-event loop (fsnotify or polling).
 
-- Richer diagnostics: stable error codes, fix suggestions, and consistent message
-  formatting across stages.
-- Expand integration + performance tests (large and deeply-nested documents).
+### P1 — Distribution
 
-### P2 — Layout & rendering reach
+- Publish portable binary builds (per-OS/arch release artifacts).
+- Wire the `wasm/` build into a usable JS/TS package plus a small example.
+
+### P2 — Error & DX polish
+
+- Richer diagnostics: stable error codes, fix suggestions, consistent formatting.
+- Integration + performance tests (large and deeply-nested documents).
+
+### P3 — Layout & rendering reach
 
 - Optional spacing/padding controls (currently fixed at zero).
 - Arrow labels and/or non-straight routing.
-- Basic styling hooks (fill, stroke, per-node font) without giving up deterministic
-  output.
+- Basic styling hooks (fill, stroke, per-node font) without giving up determinism.
 
 ## Ideas / parking lot
 
-Long-term, not yet scheduled:
-
 - Additional output targets (PNG/PDF) via downstream conversion.
-- A web playground that renders `.ark` live in the browser (the library already
-  runs there).
-- Library distribution polish: published types, usage examples, versioning policy.
+- A web playground that renders `.ark` live in the browser (via the WASM build).

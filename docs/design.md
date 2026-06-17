@@ -80,6 +80,13 @@ Layout is bottom-up and deterministic:
 - Groups add no visual space — they only group children for direction.
 - The canvas is sized to exactly fit all top-level content — no padding.
 
+## Distribution
+
+Arkitecture ships as a single self-contained binary (no runtime to install) and,
+from the same library, as a WebAssembly module usable directly from
+JavaScript/TypeScript in the browser or Node. The CLI and the WASM build are thin
+wrappers over one library API, so both stay in lock-step.
+
 ## Out of scope (v1)
 
 - **Automatic layout / routing** — the entire point is manual control; no

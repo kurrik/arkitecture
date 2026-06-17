@@ -4,63 +4,69 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Arkitecture** is a TypeScript DSL and CLI that compiles a small `.ark` text file into an SVG architecture diagram, giving the author manual layout control instead of automatic graph layout.
+**Arkitecture** is a Go DSL library and CLI that compiles a small `.ark` text file into an SVG architecture diagram, giving the author manual layout control instead of automatic graph layout.
 
 See [docs/design.md](docs/design.md) for the product model and [docs/architecture.md](docs/architecture.md) for the code layout. When the user gives durable direction, write it into `docs/design.md` immediately.
 
-Target platform: Node.js 20+ (CI covers 20.x and 22.x); the library is pure and also runs in the browser. Language/toolchain: TypeScript 5 (`strict`), compiled with `tsc` to CommonJS in `dist/`.
+Target platform: Go 1.23+ (CI covers 1.23 and 1.24). Ships as a single portable binary and, from the same library, as a `GOOS=js GOARCH=wasm` module for JS/TS interop. The library is pure and side-effect-free.
+
+> 🚧 **Rewrite in progress (TypeScript → Go), on one branch toward a single switchover PR.** The module, AST, tokenizer, and parser are ported; the validator and generator are stubs. The pre-rewrite TypeScript is in git history as the reference to port each stage from. See [docs/roadmap.md](docs/roadmap.md).
 
 ## Edit discipline
 
 This repo uses an ordinary feature-branch workflow — there is no `.claude/worktrees` setup.
 
 - Branch off `main` (`feature/<desc>`, `fix/<desc>`, `chore/<desc>`); don't commit straight to `main`.
-- Edit `src/` (and `scripts/`, `tests/`), then build. `dist/`, `coverage/`, and `node_modules/` are generated and git-ignored — never edit or commit them.
+- The Go rewrite accumulates on a single branch and merges only when it reaches parity with the old TypeScript — keep porting on that branch rather than opening parallel PRs.
+- Compiled binaries, `*.wasm`, and `coverage.out` are build artifacts (git-ignored) — never commit them.
 - Keep `git status` free of incidental files; commit only what the change needs.
 
 ## Commands
 
-- Build: `npm run build` (watch: `npm run dev`)
-- Test (all): `npm test`
-- Test (one): `npm test -- tests/parser/parser.test.ts` (or `--testNamePattern="anchor"`)
-- Test (coverage): `npm run test:coverage`
-- Run (CLI): `./bin/arkitecture input.ark output.svg` (after `npm run build`)
-- Lint: `npm run lint` (ESLint over `src/` + `scripts/`)
-- Format: `npm run format` (Prettier over `src/`)
-- Regenerate golden fixtures: `npm run golden:generate` (only after an *intentional* output change — review the diff)
+- Build (all): `go build ./...`
+- Build WASM: `GOOS=js GOARCH=wasm go build -o arkitecture.wasm ./wasm`
+- Test (all): `go test ./...`
+- Test (one package): `go test ./parser`
+- Test (one test): `go test ./parser -run TestParseArrows`
+- Test (race + coverage): `go test -race -coverprofile=coverage.out ./...`
+- Run (CLI): `go run ./cmd/arkitecture input.ark output.svg`
+- Format: `gofmt -w .` (check: `gofmt -l .`)
+- Vet: `go vet ./...`
 
-Run **format + lint + test** before considering work done.
+Run **gofmt + vet + test** before considering work done.
 
 ## Architecture
 
-A one-way, side-effect-free pipeline: each stage is a pure function of its input, and failures are *collected* as errors rather than thrown across stages. See [docs/architecture.md](docs/architecture.md) and keep it in sync as structure changes.
+A one-way, side-effect-free pipeline: each stage is a pure function of its input, and failures are *collected* as `[]ast.Error` rather than thrown across stages. The CLI and WASM builds are thin wrappers over the library — never put compilation logic in them. See [docs/architecture.md](docs/architecture.md) and keep it in sync as structure changes.
 
-- **Parser** (`src/parser`) — tokenizer + recursive-descent build of the `Document` AST.
-- **Validator** (`src/validator`) — semantic checks (references, ID uniqueness, range constraints); returns *all* errors, non-fail-fast.
-- **Generator** (`src/generator`) — text measurement → bottom-up layout + anchor resolution → SVG string.
-- **API / CLI** (`src/arkitecture.ts`, `src/cli`) — `arkitectureToSVG()` wires the pipeline; the CLI adds file I/O, flags, and `--watch`.
+- **`ast`** — the syntax tree + the shared `Error` type. No dependencies (this is what avoids an import cycle between the root package and the stages).
+- **`parser`** — tokenizer + recursive-descent build of the `ast.Document`.
+- **`validator`** — semantic checks (references, ID uniqueness, range constraints); returns *all* errors, non-fail-fast. *(stub: port pending)*
+- **`generator`** — text measurement → bottom-up layout + anchor resolution → SVG string. *(stub: port pending)*
+- **`arkitecture` (root)** — `ToSVG()` wires the pipeline; `Parse`/`Validate`/`GenerateSVG` expose the stages; the AST types are re-exported as aliases.
+- **`cmd/arkitecture`** / **`wasm/`** — CLI and WASM entry points over the library.
 
 ### Persistence
 
-None — Arkitecture is stateless. Input is a `.ark` string/file; output is an SVG string. Only the CLI touches the filesystem (read input, write SVG, watch via `chokidar`).
+None — Arkitecture is stateless. Input is a `.ark` string/file; output is an SVG string. Only the CLI touches the filesystem.
 
 ### Concurrency
 
-Single-threaded and synchronous. The only asynchrony is the CLI watch loop (debounced `chokidar` events re-running the same synchronous pipeline); runs never overlap.
+Single-threaded and synchronous. The library has no goroutines. Watch mode (once ported) is the only asynchrony: a debounced file-event loop re-running the same synchronous pipeline; runs never overlap.
 
 ## Language & framework conventions
 
-- TypeScript `strict`; prefer precise types over `any`. The AST in `src/types.ts` is the shared contract between stages — change it deliberately.
-- Errors are data: every failure is a `ValidationError` (`line`, `column`, `message`, `type`) collected into an array. Don't `throw` across stage boundaries; the top-level entry point is the only place that wraps an unexpected throw.
-- Keep stages pure — a stage is a function of its input with no global state.
-- Keep folders flat until a stage genuinely needs sub-modules.
-- Run Prettier + ESLint before declaring work done; don't silence a lint inline unless it's wrong here.
+- Standard Go style; `gofmt` is mandatory and CI-enforced. Run `go vet ./...`.
+- The `ast` package is the shared contract between stages — change it deliberately. Use pointers/zero values so "unset" stays distinguishable from a real value.
+- Errors are data: every failure is an `ast.Error` (`Line`, `Column`, `Message`, `Type`) collected into a slice. Don't `panic` across stage boundaries; only the top-level `ToSVG` recovers an unexpected panic and wraps it.
+- Keep stages pure — a function of input with no global state. The CLI/WASM wrappers depend on the library, never the reverse.
+- Keep packages flat until a stage genuinely needs sub-packages; prefer the standard library (the portable-binary and WASM goals reward minimal dependencies).
 
 ## Testing
 
-- Jest + ts-jest. Tests live under `tests/`, mirroring `src/` (`parser/`, `validator/`, `generator/`, `cli/`).
-- **Golden tests** (`tests/golden/`) render `.ark` fixtures and diff against checked-in `.svg`/`.error` references. When output changes *intentionally*, run `npm run golden:generate` and review the diff before committing the new fixtures.
-- Add tests with each behavioural change. Test the pipeline stages and pure logic; let golden fixtures cover the exact SVG output rather than asserting byte-for-byte inline.
+- Standard `testing` package, table-driven where it helps. Tests live beside the code (`parser/parser_test.go`); external-API tests use `package arkitecture_test`.
+- **Golden tests** (coming with the generator port) render `generator/testdata/golden/*.ark` and diff against checked-in `.svg`/`.error` references, regenerated with a `-update` flag — review the diff before committing.
+- Add tests with each behavioural change. Test the pipeline stages and pure logic; let golden fixtures cover the exact SVG output rather than asserting it byte-for-byte inline.
 
 ## Project state in `docs/`
 
@@ -75,7 +81,7 @@ Single-threaded and synchronous. The only asynchrony is the CLI watch loop (debo
 
 Update these files **as part of the change that makes them out of date**, not as a separate task:
 
-- **After landing a feature** → mark it done in [docs/roadmap.md](docs/roadmap.md); reflect any new capability in [docs/design.md](docs/design.md); update [docs/architecture.md](docs/architecture.md) if the change added a module, type, service, or pattern.
+- **After landing a feature** → mark it done in [docs/roadmap.md](docs/roadmap.md); reflect any new capability in [docs/design.md](docs/design.md); update [docs/architecture.md](docs/architecture.md) if the change added a package, type, or pattern.
 - **After a non-obvious call** → append an entry to [docs/decisions.md](docs/decisions.md) with date, the choice, and *why*.
 - **When the user gives durable direction** about vision, scope, or constraints → write it into [docs/design.md](docs/design.md) or [docs/roadmap.md](docs/roadmap.md) immediately, before continuing to code.
 
@@ -93,10 +99,10 @@ Land work in **logical, reviewable chunks**. One commit = one coherent change; o
 
 Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `chore`, `build`, `ci`. Breaking change → append `!`. Scope identifies the area (e.g. `feat(parser): support multi-line labels`).
 
-- Commit after each logical change passes format, lint, and the tests. Don't bundle unrelated changes.
+- Commit after each logical change passes gofmt, vet, and the tests. Don't bundle unrelated changes.
 - Update [docs/](docs/) **in the same commit** as the change it describes.
 - Branches: `feature/<desc>`, `fix/<desc>`, `chore/<desc>` (kebab-case).
-- Prefer smaller, frequent PRs over one giant branch.
+- Prefer smaller, frequent PRs over one giant branch (the Go rewrite is the deliberate exception — one switchover branch).
 
 ## Notes
 
