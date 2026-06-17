@@ -47,16 +47,15 @@ func TestToSVGParseErrorSurfaces(t *testing.T) {
 	}
 }
 
-// TestToSVGGeneratorPending characterises the current state of the rewrite: the
-// generator stage has not been ported yet, so a non-validate-only run wires
-// through to the stub and surfaces its error. Replace this with real SVG
-// assertions once generator.GenerateSVG is implemented.
-func TestToSVGGeneratorPending(t *testing.T) {
+func TestToSVGGeneratesSVG(t *testing.T) {
 	res := arkitecture.ToSVG(`a { label: "x" }`, nil)
-	if res.Success {
-		t.Skip("generator appears to be implemented; update this test with real SVG assertions")
+	if !res.Success {
+		t.Fatalf("expected success, got %+v", res.Errors)
 	}
-	if len(res.Errors) == 0 || !strings.Contains(res.Errors[0].Message, "not yet ported") {
-		t.Fatalf("expected the generator-pending error, got %+v", res.Errors)
+	if !strings.HasPrefix(res.SVG, `<svg xmlns="http://www.w3.org/2000/svg"`) {
+		t.Errorf("unexpected SVG prefix: %q", res.SVG)
+	}
+	if !strings.Contains(res.SVG, "</svg>") {
+		t.Errorf("SVG is not closed: %q", res.SVG)
 	}
 }

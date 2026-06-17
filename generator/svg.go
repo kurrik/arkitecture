@@ -1,0 +1,135 @@
+package generator
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/kurrik/arkitecture/ast"
+)
+
+// defsBlock is emitted verbatim (including the trailing space after
+// markerHeight) so output stays byte-for-byte stable with the golden fixtures.
+const defsBlock = "  <defs>\n" +
+	"    <marker id=\"arrowhead\" markerWidth=\"10\" markerHeight=\"7\" \n" +
+	"            refX=\"9\" refY=\"3.5\" orient=\"auto\" markerUnits=\"strokeWidth\">\n" +
+	"      <polygon points=\"0 0, 10 3.5, 0 7\" fill=\"black\" />\n" +
+	"    </marker>\n" +
+	"  </defs>"
+
+func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFamily string) string {
+	parts := []string{
+		fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s">`, num(layout.canvasWidth), num(layout.canvasHeight)),
+		defsBlock,
+	}
+
+	if nodes := renderNodes(doc, layout, fontSize, fontFamily); nodes != "" {
+		parts = append(parts, "", "  <!-- Node rectangles and labels -->", nodes)
+	}
+	if arrows := renderArrows(doc.Arrows, layout); arrows != "" {
+		parts = append(parts, "", "  <!-- Arrows -->", arrows)
+	}
+	parts = append(parts, "</svg>")
+
+	return strings.Join(parts, "\n")
+}
+
+func renderNodes(doc *ast.Document, layout layoutResult, fontSize float64, fontFamily string) string {
+	var els []string
+	collectNodeElements(toNodes(doc.Nodes), layout, fontSize, fontFamily, &els)
+	return strings.Join(els, "\n")
+}
+
+func collectNodeElements(nodes []ast.Node, layout layoutResult, fontSize float64, fontFamily string, els *[]string) {
+	for _, node := range nodes {
+		if c, ok := node.(*ast.ContainerNode); ok {
+			if d, ok := layout.nodeDimensions[c.ID]; ok {
+				*els = append(*els, nodeRect(d))
+				if c.Label != nil && *c.Label != "" {
+					*els = append(*els, nodeText(*c.Label, d, fontSize, fontFamily))
+				}
+			}
+		}
+		collectNodeElements(childrenOf(node), layout, fontSize, fontFamily, els)
+	}
+}
+
+func nodeRect(d dimensions) string {
+	return fmt.Sprintf(`  <rect x="%s" y="%s" width="%s" height="%s" fill="white" stroke="black" stroke-width="1" />`,
+		num(d.x), num(d.y), num(d.width), num(d.height))
+}
+
+func nodeText(label string, d dimensions, fontSize float64, fontFamily string) string {
+	cx := d.x + d.width/2
+	cy := d.y + d.height/2
+	lines := strings.Split(label, "\n")
+
+	if len(lines) == 1 {
+		return fmt.Sprintf(`  <text x="%s" y="%s" text-anchor="middle" dominant-baseline="middle" font-family="%s" font-size="%s">%s</text>`,
+			num(cx), num(cy), fontFamily, num(fontSize), escapeXML(label))
+	}
+
+	lineHeight := fontSize * lineHeightRatio
+	totalHeight := float64(len(lines)-1) * lineHeight
+	startY := cy - totalHeight/2
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `  <text x="%s" y="%s" text-anchor="middle" dominant-baseline="middle" font-family="%s" font-size="%s">`,
+		num(cx), num(startY), fontFamily, num(fontSize))
+	for i, line := range lines {
+		dy := 0.0
+		if i != 0 {
+			dy = lineHeight
+		}
+		fmt.Fprintf(&b, "\n    <tspan x=\"%s\" dy=\"%s\">%s</tspan>", num(cx), num(dy), escapeXML(line))
+	}
+	b.WriteString("\n  </text>")
+	return b.String()
+}
+
+func renderArrows(arrows []ast.Arrow, layout layoutResult) string {
+	var els []string
+	for _, a := range arrows {
+		srcPath, srcAnchor := parseTarget(a.Source)
+		tgtPath, tgtAnchor := parseTarget(a.Target)
+		src := findAnchor(layout.anchorPositions, srcPath, srcAnchor)
+		tgt := findAnchor(layout.anchorPositions, tgtPath, tgtAnchor)
+		if src == nil || tgt == nil {
+			continue // missing anchors are reported by the validator
+		}
+		els = append(els, fmt.Sprintf(`  <line x1="%s" y1="%s" x2="%s" y2="%s" stroke="black" stroke-width="1" marker-end="url(#arrowhead)" />`,
+			num(src.x), num(src.y), num(tgt.x), num(tgt.y)))
+	}
+	return strings.Join(els, "\n")
+}
+
+func parseTarget(target string) (path, anchor string) {
+	if i := strings.IndexByte(target, '#'); i >= 0 {
+		return target[:i], target[i+1:]
+	}
+	return target, "center"
+}
+
+func findAnchor(positions []anchorPosition, path, anchorID string) *anchorPosition {
+	for i := range positions {
+		if positions[i].nodeID == path && positions[i].anchorID == anchorID {
+			return &positions[i]
+		}
+	}
+	return nil
+}
+
+func escapeXML(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, `"`, "&quot;")
+	s = strings.ReplaceAll(s, "'", "&#39;")
+	return s
+}
+
+// num formats a layout number the way JavaScript's Number-to-string does:
+// shortest round-trip, integers without a decimal point.
+func num(v float64) string {
+	return strconv.FormatFloat(v, 'g', -1, 64)
+}

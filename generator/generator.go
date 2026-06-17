@@ -1,9 +1,6 @@
 // Package generator turns a validated Document into an SVG string: text
-// measurement, bottom-up layout, anchor resolution, and SVG emission.
-//
-// TODO(go-port): not yet ported. The TypeScript implementation
-// (src/generator/* in the pre-rewrite history) is the reference, and the golden
-// fixtures under generator/testdata/golden/ are the target output to reproduce.
+// measurement, bottom-up layout with anchor resolution, and SVG emission. It is
+// pure and deterministic — the same document always yields the same SVG.
 package generator
 
 import "github.com/kurrik/arkitecture/ast"
@@ -15,13 +12,29 @@ type Options struct {
 	FontFamily string
 }
 
-// GenerateSVG renders a document to an SVG string. Stub pending the port: it
-// returns a single error so callers surface that generation is unavailable.
+const (
+	defaultFontSize   = 12.0
+	defaultFontFamily = "Arial"
+)
+
+// GenerateSVG lays out the document and renders it to an SVG string. Generation
+// itself does not produce errors (reference and constraint problems are the
+// validator's job), so the error slice is always empty; the signature keeps the
+// stage uniform with the rest of the pipeline.
 func GenerateSVG(doc *ast.Document, opts Options) (string, []ast.Error) {
-	_ = doc
-	_ = opts
-	return "", []ast.Error{{
-		Type:    ast.ErrorSyntax,
-		Message: "SVG generation is not yet ported to Go",
-	}}
+	if doc == nil {
+		return "", nil
+	}
+
+	fontSize := defaultFontSize
+	if opts.FontSize > 0 {
+		fontSize = float64(opts.FontSize)
+	}
+	fontFamily := defaultFontFamily
+	if opts.FontFamily != "" {
+		fontFamily = opts.FontFamily
+	}
+
+	layout := computeLayout(doc, fontSize)
+	return renderSVG(doc, layout, fontSize, fontFamily), nil
 }
