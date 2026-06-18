@@ -137,11 +137,20 @@ is layout.
 ### Selectors and resolution — no cascade
 
 Layout rules target nodes by **exact dotted path** (`services.userService`) — no
-wildcards, no specificity, no inheritance. A node's resolved layout is the
-declarations that name it, expanded **in source order, last-write-wins**, so the
-final value is always traceable by reading top to bottom. The one hard rule that
-keeps it deterministic: **two *separate* rules setting the same property on the
-same node is a validation error**, never a silent cascade resolution.
+wildcards, no specificity, no inheritance. Resolution has just **two precedence
+tiers**, which is the entire "specificity" model:
+
+1. **Imported** — what a node receives via `kind` (the implicit baseline) and
+   `@use <block>`. Within this tier, source order wins (a later `@use` beats an
+   earlier one).
+2. **Direct** — declarations that name the node itself, in its inline `@layout` or
+   in a sheet selector for its exact path. Direct **overrides imported** for any
+   property, with no conflict — the "redeclare for explicit control" path.
+
+Within the **direct** tier a property may be set at most once: two separate direct
+rules setting the same property on the same node is a **validation error**, never
+a silent cascade. (If multi-sheet themes ever need it, this can relax to
+import-order-wins — explicit, and still deterministic.)
 
 ### Reusable blocks (`@block` / `@use`)
 
@@ -221,6 +230,23 @@ Two rules keep the picture honest:
 `@layout { … }` may sit inside a node body (local presentation) or stand alone as
 a sheet of selectors (separation / theming). Same declarations either way.
 
+### Arrow endpoints — an auto-cardinal default
+
+An arrow that names an anchor (`a#db --> b`) uses that anchor's resolved position.
+An arrow that **doesn't** (`a --> b`) auto-routes: each end attaches to the
+**cardinal side (N/E/S/W) facing the other node's centre**, giving a clean
+edge-to-edge line instead of a centre-to-centre one through the boxes. The side is
+the dominant axis of the centre-to-centre vector (`|dx| ≥ |dy|` → E/W by the sign
+of `dx`, else N/S by the sign of `dy`; exact diagonals favour the horizontal
+side) — fully deterministic, and always overridable by naming an explicit anchor.
+
+This is auto-*routing*, not auto-*placement*: it never moves a box, only chooses
+where a line attaches to boxes the author positioned — the one bounded "automatic"
+behaviour in the tool. A **named** anchor stays a single fixed point (it can serve
+many arrows, so it has no one "other node" to aim at); unpositioned, it defaults
+to centre. This routing is independent of the rest of the `@layout` model and
+could land separately.
+
 ## Distribution
 
 Arkitecture ships as a single self-contained binary (no runtime to install) and,
@@ -249,17 +275,13 @@ wrappers over one library API, so both stay in lock-step.
 
 - Should spacing/padding (between siblings and inside nodes) become configurable,
   or stay at zero for predictability?
-- For a declared but unpositioned named anchor, default to centre, or require a
-  position (or error)?
+- Should auto-cardinal routing offer 8 directions (incl. corners), or stay at 4?
+- Should an unpositioned *named* anchor be an error rather than defaulting to
+  centre?
 - Is an unknown `kind` (no matching block) an error (like a dangling `@use`), or a
   no-op semantic tag with a lint warning?
 - Should a node be allowed *multiple* kinds later, and if so how do their blocks
   combine?
-- Does an arrow's *choice* of anchor belong in the layout layer too (routing), or
-  stay on the arrow?
-- Precedence when both an inline `@layout` and a sheet selector touch the same
-  node — treat both as selectors (so the same property in both is the conflict
-  error), or give one priority?
 - Cross-file layout sheets / an `@import` for sharing layout across diagrams?
 - Should arrows support labels, and if so where do they sit in the layout?
 - How should very long labels behave — wrap, truncate, or keep requiring explicit

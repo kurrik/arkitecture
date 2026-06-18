@@ -66,6 +66,9 @@ generator keeps consuming a resolved layout, so its core is largely untouched.
 
 ### Rendering reach
 
+- **Auto-cardinal arrow endpoints** for anchor-less arrows — a deterministic
+  "nearest side facing the target" default (see the ADR). Separable from the
+  `@layout` epic; could ship on the current pipeline as a near-term win.
 - Optional spacing/padding controls (currently fixed at zero).
 - Arrow labels and/or non-straight routing.
 - Visual styling (fill, stroke, per-node font) — the natural payoff of `kind` and
