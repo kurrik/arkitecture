@@ -50,8 +50,7 @@ type parser struct {
 }
 
 func (p *parser) parseDocument() ast.ParseResult {
-	nodes := p.parseTopLevel() // phase 1: nodes + @layout sheets
-	arrows := p.parseArrows()  // phase 2: arrows
+	nodes, arrows := p.parseTopLevel()
 	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Blocks: p.blocks, Arrows: arrows}
 	if len(p.errors) > 0 {
 		return ast.ParseResult{Success: false, Document: doc, Errors: p.errors}
@@ -59,17 +58,26 @@ func (p *parser) parseDocument() ast.ParseResult {
 	return ast.ParseResult{Success: true, Document: doc}
 }
 
-// parseTopLevel reads nodes and standalone @layout sheets until the first arrow
-// statement (or EOF), which begins the arrow phase.
-func (p *parser) parseTopLevel() []*ast.ContainerNode {
+// parseTopLevel reads the document's top level — node definitions, standalone
+// @layout sheets, and arrow statements — in any order, so an arrow can be
+// colocated with the nodes it connects rather than forced into a trailing block.
+// Each statement is dispatched by lookahead: an identifier that reaches a `-->`
+// (after an optional dotted path and #anchor) is an arrow; `@` begins a sheet;
+// otherwise it is a node. Arrow endpoints are resolved later by the validator,
+// so forward references to not-yet-defined nodes are fine.
+func (p *parser) parseTopLevel() ([]*ast.ContainerNode, []ast.Arrow) {
 	var nodes []*ast.ContainerNode
+	var arrows []ast.Arrow
 	for !p.isAtEnd() {
 		if p.check(TokenNewline) {
 			p.advance()
 			continue
 		}
 		if p.isArrowStatement() {
-			break
+			if arrow, ok := p.parseArrow(); ok {
+				arrows = append(arrows, arrow)
+			}
+			continue
 		}
 		if p.check(TokenAt) {
 			p.parseLayoutSheet()
@@ -79,7 +87,7 @@ func (p *parser) parseTopLevel() []*ast.ContainerNode {
 			nodes = append(nodes, node)
 		}
 	}
-	return nodes
+	return nodes, arrows
 }
 
 // parseNode parses `id { … }`. parentPath is the dotted path of the enclosing
@@ -731,20 +739,6 @@ func (p *parser) isArrowStatement() bool {
 		break
 	}
 	return false
-}
-
-func (p *parser) parseArrows() []ast.Arrow {
-	var arrows []ast.Arrow
-	for !p.isAtEnd() {
-		if p.check(TokenNewline) {
-			p.advance()
-			continue
-		}
-		if arrow, ok := p.parseArrow(); ok {
-			arrows = append(arrows, arrow)
-		}
-	}
-	return arrows
 }
 
 func (p *parser) parseArrow() (ast.Arrow, bool) {

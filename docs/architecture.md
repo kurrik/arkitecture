@@ -67,8 +67,8 @@ The AST (`ast` package) is the contract every stage shares, split into a
 semantic layer and a layout layer:
 
 - **`Document`** — `{ Nodes []*ContainerNode; Layout []LayoutRule; Blocks []Block; Arrows []Arrow }`.
-  Nodes, layout, blocks, and arrows are parsed in phases, so layout rules, blocks,
-  and arrows are flat lists, not attached to nodes.
+  Layout rules, blocks, and arrows are collected into flat lists (top-level
+  statements may appear in any order), not attached to nodes.
 - **`ContainerNode`** — the single node type: `ID`, optional `Label`, `Kind`,
   `Anchors` (declared anchor *names*), and `Children []*ContainerNode`. It carries
   no layout — `GroupNode` is gone; a borderless grouping is a `box: none` node.
@@ -105,10 +105,13 @@ semantic layer and a layout layer:
   semantic node bodies (`label`/`kind`/anchor names/children), inline and
   standalone `@layout` blocks (the declaration grammar and exact-path selectors),
   `@block` definitions, `@use` imports, and `@group` child arrangements inside
-  `@layout` (a bare identifier with no `:` is a child reference), then arrows in a
-  final phase. An inline `@layout` is desugared into a path selector. Collects
-  syntax errors with positions and recovers to keep going; range checks moved to
-  the validator. `parser.Parse` wires tokenizer and parser.
+  `@layout` (a bare identifier with no `:` is a child reference), and arrows. Nodes,
+  `@layout` sheets, and arrows may appear in **any order** at the top level — each
+  statement is dispatched by lookahead (an identifier reaching `-->` is an arrow),
+  so an arrow can be colocated with the nodes it connects. An inline `@layout` is
+  desugared into a path selector. Collects syntax errors with positions and
+  recovers to keep going; range checks moved to the validator. `parser.Parse` wires
+  tokenizer and parser.
 - **Validator** (`validator/validator.go`) — semantic checks over a parsed
   `Document`: ID uniqueness within a scope, dangling layout selectors (reported at
   the selector position), duplicate **direct** layout properties on a node, layout
