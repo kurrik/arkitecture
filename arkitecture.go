@@ -20,18 +20,19 @@ import (
 // The AST and diagnostic types are re-exported as aliases so callers can use
 // arkitecture.Document, arkitecture.Error, etc. without importing ast directly.
 type (
-	Document      = ast.Document
-	ContainerNode = ast.ContainerNode
-	Declarations  = ast.Declarations
-	LayoutRule    = ast.LayoutRule
-	Block         = ast.Block
-	Use           = ast.Use
-	Arrow         = ast.Arrow
-	Direction     = ast.Direction
-	Box           = ast.Box
-	Error         = ast.Error
-	ErrorType     = ast.ErrorType
-	ParseResult   = ast.ParseResult
+	Document        = ast.Document
+	ContainerNode   = ast.ContainerNode
+	Declarations    = ast.Declarations
+	LayoutRule      = ast.LayoutRule
+	Block           = ast.Block
+	Use             = ast.Use
+	ArrangementItem = ast.ArrangementItem
+	Arrow           = ast.Arrow
+	Direction       = ast.Direction
+	Box             = ast.Box
+	Error           = ast.Error
+	ErrorType       = ast.ErrorType
+	ParseResult     = ast.ParseResult
 )
 
 // Re-exported enum values for convenience.

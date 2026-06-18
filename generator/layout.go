@@ -34,11 +34,12 @@ type layoutResult struct {
 }
 
 type layoutNode struct {
-	node     *ast.ContainerNode
-	path     string            // full dotted path
-	decls    *ast.Declarations // resolved layout for this node (may be nil)
-	dim      dimensions        // the border box: the visible rectangle (content + border)
-	margin   float64           // uniform margin around the border box (the margin box)
+	node     *ast.ContainerNode // nil for a synthetic @group wrapper
+	path     string             // full dotted path ("" for a group)
+	decls    *ast.Declarations  // resolved layout for this node (may be nil)
+	dim      dimensions         // the border box: the visible rectangle (content + border)
+	margin   float64            // uniform margin around the border box (the margin box)
+	isGroup  bool               // true for an anonymous @group: invisible, unaddressable
 	children []*layoutNode
 }
 
@@ -81,10 +82,39 @@ func buildLayoutTree(node *ast.ContainerNode, parentPath string, layout map[stri
 		path = parentPath + "." + node.ID
 	}
 	l := &layoutNode{node: node, path: path, decls: layout[path]}
-	for _, c := range node.Children {
-		l.children = append(l.children, buildLayoutTree(c, path, layout))
+	if l.decls != nil && len(l.decls.Arrangement) > 0 {
+		l.children = buildArrangement(l.decls.Arrangement, node, path, layout)
+	} else {
+		for _, c := range node.Children {
+			l.children = append(l.children, buildLayoutTree(c, path, layout))
+		}
 	}
 	return l
+}
+
+// buildArrangement turns a node's resolved arrangement into layout children:
+// direct child nodes and synthetic invisible @group wrappers. A child inside a
+// group keeps the *node's* path (parentPath) — a group adds no path segment,
+// since it is purely presentational. Foreign/duplicate/missing child references
+// are the validator's concern; here an unknown id is simply skipped.
+func buildArrangement(items []ast.ArrangementItem, parent *ast.ContainerNode, parentPath string, layout map[string]*ast.Declarations) []*layoutNode {
+	byID := make(map[string]*ast.ContainerNode, len(parent.Children))
+	for _, c := range parent.Children {
+		byID[c.ID] = c
+	}
+	var out []*layoutNode
+	for _, it := range items {
+		if it.Group != nil {
+			g := &layoutNode{decls: it.Group, isGroup: true}
+			g.children = buildArrangement(it.Group.Arrangement, parent, parentPath, layout)
+			out = append(out, g)
+			continue
+		}
+		if child, ok := byID[it.ChildID]; ok {
+			out = append(out, buildLayoutTree(child, parentPath, layout))
+		}
+	}
+	return out
 }
 
 func calcDimensions(l *layoutNode, fontSize float64) {
@@ -97,6 +127,9 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 	minDim := fontSize * 2
 
 	if len(l.children) == 0 {
+		if l.node == nil {
+			return // an empty @group occupies no space
+		}
 		label := ""
 		if l.node.Label != nil {
 			label = *l.node.Label
@@ -107,10 +140,10 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 	}
 
 	// A bordered parent grows to contain each child's *margin* box (margins act
-	// like padding inside the border). An invisible parent (box:none or the
-	// root) has no wall for perimeter margins to sit against, so it bounds the
+	// like padding inside the border). An invisible parent (box:none, a group, or
+	// the root) has no wall for perimeter margins to sit against, so it bounds the
 	// children's *border* boxes plus the inter-sibling gaps only.
-	bordered := isBordered(l.decls)
+	bordered := nodeBordered(l)
 	if direction == ast.Horizontal {
 		sum, maxH := 0.0, 0.0
 		for i, c := range l.children {
@@ -172,7 +205,7 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 func positionNodes(l *layoutNode, x, y float64) {
 	l.dim.x, l.dim.y = x, y
 	direction := directionOf(l.decls)
-	bordered := isBordered(l.decls)
+	bordered := nodeBordered(l)
 
 	if direction == ast.Horizontal {
 		cursor := x
@@ -215,9 +248,13 @@ func canvasSize(roots []*layoutNode) (w, h float64) {
 
 // collectAnchors yields the resolved anchor positions for l and its descendants:
 // the implicit centre plus each declared anchor name at its layout position
-// (defaulting to centre when unpositioned).
+// (defaulting to centre when unpositioned). Groups are anonymous and contribute
+// no anchors.
 func collectAnchors(l *layoutNode) []anchorPosition {
-	out := resolveNodeAnchors(l)
+	var out []anchorPosition
+	if !l.isGroup {
+		out = resolveNodeAnchors(l)
+	}
 	for _, c := range l.children {
 		out = append(out, collectAnchors(c)...)
 	}
@@ -225,9 +262,12 @@ func collectAnchors(l *layoutNode) []anchorPosition {
 }
 
 // collectBoxes records each node's border box keyed by its full dotted path.
-// Arrow routing uses it to find cardinal edges by path.
+// Arrow routing uses it to find cardinal edges by path. Groups are anonymous
+// (no path) and are skipped.
 func collectBoxes(l *layoutNode, out map[string]dimensions) {
-	out[l.path] = l.dim
+	if !l.isGroup {
+		out[l.path] = l.dim
+	}
 	for _, c := range l.children {
 		collectBoxes(c, out)
 	}
@@ -257,10 +297,16 @@ func resolveNodeAnchors(l *layoutNode) []anchorPosition {
 
 // --- resolved-layout accessors (apply defaults for unset properties) ---
 
-// isBordered reports whether a node draws a border and so insets its children
-// like padding. A box:none node and the document root are invisible: they
-// collapse their children's perimeter margins and do not stretch children to
-// fill the cross axis.
+// nodeBordered reports whether a layout node draws a border (and so insets its
+// children like padding). An anonymous @group is always invisible; otherwise it
+// follows the resolved box property.
+func nodeBordered(l *layoutNode) bool {
+	return !l.isGroup && isBordered(l.decls)
+}
+
+// isBordered reports whether a declaration set draws a border. A box:none node
+// and the document root are invisible: they collapse their children's perimeter
+// margins and do not stretch children to fill the cross axis.
 func isBordered(d *ast.Declarations) bool {
 	return !(d != nil && d.Box != nil && *d.Box == ast.BoxNone)
 }

@@ -73,8 +73,14 @@ semantic layer and a layout layer:
   `Anchors` (declared anchor *names*), and `Children []*ContainerNode`. It carries
   no layout — `GroupNode` is gone; a borderless grouping is a `box: none` node.
 - **`Declarations`** — a set of layout properties (`Direction`, `Size`, `Margin`,
-  `Box`, and `Anchors` name→position). Each scalar is a pointer so "unset" stays
-  distinguishable, which the conflict check relies on.
+  `Box`, and `Anchors` name→position) plus an optional `Arrangement` (the node's
+  ordered child layout). Each scalar is a pointer so "unset" stays distinguishable,
+  which the conflict check relies on.
+- **`ArrangementItem`** — one entry in a node's child arrangement: either a
+  `ChildID` (a direct child reference) or a `Group *Declarations` (an anonymous
+  `@group`). A group *is* a `Declarations` whose own `Arrangement` holds its nested
+  items, so nodes and groups share one shape and nest recursively. The arrangement
+  is direct-only — never imported via `@use`/`kind`.
 - **`LayoutRule`** — `{ Selector string; Decls *Declarations; Uses []Use; Line, Column }`.
   One per `@layout` selector block: the node's direct declarations plus any `@use`
   imports. An inline `@layout` is desugared by the parser into a rule whose selector
@@ -98,18 +104,21 @@ semantic layer and a layout layer:
 - **Parser** (`parser/parser.go`) — recursive-descent build of the `Document`:
   semantic node bodies (`label`/`kind`/anchor names/children), inline and
   standalone `@layout` blocks (the declaration grammar and exact-path selectors),
-  `@block` definitions and `@use` imports inside `@layout`, then arrows in a final
-  phase. An inline `@layout` is desugared into a path selector. Collects syntax
-  errors with positions and recovers to keep going; range checks moved to the
-  validator. `parser.Parse` wires tokenizer and parser.
+  `@block` definitions, `@use` imports, and `@group` child arrangements inside
+  `@layout` (a bare identifier with no `:` is a child reference), then arrows in a
+  final phase. An inline `@layout` is desugared into a path selector. Collects
+  syntax errors with positions and recovers to keep going; range checks moved to
+  the validator. `parser.Parse` wires tokenizer and parser.
 - **Validator** (`validator/validator.go`) — semantic checks over a parsed
   `Document`: ID uniqueness within a scope, dangling layout selectors (reported at
   the selector position), duplicate **direct** layout properties on a node, layout
   ranges (`size`/`margin`/coords), anchor positions naming a declared anchor,
   undefined `@use` blocks and `@use` composition cycles (reported at the `@use` /
-  block position), and arrow source/target + anchor-name resolution (with the
-  implicit `center`); non-fail-fast. An unknown `kind` is deliberately *not* an
-  error (it's a semantic tag). Apart from the position-bearing cases above,
+  block position), child-arrangement same-parent and completeness checks (each
+  direct child referenced exactly once, no foreigners), and arrow source/target +
+  anchor-name resolution (with the implicit `center`); non-fail-fast. An unknown
+  `kind` is deliberately *not* an error (it's a semantic tag). Apart from the
+  position-bearing cases above,
   diagnostics report at line 1, column 1 — the semantic AST carries no node
   positions.
 - **Resolver** (`resolve/resolve.go`) — pure merge of the document's layout onto
@@ -120,15 +129,19 @@ semantic layer and a layout layer:
   imports-then-decls) underneath the **direct** tier (declarations naming the
   node). A visiting set makes block composition cycle-safe even though the
   validator rejects cycles first (so `GenerateSVG`, which skips validation, can't
-  loop).
+  loop). A node's child **arrangement** is carried direct-only — copied from the
+  node's own rules, never imported through a block or kind.
 - **Generator** (`generator/`) — takes the document plus the resolved layout.
   `text.go` measures labels with a deterministic, dependency-free rune-width
-  approximation; `layout.go` builds a path-keyed tree, reads each node's resolved
-  declarations, sizes bottom-up applying the vertical/horizontal rules and `size`
-  overrides, positions top-down, sizes the canvas, and resolves anchor coordinates
-  (an unpositioned declared anchor defaults to centre); `svg.go` walks the tree to
-  emit `<rect>` + `<text>` per visible node (`box: none` renders no rect) and
-  `<line>` + arrowhead `<marker>` per arrow. Output is byte-for-byte stable.
+  approximation; `layout.go` builds a path-keyed tree (from a node's resolved
+  `Arrangement` when present, otherwise semantic child order — a `@group` becomes a
+  synthetic invisible node that adds no path segment, so its children keep their
+  real paths), reads each node's resolved declarations, sizes bottom-up applying
+  the vertical/horizontal rules and `size` overrides, positions top-down, sizes the
+  canvas, and resolves anchor coordinates (an unpositioned declared anchor defaults
+  to centre); `svg.go` walks the tree to emit `<rect>` + `<text>` per visible node
+  (a `box: none` node and a `@group` render no rect) and `<line>` + arrowhead
+  `<marker>` per arrow. Output is byte-for-byte stable.
 
 ## Public API
 

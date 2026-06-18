@@ -44,9 +44,11 @@ choose controllable.
   between them.
 - **(Container) node** — a labelled box with an ID. The primary building block;
   may contain child nodes and groups. Sizes to its contents.
-- **Group** — *removed in M3.* A borderless grouping is now a node with
-  `box: none` (it keeps an ID and a path segment); the layout-only `group` keyword
-  is gone. A future presentational `@group` (M5) will cover anonymous regrouping.
+- **Group** — the `group` *keyword* was removed in M3 (a borderless **node** is
+  now `box: none`, keeping an ID and a path segment). The presentational
+  **`@group`** (M5) is its layout-layer successor: an anonymous, invisible wrapper
+  inside a node's arrangement, with no ID and no path segment. See *Presentational
+  regrouping* below.
 - **Direction** — `vertical` or `horizontal`: how a node stacks its children, set
   in `@layout`. Defaults to `vertical`.
 - **Anchor** — a named point on a node in relative `[x, y]` coordinates (`[0, 0]`
@@ -114,12 +116,12 @@ Layout is bottom-up and deterministic:
 
 ## Semantic vs. layout (the `@layout` model)
 
-> 🚧 The **split** (this section's two-layer authoring, `@layout` blocks, exact-path
-> selectors, and the no-cascade resolution) shipped in M3, and **reuse** (`@block`/
-> `@use` and `kind` hooking a layout block) shipped in M4. Only presentational
-> `@group` regrouping is still planned (see [roadmap.md](roadmap.md)). In M3 the
-> inline `size`/`direction`/`anchors:{pos}` shorthand was **dropped**: a node body is
-> purely semantic and all presentation lives in `@layout`.
+> ✅ The full `@layout` model has shipped: the **split** (two-layer authoring,
+> `@layout` blocks, exact-path selectors, no-cascade resolution) in M3, **reuse**
+> (`@block`/`@use` and `kind` hooking a layout block) in M4, and presentational
+> **`@group` regrouping** in M5. In M3 the inline `size`/`direction`/`anchors:{pos}`
+> shorthand was **dropped**: a node body is purely semantic and all presentation
+> lives in `@layout`.
 
 The diagram is authored in two layers, like HTML + CSS — but **without CSS's
 cascade**, because that cascade is exactly the action-at-a-distance the core
@@ -230,8 +232,9 @@ Rules:
 
 ### Presentational regrouping (`@group`)
 
-Inside a node's arrangement, an anonymous `@group` wraps sibling children for
-purely visual nesting — the layout-layer equivalent of an HTML wrapper `<div>`:
+Inside a node's `@layout` block you may list its children to reorder them, and
+wrap a run of them in an anonymous `@group` for purely visual nesting — the
+layout-layer equivalent of an HTML wrapper `<div>`:
 
 ```
 @layout {
@@ -243,7 +246,14 @@ purely visual nesting — the layout-layer equivalent of an HTML wrapper `<div>`
 }
 ```
 
-Two rules keep the picture honest:
+A bare identifier (no `:`) is a child reference; `@group { … }` is a wrapper with
+its own `direction`/`size`/`margin` and nested arrangement. A `@group` is always
+**invisible** (it renders as `box: none`) and **anonymous** — it has no id and
+adds no path segment, so a child inside a group keeps its real dotted path and
+arrows/anchors are unaffected. (v1: a group can't be bordered or labelled, and
+`@use` is not allowed inside one.)
+
+Two rules keep the picture honest (both enforced by the validator):
 
 - **Same-parent only** — a `@group` may contain only direct semantic children of
   the enclosing node (and nested `@group`s thereof). This guarantees the **layout
@@ -251,6 +261,10 @@ Two rules keep the picture honest:
   visually inside a box it isn't semantically part of.
 - **Completeness** — once you arrange a node's children, reference each exactly
   once (no omissions, duplicates, or foreigners).
+
+The arrangement is **direct-only**: it is authored on the node itself (inline or
+sheet) and is never imported through `@use` or `kind` (child ids are node-specific,
+so a reusable block carrying an arrangement makes no sense — and is an error).
 
 ### Both inline and standalone
 

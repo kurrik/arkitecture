@@ -285,6 +285,111 @@ func TestValidateBlockCompositionNoCycle(t *testing.T) {
 	}
 }
 
+func TestValidateArrangementValid(t *testing.T) {
+	services := &ast.ContainerNode{ID: "services", Children: []*ast.ContainerNode{{ID: "a"}, {ID: "b"}, {ID: "c"}}}
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{services},
+		Layout: []ast.LayoutRule{{Selector: "services", Decls: &ast.Declarations{
+			Arrangement: []ast.ArrangementItem{
+				{Group: &ast.Declarations{Arrangement: []ast.ArrangementItem{{ChildID: "a"}, {ChildID: "b"}}}},
+				{ChildID: "c"},
+			},
+		}}},
+	}
+	if errs := Validate(doc); len(errs) != 0 {
+		t.Errorf("expected valid arrangement, got %+v", errs)
+	}
+}
+
+func TestValidateArrangementForeignChild(t *testing.T) {
+	p := &ast.ContainerNode{ID: "p", Children: []*ast.ContainerNode{{ID: "a"}}}
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{p},
+		Layout: []ast.LayoutRule{{Selector: "p", Decls: &ast.Declarations{
+			Arrangement: []ast.ArrangementItem{{ChildID: "a"}, {ChildID: "ghost", Line: 5, Column: 7}},
+		}}},
+	}
+	errs := Validate(doc)
+	if !containsMsg(errs, "references 'ghost', which is not one of its children") {
+		t.Fatalf("expected foreign-child error, got %+v", errs)
+	}
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "ghost") && e.Line == 5 && e.Column == 7 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("foreign-child error should report at 5,7: %+v", errs)
+	}
+}
+
+func TestValidateArrangementGrandchildIsForeign(t *testing.T) {
+	// A group may contain only the node's direct children, not a grandchild.
+	q := &ast.ContainerNode{ID: "q", Children: []*ast.ContainerNode{{ID: "r"}}}
+	p := &ast.ContainerNode{ID: "p", Children: []*ast.ContainerNode{q}}
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{p},
+		Layout: []ast.LayoutRule{{Selector: "p", Decls: &ast.Declarations{
+			Arrangement: []ast.ArrangementItem{{Group: &ast.Declarations{Arrangement: []ast.ArrangementItem{{ChildID: "q"}, {ChildID: "r"}}}}},
+		}}},
+	}
+	if !containsMsg(Validate(doc), "references 'r', which is not one of its children") {
+		t.Errorf("expected grandchild 'r' to be foreign, got %+v", Validate(doc))
+	}
+}
+
+func TestValidateArrangementDuplicateChild(t *testing.T) {
+	p := &ast.ContainerNode{ID: "p", Children: []*ast.ContainerNode{{ID: "a"}, {ID: "b"}}}
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{p},
+		Layout: []ast.LayoutRule{{Selector: "p", Decls: &ast.Declarations{
+			Arrangement: []ast.ArrangementItem{{ChildID: "a"}, {ChildID: "a"}, {ChildID: "b"}},
+		}}},
+	}
+	if !containsMsg(Validate(doc), "references child 'a' more than once") {
+		t.Errorf("expected duplicate-child error, got %+v", Validate(doc))
+	}
+}
+
+func TestValidateArrangementMissingChild(t *testing.T) {
+	p := &ast.ContainerNode{ID: "p", Children: []*ast.ContainerNode{{ID: "a"}, {ID: "b"}}}
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{p},
+		Layout: []ast.LayoutRule{{Selector: "p", Decls: &ast.Declarations{
+			Arrangement: []ast.ArrangementItem{{ChildID: "a"}},
+		}}},
+	}
+	if !containsMsg(Validate(doc), "omits child(ren): b") {
+		t.Errorf("expected missing-child error, got %+v", Validate(doc))
+	}
+}
+
+func TestValidateArrangementConflict(t *testing.T) {
+	p := &ast.ContainerNode{ID: "p", Children: []*ast.ContainerNode{{ID: "a"}}}
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{p},
+		Layout: []ast.LayoutRule{
+			{Selector: "p", Decls: &ast.Declarations{Arrangement: []ast.ArrangementItem{{ChildID: "a"}}}},
+			{Selector: "p", Decls: &ast.Declarations{Arrangement: []ast.ArrangementItem{{ChildID: "a"}}}},
+		},
+	}
+	if !containsMsg(Validate(doc), "Conflicting layout property 'arrangement' on node 'p'") {
+		t.Errorf("expected arrangement conflict, got %+v", Validate(doc))
+	}
+}
+
+func TestValidateArrangementInBlockErrors(t *testing.T) {
+	doc := &ast.Document{
+		Blocks: []ast.Block{{Name: "b", Line: 2, Column: 3, Decls: &ast.Declarations{
+			Arrangement: []ast.ArrangementItem{{ChildID: "x"}},
+		}}},
+	}
+	if !containsMsg(Validate(doc), "Layout block 'b' may not contain a child arrangement") {
+		t.Errorf("expected arrangement-in-block error, got %+v", Validate(doc))
+	}
+}
+
 func ptr(f float64) *float64 { return &f }
 
 func containsMsg(errs []ast.Error, sub string) bool {

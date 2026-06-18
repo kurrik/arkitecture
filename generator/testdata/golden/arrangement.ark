@@ -1,0 +1,20 @@
+# M5: a @group regroups siblings into an invisible layout sub-container.
+# services is laid out horizontally as [ group(userService / orderService), payments ].
+services {
+  label: "Services"
+
+  userService  { label: "User Service" }
+  orderService { label: "Order Service" }
+  payments     { label: "Payments" }
+}
+
+@layout {
+  services {
+    direction: horizontal
+
+    # The @group stacks userService over orderService and sits, as one unit, to
+    # the left of payments. It draws no border and adds no path segment.
+    @group { direction: vertical; userService; orderService }
+    payments
+  }
+}

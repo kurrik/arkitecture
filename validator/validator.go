@@ -108,6 +108,7 @@ func (v *validator) validateLayout(doc *ast.Document) {
 
 		v.validateDeclRanges(rule.Selector, rule.Decls)
 		v.validateAnchorPositions(rule.Selector, rule.Decls)
+		v.validateArrangement(rule.Selector, rule.Decls)
 	}
 
 	for _, sel := range order {
@@ -118,7 +119,7 @@ func (v *validator) validateLayout(doc *ast.Document) {
 // validateNoConflicts reports a property set by more than one direct rule on the
 // same node. (A property repeated inside a single block is caught by the parser.)
 func (v *validator) validateNoConflicts(selector string, decls []*ast.Declarations) {
-	var direction, size, margin, box int
+	var direction, size, margin, box, arrangement int
 	anchors := map[string]int{}
 	for _, d := range decls {
 		if d == nil {
@@ -136,6 +137,9 @@ func (v *validator) validateNoConflicts(selector string, decls []*ast.Declaratio
 		if d.Box != nil {
 			box++
 		}
+		if len(d.Arrangement) > 0 {
+			arrangement++
+		}
 		for name := range d.Anchors {
 			anchors[name]++
 		}
@@ -143,7 +147,7 @@ func (v *validator) validateNoConflicts(selector string, decls []*ast.Declaratio
 	for _, c := range []struct {
 		name  string
 		count int
-	}{{"direction", direction}, {"size", size}, {"margin", margin}, {"box", box}} {
+	}{{"direction", direction}, {"size", size}, {"margin", margin}, {"box", box}, {"arrangement", arrangement}} {
 		if c.count > 1 {
 			v.addError(ast.ErrorReference, fmt.Sprintf("Conflicting layout property '%s' on node '%s'", c.name, selector))
 		}
@@ -174,6 +178,12 @@ func (v *validator) validateDeclRanges(selector string, d *ast.Declarations) {
 			v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' anchor '%s' Y coordinate %s is out of range, expected 0.0-1.0", selector, name, formatNum(y)))
 		}
 	}
+	// Group declarations carry their own size/margin; range-check them too.
+	for _, it := range d.Arrangement {
+		if it.Group != nil {
+			v.validateDeclRanges(selector, it.Group)
+		}
+	}
 }
 
 // validateAnchorPositions checks that every positioned anchor names a declared
@@ -195,6 +205,68 @@ func (v *validator) validateAnchorPositions(selector string, d *ast.Declarations
 	}
 }
 
+// validateArrangement checks a node's child arrangement: every referenced id is
+// a direct child of the node (same-parent — including ids nested in @group
+// wrappers), and once a node is arranged, each direct child is referenced
+// exactly once (completeness — no foreigners, duplicates, or omissions). This
+// keeps the layout tree a refinement of the semantic tree.
+func (v *validator) validateArrangement(selector string, d *ast.Declarations) {
+	if d == nil || len(d.Arrangement) == 0 {
+		return
+	}
+	node := v.nodeMap[selector]
+	if node == nil {
+		return
+	}
+	childOf := make(map[string]bool, len(node.Children))
+	for _, c := range node.Children {
+		childOf[c.ID] = true
+	}
+
+	var refs []ast.ArrangementItem
+	collectChildRefs(d.Arrangement, &refs)
+
+	seen := map[string]int{}
+	for _, r := range refs {
+		if !childOf[r.ChildID] {
+			v.errors = append(v.errors, ast.Error{
+				Type:    ast.ErrorReference,
+				Message: fmt.Sprintf("Arrangement of node '%s' references '%s', which is not one of its children", selector, r.ChildID),
+				Line:    r.Line,
+				Column:  r.Column,
+			})
+			continue
+		}
+		seen[r.ChildID]++
+	}
+	for _, name := range sortedIntKeys(seen) {
+		if seen[name] > 1 {
+			v.addError(ast.ErrorReference, fmt.Sprintf("Arrangement of node '%s' references child '%s' more than once", selector, name))
+		}
+	}
+	var missing []string
+	for _, c := range node.Children {
+		if seen[c.ID] == 0 {
+			missing = append(missing, c.ID)
+		}
+	}
+	if len(missing) > 0 {
+		v.addError(ast.ErrorReference, fmt.Sprintf("Arrangement of node '%s' omits child(ren): %s", selector, strings.Join(missing, ", ")))
+	}
+}
+
+// collectChildRefs flattens an arrangement to its child-id references, descending
+// into @group wrappers (which may only contain the same node's children).
+func collectChildRefs(items []ast.ArrangementItem, out *[]ast.ArrangementItem) {
+	for _, it := range items {
+		if it.Group != nil {
+			collectChildRefs(it.Group.Arrangement, out)
+			continue
+		}
+		*out = append(*out, it)
+	}
+}
+
 // validateLayoutBlocks checks the reuse layer: every `@use` (in a selector,
 // inline block, or block composition) names a defined block, and block
 // composition has no cycles. An unknown `kind` is intentionally not checked —
@@ -213,6 +285,14 @@ func (v *validator) validateLayoutBlocks(doc *ast.Document) {
 	}
 	for _, b := range doc.Blocks {
 		v.checkUsesDefined(b.Uses, defined)
+		if b.Decls != nil && len(b.Decls.Arrangement) > 0 {
+			v.errors = append(v.errors, ast.Error{
+				Type:    ast.ErrorReference,
+				Message: fmt.Sprintf("Layout block '%s' may not contain a child arrangement", b.Name),
+				Line:    b.Line,
+				Column:  b.Column,
+			})
+		}
 	}
 
 	v.validateBlockCycles(doc.Blocks)

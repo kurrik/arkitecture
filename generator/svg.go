@@ -44,10 +44,10 @@ func renderNodes(doc *ast.Document, layout layoutResult, fontSize float64, fontF
 }
 
 func collectNodeElements(l *layoutNode, fontSize float64, fontFamily string, els *[]string) {
-	if isBordered(l.decls) {
+	if nodeBordered(l) {
 		*els = append(*els, nodeRect(l.dim))
 	}
-	if l.node.Label != nil && *l.node.Label != "" {
+	if l.node != nil && l.node.Label != nil && *l.node.Label != "" {
 		*els = append(*els, nodeText(*l.node.Label, l.dim, fontSize, fontFamily))
 	}
 	for _, c := range l.children {

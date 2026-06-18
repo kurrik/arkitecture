@@ -245,6 +245,56 @@ func TestParseUseRecordsPosition(t *testing.T) {
 	}
 }
 
+func TestParseArrangement(t *testing.T) {
+	doc := parseOK(t, `services {
+  @layout {
+    direction: horizontal
+    @group { direction: vertical; userService; orderService }
+    payments
+  }
+}`)
+	r := ruleFor(doc, "services")
+	if r == nil {
+		t.Fatal("no rule for services")
+	}
+	if r.Decls.Direction == nil || *r.Decls.Direction != ast.Horizontal {
+		t.Errorf("direction = %v, want horizontal", r.Decls.Direction)
+	}
+	arr := r.Decls.Arrangement
+	if len(arr) != 2 {
+		t.Fatalf("arrangement len = %d, want 2: %+v", len(arr), arr)
+	}
+	g := arr[0].Group
+	if g == nil {
+		t.Fatalf("arr[0] should be a group: %+v", arr[0])
+	}
+	if g.Direction == nil || *g.Direction != ast.Vertical {
+		t.Errorf("group direction = %v, want vertical", g.Direction)
+	}
+	if len(g.Arrangement) != 2 || g.Arrangement[0].ChildID != "userService" || g.Arrangement[1].ChildID != "orderService" {
+		t.Errorf("group items = %+v, want [userService orderService]", g.Arrangement)
+	}
+	if arr[1].Group != nil || arr[1].ChildID != "payments" {
+		t.Errorf("arr[1] = %+v, want child payments", arr[1])
+	}
+}
+
+func TestParseNestedGroup(t *testing.T) {
+	doc := parseOK(t, `n { @layout { @group { a; @group { b; c } } } }`)
+	r := ruleFor(doc, "n")
+	if r == nil || len(r.Decls.Arrangement) != 1 || r.Decls.Arrangement[0].Group == nil {
+		t.Fatalf("expected one top-level group: %+v", r)
+	}
+	outer := r.Decls.Arrangement[0].Group
+	if len(outer.Arrangement) != 2 || outer.Arrangement[0].ChildID != "a" {
+		t.Fatalf("outer group items = %+v, want [a, <group>]", outer.Arrangement)
+	}
+	inner := outer.Arrangement[1].Group
+	if inner == nil || len(inner.Arrangement) != 2 || inner.Arrangement[0].ChildID != "b" || inner.Arrangement[1].ChildID != "c" {
+		t.Errorf("inner group = %+v, want [b c]", inner)
+	}
+}
+
 func TestParseErrors(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -265,7 +315,9 @@ func TestParseErrors(t *testing.T) {
 		{"block without name", `@layout { @block { size: 0.5 } }`, ast.ErrorSyntax, "Expected block name after @block"},
 		{"use without name", `a { @layout { @use } }`, ast.ErrorSyntax, "Expected block name after @use"},
 		{"use at sheet top level", `@layout { @use svc }`, ast.ErrorSyntax, "Unknown directive '@use' inside @layout, expected @block or a selector"},
-		{"unknown directive in block", `a { @layout { @group x } }`, ast.ErrorSyntax, "Unknown directive '@group' in layout block, expected @use"},
+		{"unknown directive in block", `a { @layout { @nope x } }`, ast.ErrorSyntax, "Unknown directive '@nope' in layout block, expected @use"},
+		{"use inside group", `a { @layout { @group { @use svc } } }`, ast.ErrorSyntax, "@use is not allowed inside @group"},
+		{"group without brace", `a { @layout { @group x } }`, ast.ErrorSyntax, "Expected '{' after @group"},
 		{"unterminated string", `a { label: "oops`, ast.ErrorSyntax, "Unterminated string"},
 	}
 

@@ -64,13 +64,29 @@ type ContainerNode struct {
 // Declarations is a set of layout properties — the body of an `@layout` block.
 // Each scalar is a pointer so "unset" stays distinguishable from a real value
 // (which matters for the resolve stage's duplicate-property conflict check).
-// Anchors maps an anchor name to its relative [x, y] position.
+// Anchors maps an anchor name to its relative [x, y] position. Arrangement, when
+// non-empty, is the node's ordered child layout (with optional `@group`
+// wrappers); empty means "lay children out in semantic order".
 type Declarations struct {
-	Direction *Direction
-	Size      *float64
-	Margin    *float64
-	Box       *Box
-	Anchors   map[string][2]float64
+	Direction   *Direction
+	Size        *float64
+	Margin      *float64
+	Box         *Box
+	Anchors     map[string][2]float64
+	Arrangement []ArrangementItem
+}
+
+// ArrangementItem is one entry in a node's child arrangement: either a reference
+// to a direct child (by id) or an anonymous `@group` wrapper. Exactly one of
+// ChildID / Group is set. A group is itself a [Declarations] whose own
+// Arrangement holds its nested items — an invisible (`box: none`) layout
+// sub-container with its own direction/size/margin. Line/Column point at the
+// entry for arrangement diagnostics.
+type ArrangementItem struct {
+	ChildID string
+	Group   *Declarations
+	Line    int
+	Column  int
 }
 
 // Use is an `@use <block>` directive: a request to import a named layout block's

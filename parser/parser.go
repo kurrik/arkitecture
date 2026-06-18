@@ -422,6 +422,13 @@ func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
 			continue
 		}
 		if p.check(TokenAt) {
+			// @group is an arrangement entry; any other @ directive (@use) imports.
+			if nx := p.peekNext(); nx != nil && nx.Type == TokenIdentifier && nx.Value == "group" {
+				if grp, gtok, ok := p.parseGroup(); ok {
+					d.Arrangement = append(d.Arrangement, ast.ArrangementItem{Group: grp, Line: gtok.Line, Column: gtok.Column})
+				}
+				continue
+			}
 			if u, ok := p.parseUse(); ok {
 				uses = append(uses, u)
 			}
@@ -440,12 +447,11 @@ func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
 			p.parseAnchorPosition(d)
 			continue
 		}
-		p.advance() // consume property name
+		p.advance() // consume the identifier
 
 		if !p.check(TokenColon) {
-			tok := p.peek()
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected ':' after '%s', got %s", name, tok.Type), tok.Line, tok.Column)
-			p.skipUntilRecovery()
+			// A bare identifier (no ':') is an arrangement child reference.
+			d.Arrangement = append(d.Arrangement, ast.ArrangementItem{ChildID: name, Line: propTok.Line, Column: propTok.Column})
 			continue
 		}
 		p.advance() // consume ':'
@@ -487,6 +493,42 @@ func (p *parser) parseUse() (ast.Use, bool) {
 	}
 	nameTok := p.advance()
 	return ast.Use{Block: nameTok.Value, Line: nameTok.Line, Column: nameTok.Column}, true
+}
+
+// parseGroup parses an anonymous `@group { … }` arrangement entry. Its body is
+// the same grammar as a node's @layout block (declarations + nested arrangement),
+// except `@use` is not allowed inside a group. It returns the group's
+// declarations (a nested arrangement-bearing Declarations) and the directive
+// token for positioning. The caller has already confirmed the directive is
+// `@group` via lookahead.
+func (p *parser) parseGroup() (*ast.Declarations, Token, bool) {
+	dirTok, ok := p.parseDirective() // consume @group
+	if !ok {
+		return nil, Token{}, false
+	}
+	if !p.check(TokenLBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '{' after @group, got %s", tok.Type), tok.Line, tok.Column)
+		return nil, Token{}, false
+	}
+	p.advance() // consume '{'
+
+	g := &ast.Declarations{}
+	uses := p.parseDeclarations(g)
+
+	if !p.check(TokenRBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '}' to close @group, got %s", tok.Type), tok.Line, tok.Column)
+		return nil, Token{}, false
+	}
+	p.advance() // consume '}'
+
+	// Keep the group (so its children still count for completeness) but flag the
+	// unsupported import.
+	if len(uses) > 0 {
+		p.addError(ast.ErrorSyntax, "@use is not allowed inside @group", dirTok.Line, dirTok.Column)
+	}
+	return g, dirTok, true
 }
 
 func (p *parser) parseDirectionDecl(d *ast.Declarations, propTok Token) {
