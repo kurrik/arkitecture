@@ -1,15 +1,12 @@
 # Specification example from architecture.md
 api {
   label: "API Gateway"
-  direction: "vertical"
-  anchors: {
-    south: [0.5, 1.0]
-  }
-  
+  anchors: [south]
+
   auth {
     label: "Authentication"
   }
-  
+
   routing {
     label: "Request Routing"
   }
@@ -17,31 +14,32 @@ api {
 
 services {
   label: "Microservices"
-  direction: "horizontal"
-  anchors: {
-    north: [0.5, 0.0]
-  }
-  
+  anchors: [north]
+
   userService {
     label: "User Service"
-    anchors: {
-      db: [0.5, 1.0]
-    }
+    anchors: [db]
   }
-  
+
   orderService {
     label: "Order Service"
-    anchors: {
-      db: [0.5, 1.0]
-    }
+    anchors: [db]
   }
 }
 
 database {
   label: "Database Cluster"
-  anchors: {
-    north: [0.5, 0.0]
-  }
+  anchors: [north]
+}
+
+# Presentation — directions and anchor positions — lives in the layout layer.
+@layout {
+  api      { direction: vertical; anchor south: [0.5, 1.0] }
+  services { direction: horizontal; anchor north: [0.5, 0.0] }
+
+  services.userService  { anchor db: [0.5, 1.0] }
+  services.orderService { anchor db: [0.5, 1.0] }
+  database              { anchor north: [0.5, 0.0] }
 }
 
 api#south --> services#north

@@ -44,11 +44,11 @@ choose controllable.
   between them.
 - **(Container) node** — a labelled box with an ID. The primary building block;
   may contain child nodes and groups. Sizes to its contents.
-- **Group** — a layout-only container with no ID, label, or border. Exists purely
-  to arrange its children; invisible in the output. *(Being replaced — see
-  Semantic vs. layout: a node with `box: none`, or a presentational `@group`.)*
-- **Direction** — `vertical` or `horizontal`: how a node or group stacks its
-  children. Defaults to `vertical`.
+- **Group** — *removed in M3.* A borderless grouping is now a node with
+  `box: none` (it keeps an ID and a path segment); the layout-only `group` keyword
+  is gone. A future presentational `@group` (M5) will cover anonymous regrouping.
+- **Direction** — `vertical` or `horizontal`: how a node stacks its children, set
+  in `@layout`. Defaults to `vertical`.
 - **Anchor** — a named point on a node in relative `[x, y]` coordinates (`[0, 0]`
   top-left … `[1, 1]` bottom-right), used as an arrow endpoint. Every node has an
   implicit centre anchor at `[0.5, 0.5]`.
@@ -56,11 +56,11 @@ choose controllable.
   (possibly dotted) node path with an optional `#anchor`.
 - **Size** — an override in `[0, 1]` for a node's *orthogonal* dimension, as a
   fraction of what the parent would otherwise give it.
-- **Semantic vs. layout layers** *(planned)* — structure (`id`, `label`, `kind`,
+- **Semantic vs. layout layers** *(M3)* — structure (`id`, `label`, `kind`,
   anchor *names*, nesting, arrows) is authored separately from presentation
-  (`@layout`: `direction`, `size`, anchor *positions*, `box`, child arrangement).
-  See the section below.
-- **Kind** *(planned)* — an arbitrary semantic classification on a node
+  (`@layout`: `direction`, `size`, anchor *positions*, `margin`, `box`, child
+  arrangement). See the section below.
+- **Kind** *(parsed; hook planned)* — an arbitrary semantic classification on a node
   (`kind: database`) that implicitly applies the layout block of the same name
   (`@use database`) as an overridable style baseline.
 - **Margin** — layout space reserved around a node's border box (uniform,
@@ -110,9 +110,12 @@ Layout is bottom-up and deterministic:
 
 ## Semantic vs. layout (the `@layout` model)
 
-> 🚧 The model below is the agreed design direction, not yet built. It is
-> introduced in phases (see [roadmap.md](roadmap.md)); today's inline `size` /
-> `direction` / `anchors` properties are the starting point it generalises.
+> 🚧 The **split** (this section's two-layer authoring, `@layout` blocks, exact-path
+> selectors, and the no-cascade resolution) shipped in M3. The remaining phases —
+> reusable `@block`/`@use`, `kind` actually hooking layout, and presentational
+> `@group` regrouping — are still planned (see [roadmap.md](roadmap.md)). In M3 the
+> inline `size`/`direction`/`anchors:{pos}` shorthand was **dropped**: a node body is
+> purely semantic and all presentation lives in `@layout`.
 
 The diagram is authored in two layers, like HTML + CSS — but **without CSS's
 cascade**, because that cascade is exactly the action-at-a-distance the core

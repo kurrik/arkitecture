@@ -1,6 +1,5 @@
 platform {
   label: "Platform"
-  direction: "vertical"
 
   gateway {
     label: "API Gateway"
@@ -8,10 +7,14 @@ platform {
 
   services {
     label: "Services"
-    direction: "horizontal"
 
     users   { label: "Users" }
     orders  { label: "Orders" }
     billing { label: "Billing" }
   }
+}
+
+@layout {
+  platform          { direction: vertical }
+  platform.services { direction: horizontal }
 }

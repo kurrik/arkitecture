@@ -46,9 +46,14 @@ func TestTokenizeSequences(t *testing.T) {
 			[]TokenType{TokenIdentifier, TokenArrow, TokenIdentifier, TokenEOF},
 		},
 		{
-			"group keyword",
-			"group {",
-			[]TokenType{TokenGroup, TokenLBrace, TokenEOF},
+			"at directive",
+			"@layout {",
+			[]TokenType{TokenAt, TokenIdentifier, TokenLBrace, TokenEOF},
+		},
+		{
+			"semicolon is a separator, not a token",
+			"a; b",
+			[]TokenType{TokenIdentifier, TokenIdentifier, TokenEOF},
 		},
 		{
 			"hash is anchor when not preceded by whitespace",
@@ -137,7 +142,7 @@ func TestTokenizeErrors(t *testing.T) {
 		wantLine   int
 		wantColumn int
 	}{
-		{"unexpected character", "a @ b", "Unexpected character '@'", 1, 3},
+		{"unexpected character", "a $ b", "Unexpected character '$'", 1, 3},
 		{"unterminated string", `"no end`, "Unterminated string", 1, 1},
 	}
 	for _, tt := range tests {

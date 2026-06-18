@@ -73,6 +73,11 @@ func (t *tokenizer) nextToken() (*Token, *TokenizerError) {
 			return &Token{Type: TokenNewline, Value: "\n", Line: startLine, Column: startColumn}, nil
 		}
 
+		if ch == '@' {
+			t.advance()
+			return &Token{Type: TokenAt, Value: "@", Line: startLine, Column: startColumn}, nil
+		}
+
 		if ch == '-' && t.peek(1) == '-' && t.peek(2) == '>' {
 			t.advance()
 			t.advance()
@@ -181,18 +186,15 @@ func (t *tokenizer) scanIdentifier(startLine, startColumn int) *Token {
 	for isAlphaNumeric(t.peek(0)) || t.peek(0) == '_' {
 		b.WriteRune(t.advance())
 	}
-	text := b.String()
-	typ := TokenIdentifier
-	if text == "group" {
-		typ = TokenGroup
-	}
-	return &Token{Type: typ, Value: text, Line: startLine, Column: startColumn}
+	return &Token{Type: TokenIdentifier, Value: b.String(), Line: startLine, Column: startColumn}
 }
 
 func (t *tokenizer) skipWhitespace() {
+	// ';' is a purely cosmetic statement separator (it lets `@layout {a; b}`
+	// read on one line), so it is skipped like ordinary whitespace.
 	for !t.isAtEnd() {
 		switch t.peek(0) {
-		case ' ', '\r', '\t':
+		case ' ', '\r', '\t', ';':
 			t.advance()
 		default:
 			return

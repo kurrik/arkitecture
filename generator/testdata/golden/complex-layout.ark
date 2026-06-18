@@ -1,10 +1,8 @@
 # Complex layout with nested containers and arrows
 root {
-  direction: "horizontal"
-  
   frontend {
     label: "Frontend"
-    
+
     react {
       label: "React App"
     }
@@ -12,11 +10,10 @@ root {
       label: "Static Assets"
     }
   }
-  
+
   backend {
-    label: "Backend Services" 
-    direction: "vertical"
-    
+    label: "Backend Services"
+
     api {
       label: "REST API"
     }
@@ -24,10 +21,16 @@ root {
       label: "Auth Service"
     }
   }
-  
+
   database {
     label: "Database"
   }
+}
+
+# Presentation lives in the layout layer.
+@layout {
+  root         { direction: horizontal }
+  root.backend { direction: vertical }
 }
 
 # Arrows showing data flow

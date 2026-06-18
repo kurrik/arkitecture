@@ -37,23 +37,21 @@ func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFam
 
 func renderNodes(doc *ast.Document, layout layoutResult, fontSize float64, fontFamily string) string {
 	var els []string
-	collectNodeElements(toNodes(doc.Nodes), layout, fontSize, fontFamily, &els)
+	for _, l := range layout.roots {
+		collectNodeElements(l, fontSize, fontFamily, &els)
+	}
 	return strings.Join(els, "\n")
 }
 
-func collectNodeElements(nodes []ast.Node, layout layoutResult, fontSize float64, fontFamily string, els *[]string) {
-	for _, node := range nodes {
-		if c, ok := node.(*ast.ContainerNode); ok {
-			if d, ok := layout.nodeDimensions[c.ID]; ok {
-				if c.Box != ast.BoxNone {
-					*els = append(*els, nodeRect(d))
-				}
-				if c.Label != nil && *c.Label != "" {
-					*els = append(*els, nodeText(*c.Label, d, fontSize, fontFamily))
-				}
-			}
-		}
-		collectNodeElements(childrenOf(node), layout, fontSize, fontFamily, els)
+func collectNodeElements(l *layoutNode, fontSize float64, fontFamily string, els *[]string) {
+	if isBordered(l.decls) {
+		*els = append(*els, nodeRect(l.dim))
+	}
+	if l.node.Label != nil && *l.node.Label != "" {
+		*els = append(*els, nodeText(*l.node.Label, l.dim, fontSize, fontFamily))
+	}
+	for _, c := range l.children {
+		collectNodeElements(c, fontSize, fontFamily, els)
 	}
 }
 

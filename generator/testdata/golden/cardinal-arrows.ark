@@ -2,19 +2,21 @@
 # edge facing the other node's centre; an explicit anchor (named or #center)
 # always wins.
 col {
-  direction: "vertical"
   a { label: "A" }
   b { label: "B" }
 }
 row {
-  direction: "horizontal"
   c { label: "C" }
   d {
     label: "D"
-    anchors: {
-      tag: [0.5, 1.0]
-    }
+    anchors: [tag]
   }
+}
+
+@layout {
+  col   { direction: vertical }
+  row   { direction: horizontal }
+  row.d { anchor tag: [0.5, 1.0] }
 }
 
 # Vertical siblings -> south edge to north edge.

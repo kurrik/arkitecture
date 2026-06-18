@@ -17,7 +17,7 @@ const (
 	TokenArrow      TokenType = "ARROW"    // -->
 	TokenDot        TokenType = "DOT"      // .
 	TokenHash       TokenType = "HASH"     // #
-	TokenGroup      TokenType = "GROUP"    // the "group" keyword
+	TokenAt         TokenType = "AT"       // @ (introduces a directive, e.g. @layout)
 	TokenEOF        TokenType = "EOF"
 	TokenNewline    TokenType = "NEWLINE"
 )

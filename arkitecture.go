@@ -13,6 +13,7 @@ import (
 	"github.com/kurrik/arkitecture/ast"
 	"github.com/kurrik/arkitecture/generator"
 	"github.com/kurrik/arkitecture/parser"
+	"github.com/kurrik/arkitecture/resolve"
 	"github.com/kurrik/arkitecture/validator"
 )
 
@@ -21,10 +22,11 @@ import (
 type (
 	Document      = ast.Document
 	ContainerNode = ast.ContainerNode
-	GroupNode     = ast.GroupNode
-	Node          = ast.Node
+	Declarations  = ast.Declarations
+	LayoutRule    = ast.LayoutRule
 	Arrow         = ast.Arrow
 	Direction     = ast.Direction
+	Box           = ast.Box
 	Error         = ast.Error
 	ErrorType     = ast.ErrorType
 	ParseResult   = ast.ParseResult
@@ -34,6 +36,9 @@ type (
 const (
 	Vertical   = ast.Vertical
 	Horizontal = ast.Horizontal
+
+	BoxDefault = ast.BoxDefault
+	BoxNone    = ast.BoxNone
 
 	ErrorSyntax     = ast.ErrorSyntax
 	ErrorReference  = ast.ErrorReference
@@ -86,7 +91,8 @@ func ToSVG(dsl string, opts *Options) (result Result) {
 		return Result{Success: true}
 	}
 
-	svg, errs := generator.GenerateSVG(parsed.Document, generator.Options{
+	layout := resolve.Resolve(parsed.Document)
+	svg, errs := generator.GenerateSVG(parsed.Document, layout, generator.Options{
 		FontSize:   opts.FontSize,
 		FontFamily: opts.FontFamily,
 	})
@@ -107,13 +113,15 @@ func Validate(doc *Document) []Error {
 	return validator.Validate(doc)
 }
 
-// GenerateSVG lays out and renders an already-parsed document. A nil opts is
+// GenerateSVG lays out and renders an already-parsed document: it resolves the
+// layout layer onto the semantic tree, then generates SVG. A nil opts is
 // treated as the zero Options.
 func GenerateSVG(doc *Document, opts *Options) (string, []Error) {
 	if opts == nil {
 		opts = &Options{}
 	}
-	return generator.GenerateSVG(doc, generator.Options{
+	layout := resolve.Resolve(doc)
+	return generator.GenerateSVG(doc, layout, generator.Options{
 		FontSize:   opts.FontSize,
 		FontFamily: opts.FontFamily,
 	})
