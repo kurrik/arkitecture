@@ -2,18 +2,17 @@ package generator
 
 import (
 	"math"
-	"sort"
 
 	"github.com/kurrik/arkitecture/ast"
 )
 
-// borderWidth is the 1px border every container node draws.
+// borderWidth is the 1px border every bordered node draws.
 const borderWidth = 1.0
 
 // defaultMargin is the uniform space a node reserves around its border box when
-// it sets no explicit margin. It is non-zero so flush-packed siblings get a
-// visible gap (and auto-routed arrows, later, room to travel); author
-// `margin: 0` to restore the old flush look.
+// its resolved layout sets no explicit margin. It is non-zero so flush-packed
+// siblings get a visible gap (and auto-routed arrows room to travel); author
+// `margin: 0` in @layout to restore the old flush look.
 const defaultMargin = 8.0
 
 type dimensions struct {
@@ -27,7 +26,7 @@ type anchorPosition struct {
 }
 
 type layoutResult struct {
-	nodeDimensions  map[string]dimensions // keyed by bare node ID
+	roots           []*layoutNode
 	nodeBoxes       map[string]dimensions // border boxes keyed by full dotted path
 	anchorPositions []anchorPosition
 	canvasWidth     float64
@@ -35,20 +34,20 @@ type layoutResult struct {
 }
 
 type layoutNode struct {
-	node     ast.Node
-	dim      dimensions // the border box: the visible rectangle (content + border)
-	margin   float64    // uniform margin around the border box (the margin box)
+	node     *ast.ContainerNode
+	path     string            // full dotted path
+	decls    *ast.Declarations // resolved layout for this node (may be nil)
+	dim      dimensions        // the border box: the visible rectangle (content + border)
+	margin   float64           // uniform margin around the border box (the margin box)
 	children []*layoutNode
 }
 
 // computeLayout sizes and positions every node bottom-up then top-down, sizes
 // the canvas to fit, and resolves anchor coordinates. It is deterministic.
-func computeLayout(doc *ast.Document, fontSize float64) layoutResult {
-	dims := make(map[string]dimensions)
+func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontSize float64) layoutResult {
 	roots := make([]*layoutNode, 0, len(doc.Nodes))
-
 	for _, n := range doc.Nodes {
-		l := buildLayoutTree(n)
+		l := buildLayoutTree(n, "", layout)
 		calcDimensions(l, fontSize)
 		roots = append(roots, l)
 	}
@@ -62,22 +61,28 @@ func computeLayout(doc *ast.Document, fontSize float64) layoutResult {
 			currentX += roots[i-1].margin + l.margin
 		}
 		positionNodes(l, currentX, 0)
-		collectDimensions(l, dims)
 		currentX += l.dim.width
 	}
 
 	cw, ch := canvasSize(roots)
-	anchors := collectAnchors(toNodes(doc.Nodes), dims, "")
 	boxes := make(map[string]dimensions)
-	collectBoxes(toNodes(doc.Nodes), dims, "", boxes)
+	var anchors []anchorPosition
+	for _, l := range roots {
+		collectBoxes(l, boxes)
+		anchors = append(anchors, collectAnchors(l)...)
+	}
 
-	return layoutResult{nodeDimensions: dims, nodeBoxes: boxes, anchorPositions: anchors, canvasWidth: cw, canvasHeight: ch}
+	return layoutResult{roots: roots, nodeBoxes: boxes, anchorPositions: anchors, canvasWidth: cw, canvasHeight: ch}
 }
 
-func buildLayoutTree(node ast.Node) *layoutNode {
-	l := &layoutNode{node: node}
-	for _, c := range childrenOf(node) {
-		l.children = append(l.children, buildLayoutTree(c))
+func buildLayoutTree(node *ast.ContainerNode, parentPath string, layout map[string]*ast.Declarations) *layoutNode {
+	path := node.ID
+	if parentPath != "" {
+		path = parentPath + "." + node.ID
+	}
+	l := &layoutNode{node: node, path: path, decls: layout[path]}
+	for _, c := range node.Children {
+		l.children = append(l.children, buildLayoutTree(c, path, layout))
 	}
 	return l
 }
@@ -87,28 +92,25 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 		calcDimensions(c, fontSize)
 	}
 
-	l.margin = marginOf(l.node)
-	container, isContainer := l.node.(*ast.ContainerNode)
-	direction := directionOf(l.node)
+	l.margin = marginOf(l.decls)
+	direction := directionOf(l.decls)
 	minDim := fontSize * 2
 
 	if len(l.children) == 0 {
-		if isContainer {
-			label := ""
-			if container.Label != nil {
-				label = *container.Label
-			}
-			l.dim.width = math.Max(textWidth(label, fontSize)+2*borderWidth, minDim)
-			l.dim.height = math.Max(textHeight(label, fontSize)+2*borderWidth, minDim)
+		label := ""
+		if l.node.Label != nil {
+			label = *l.node.Label
 		}
+		l.dim.width = math.Max(textWidth(label, fontSize)+2*borderWidth, minDim)
+		l.dim.height = math.Max(textHeight(label, fontSize)+2*borderWidth, minDim)
 		return
 	}
 
 	// A bordered parent grows to contain each child's *margin* box (margins act
-	// like padding inside the border). An invisible parent (box:none, group, or
-	// the root) has no wall for perimeter margins to sit against, so it bounds
-	// the children's *border* boxes plus the inter-sibling gaps only.
-	bordered := isBordered(l.node)
+	// like padding inside the border). An invisible parent (box:none or the
+	// root) has no wall for perimeter margins to sit against, so it bounds the
+	// children's *border* boxes plus the inter-sibling gaps only.
+	bordered := isBordered(l.decls)
 	if direction == ast.Horizontal {
 		sum, maxH := 0.0, 0.0
 		for i, c := range l.children {
@@ -153,11 +155,11 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 
 	// Apply the size override to the orthogonal dimension, after children have
 	// been stretched to the pre-override parent size.
-	if isContainer && container.Size != nil {
+	if size := sizeOf(l.decls); size != nil {
 		if direction == ast.Horizontal {
-			l.dim.height *= *container.Size
+			l.dim.height *= *size
 		} else {
-			l.dim.width *= *container.Size
+			l.dim.width *= *size
 		}
 	}
 }
@@ -169,8 +171,8 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 // margins.
 func positionNodes(l *layoutNode, x, y float64) {
 	l.dim.x, l.dim.y = x, y
-	direction := directionOf(l.node)
-	bordered := isBordered(l.node)
+	direction := directionOf(l.decls)
+	bordered := isBordered(l.decls)
 
 	if direction == ast.Horizontal {
 		cursor := x
@@ -203,15 +205,6 @@ func positionNodes(l *layoutNode, x, y float64) {
 	}
 }
 
-func collectDimensions(l *layoutNode, m map[string]dimensions) {
-	if c, ok := l.node.(*ast.ContainerNode); ok {
-		m[c.ID] = l.dim
-	}
-	for _, c := range l.children {
-		collectDimensions(c, m)
-	}
-}
-
 func canvasSize(roots []*layoutNode) (w, h float64) {
 	for _, l := range roots {
 		w = math.Max(w, l.dim.x+l.dim.width)
@@ -220,123 +213,75 @@ func canvasSize(roots []*layoutNode) (w, h float64) {
 	return w, h
 }
 
-func collectAnchors(nodes []ast.Node, dims map[string]dimensions, parentPath string) []anchorPosition {
-	var out []anchorPosition
-	for _, node := range nodes {
-		switch n := node.(type) {
-		case *ast.ContainerNode:
-			full := n.ID
-			if parentPath != "" {
-				full = parentPath + "." + n.ID
-			}
-			if d, ok := dims[n.ID]; ok {
-				out = append(out, resolveNodeAnchors(n, d, full)...)
-			}
-			out = append(out, collectAnchors(n.Children, dims, full)...)
-		case *ast.GroupNode:
-			out = append(out, collectAnchors(n.Children, dims, parentPath)...)
-		}
+// collectAnchors yields the resolved anchor positions for l and its descendants:
+// the implicit centre plus each declared anchor name at its layout position
+// (defaulting to centre when unpositioned).
+func collectAnchors(l *layoutNode) []anchorPosition {
+	out := resolveNodeAnchors(l)
+	for _, c := range l.children {
+		out = append(out, collectAnchors(c)...)
 	}
 	return out
 }
 
-// collectBoxes records each container's border box keyed by its full dotted
-// path, mirroring collectAnchors' traversal (groups pass their parent path
-// through). Arrow routing uses it to find cardinal edges by path.
-func collectBoxes(nodes []ast.Node, dims map[string]dimensions, parentPath string, out map[string]dimensions) {
-	for _, node := range nodes {
-		switch n := node.(type) {
-		case *ast.ContainerNode:
-			full := n.ID
-			if parentPath != "" {
-				full = parentPath + "." + n.ID
-			}
-			if d, ok := dims[n.ID]; ok {
-				out[full] = d
-			}
-			collectBoxes(n.Children, dims, full, out)
-		case *ast.GroupNode:
-			collectBoxes(n.Children, dims, parentPath, out)
-		}
+// collectBoxes records each node's border box keyed by its full dotted path.
+// Arrow routing uses it to find cardinal edges by path.
+func collectBoxes(l *layoutNode, out map[string]dimensions) {
+	out[l.path] = l.dim
+	for _, c := range l.children {
+		collectBoxes(c, out)
 	}
 }
 
-func resolveNodeAnchors(n *ast.ContainerNode, d dimensions, full string) []anchorPosition {
-	anchors := []anchorPosition{{
-		x: d.x + d.width*0.5, y: d.y + d.height*0.5, nodeID: full, anchorID: "center",
+func resolveNodeAnchors(l *layoutNode) []anchorPosition {
+	d := l.dim
+	out := []anchorPosition{{
+		x: d.x + d.width*0.5, y: d.y + d.height*0.5, nodeID: l.path, anchorID: "center",
 	}}
-	for _, id := range sortedKeys(n.Anchors) {
-		c := n.Anchors[id]
-		rx, ry := c[0], c[1]
+	for _, name := range l.node.Anchors {
+		rx, ry := 0.5, 0.5 // an unpositioned named anchor defaults to centre
+		if l.decls != nil {
+			if pos, ok := l.decls.Anchors[name]; ok {
+				rx, ry = pos[0], pos[1]
+			}
+		}
 		if rx < 0 || rx > 1 || ry < 0 || ry > 1 {
 			continue // out-of-range anchors are reported by the validator
 		}
-		anchors = append(anchors, anchorPosition{
-			x: d.x + d.width*rx, y: d.y + d.height*ry, nodeID: full, anchorID: id,
+		out = append(out, anchorPosition{
+			x: d.x + d.width*rx, y: d.y + d.height*ry, nodeID: l.path, anchorID: name,
 		})
 	}
-	return anchors
+	return out
 }
 
-func childrenOf(node ast.Node) []ast.Node {
-	switch n := node.(type) {
-	case *ast.ContainerNode:
-		return n.Children
-	case *ast.GroupNode:
-		return n.Children
-	}
-	return nil
-}
+// --- resolved-layout accessors (apply defaults for unset properties) ---
 
 // isBordered reports whether a node draws a border and so insets its children
-// like padding. Groups, box:none containers, and the document root are
-// invisible: they collapse their children's perimeter margins and do not
-// stretch children to fill the cross axis.
-func isBordered(node ast.Node) bool {
-	c, ok := node.(*ast.ContainerNode)
-	return ok && c.Box != ast.BoxNone
+// like padding. A box:none node and the document root are invisible: they
+// collapse their children's perimeter margins and do not stretch children to
+// fill the cross axis.
+func isBordered(d *ast.Declarations) bool {
+	return !(d != nil && d.Box != nil && *d.Box == ast.BoxNone)
 }
 
-// marginOf returns a node's effective uniform margin. Layout-only groups carry
-// no margin of their own; a container uses its explicit margin or the default.
-func marginOf(node ast.Node) float64 {
-	c, ok := node.(*ast.ContainerNode)
-	if !ok {
-		return 0
-	}
-	if c.Margin != nil {
-		return *c.Margin
+func marginOf(d *ast.Declarations) float64 {
+	if d != nil && d.Margin != nil {
+		return *d.Margin
 	}
 	return defaultMargin
 }
 
-func directionOf(node ast.Node) ast.Direction {
-	var d ast.Direction
-	switch n := node.(type) {
-	case *ast.ContainerNode:
-		d = n.Direction
-	case *ast.GroupNode:
-		d = n.Direction
+func directionOf(d *ast.Declarations) ast.Direction {
+	if d != nil && d.Direction != nil && *d.Direction != ast.DirectionUnset {
+		return *d.Direction
 	}
-	if d == ast.DirectionUnset {
-		return ast.Vertical
-	}
-	return d
+	return ast.Vertical
 }
 
-func toNodes(cs []*ast.ContainerNode) []ast.Node {
-	out := make([]ast.Node, len(cs))
-	for i, c := range cs {
-		out[i] = c
+func sizeOf(d *ast.Declarations) *float64 {
+	if d != nil {
+		return d.Size
 	}
-	return out
-}
-
-func sortedKeys(m map[string][2]float64) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return nil
 }

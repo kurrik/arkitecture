@@ -6,6 +6,18 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **M3 — `@layout`, the split** (2026-06-18): semantics and presentation are now
+  separate layers. A node body holds only semantics (`label`, `kind`, anchor
+  *names*, children); all presentation — `direction`, `size`, `margin`, `box`,
+  anchor *positions* — moves into `@layout` blocks, either inline on a node or as
+  a standalone sheet of exact-path selectors. The tokenizer recognises `@`
+  directives; the `group` keyword is gone (a `box: none` node replaces it and now
+  carries a path segment); a new pure **resolve** stage merges layout onto the
+  tree by path; the validator gained dangling-selector, duplicate-direct-property,
+  anchor-name, and (relocated) range checks. The split is structural, not visual:
+  every golden and site SVG renders byte-for-byte identically from the rewritten
+  fixtures. Inline layout shorthand was dropped (no bare `direction:` on a node) —
+  see the ADR in [decisions.md](decisions.md).
 - **M2 — Cardinal arrow routing** (2026-06-18): anchorless arrows (`a --> b`) now
   attach to the nearest cardinal edge (N/E/S/W) of each box facing the other
   node's centre, instead of cutting centre-to-centre. Naming an anchor — including
@@ -41,54 +53,28 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## In progress
 
-- (none) — `main` is Go and the layout foundation (M1 box model, M2 cardinal
-  routing) has shipped, so the M3–M5 authoring epic below is unblocked and
-  implementation-ready.
+- (none) — `main` is Go; the layout foundation (M1 box model, M2 cardinal
+  routing) and the M3 `@layout` split have shipped, so M4 (reuse + `kind`) is
+  unblocked and implementation-ready.
 
 ## Planned
 
-The near-term arc is now the layered authoring model (M3–M5); the layout
-foundation (M1 box model, M2 cardinal routing) is done. The detail below is meant
-to be implementation-ready; the *model* lives in [design.md](design.md) and the
-*rationale* in [decisions.md](decisions.md). Each milestone is independently
-shippable.
+The near-term arc is the layered authoring model; M3 (`@layout` split) is done,
+leaving M4–M5. The detail below is meant to be implementation-ready; the *model*
+lives in [design.md](design.md) and the *rationale* in
+[decisions.md](decisions.md). Each milestone is independently shippable.
 
 ### Order & dependencies
 
 ```
 M1 box model + margins (done) ──▶ M2 cardinal routing (done)
-M3 @layout split ─▶ M4 reuse + kind ─▶ M5 regrouping
+M3 @layout split (done) ─▶ M4 reuse + kind ─▶ M5 regrouping
 ```
 
-M3–M5 are the authoring epic (the earlier "Phase 1/2/3"); `margin`/`box` are
-declared inline today and *move into* `@layout` at M3 — parser rework, but no
-geometry rework.
-
-### M3 — `@layout`, the split *(authoring epic, phase 1)*
-
-Goal: author semantics and presentation as separate layers.
-
-- **tokenizer:** recognise `@`-directives (`@layout`; later `@block`/`@use`/
-  `@group`) — a new token or keyword handling.
-- **ast:** split into a **semantic** tree (`ContainerNode`: `id`, `label`, `kind`,
-  anchor **names**, children) and a **layout** model (selector → declaration list;
-  declarations: `direction`, `size`, `box`, `margin`, `anchor <name>: [x,y]`).
-  Anchors on the node become a name set; positions live in layout. Arrows stay
-  string refs.
-- **parser:** `@layout { selector { … } }` standalone and `@layout { … }` inline in
-  a node body; exact dotted-path selectors; the declaration grammar; `kind: name`;
-  anchor-name declarations (`anchors: [db, north]`). Decide the fate of today's
-  inline `size`/`direction`/`anchors:{pos}` (drop, or keep as shorthand).
-- **resolve stage (new, pure):** merge layout onto the semantic tree by exact path
-  into a resolved per-node layout, with the two precedence tiers (imported <
-  direct). Pipeline becomes parse → resolve → validate → generate (or validation
-  spans both).
-- **validator:** dangling selector (path matches no node); duplicate **direct**
-  property on a node (conflict error); arrow anchor-name resolution against
-  declared names; range checks for `size`/`margin` move here.
-- **generator:** read the resolved layout (M1 geometry unchanged).
-- **tests + golden:** rewrite fixtures in the new syntax; equivalent inputs must
-  produce identical SVG (the split is structural, not visual).
+M4–M5 build on the resolve stage and `@layout` grammar M3 introduced: M3 collapsed
+`group` into a `box: none` node and moved `direction`/`size`/`margin`/`box`/anchor
+positions into `@layout`. The `kind` property already parses (it records a name but
+applies nothing) — M4 makes it hook a layout block.
 
 ### M4 — `@layout` reuse + `kind` *(phase 2)*
 

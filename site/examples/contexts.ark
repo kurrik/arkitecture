@@ -1,27 +1,30 @@
 ordering {
   label: "Ordering Context"
-  direction: "vertical"
 
-  group {
-    direction: "horizontal"
-
+  # A borderless node groups Cart and Checkout for layout only — the modern
+  # replacement for the old `group` keyword.
+  row {
     cart     { label: "Cart" }
     checkout { label: "Checkout" }
   }
 
   orders {
     label: "Orders"
-    anchors: {
-      db: [0.5, 1.0]
-    }
+    anchors: [db]
   }
 }
 
 inventory {
   label: "Inventory Context"
-  anchors: {
-    api: [0.0, 0.5]
-  }
+  anchors: [api]
+}
+
+@layout {
+  ordering     { direction: vertical }
+  ordering.row { box: none; margin: 0; direction: horizontal }
+
+  ordering.orders { anchor db: [0.5, 1.0] }
+  inventory       { anchor api: [0.0, 0.5] }
 }
 
 ordering.orders#db --> inventory#api

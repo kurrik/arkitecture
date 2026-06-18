@@ -7,11 +7,16 @@ import (
 	"github.com/kurrik/arkitecture/ast"
 )
 
+func dirp(d ast.Direction) *ast.Direction { return &d }
+
 func TestValidateValidDocument(t *testing.T) {
 	doc := &ast.Document{
 		Nodes: []*ast.ContainerNode{
 			{ID: "a"},
-			{ID: "b", Anchors: map[string][2]float64{"top": {0.5, 0.0}}},
+			{ID: "b", Anchors: []string{"top"}},
+		},
+		Layout: []ast.LayoutRule{
+			{Selector: "b", Decls: &ast.Declarations{Anchors: map[string][2]float64{"top": {0.5, 0.0}}}},
 		},
 		Arrows: []ast.Arrow{
 			{Source: "a", Target: "b#top"},
@@ -43,7 +48,7 @@ func TestValidateArrowReferences(t *testing.T) {
 
 func TestValidateMissingSourceAndAnchor(t *testing.T) {
 	doc := &ast.Document{
-		Nodes:  []*ast.ContainerNode{{ID: "b", Anchors: map[string][2]float64{"top": {0.5, 0}}}},
+		Nodes:  []*ast.ContainerNode{{ID: "b", Anchors: []string{"top"}}},
 		Arrows: []ast.Arrow{{Source: "ghost", Target: "b#missing"}},
 	}
 	errs := Validate(doc)
@@ -58,23 +63,22 @@ func TestValidateMissingSourceAndAnchor(t *testing.T) {
 	}
 }
 
-func TestValidateGroupFlatteningAndNestedPaths(t *testing.T) {
-	// c1 contains a group, which contains n3. The group is layout-only, so n3's
-	// path is "c1.n3".
+func TestValidateNestedPaths(t *testing.T) {
+	// c1 contains grp (box:none), which contains n3, so n3's path is "c1.grp.n3".
 	c1 := &ast.ContainerNode{
 		ID: "c1",
-		Children: []ast.Node{
-			&ast.GroupNode{Children: []ast.Node{
-				&ast.ContainerNode{ID: "n3", Anchors: map[string][2]float64{"a1": {1.0, 0.0}}},
+		Children: []*ast.ContainerNode{
+			{ID: "grp", Children: []*ast.ContainerNode{
+				{ID: "n3", Anchors: []string{"a1"}},
 			}},
 		},
 	}
 	doc := &ast.Document{
 		Nodes:  []*ast.ContainerNode{c1},
-		Arrows: []ast.Arrow{{Source: "c1", Target: "c1.n3#a1"}},
+		Arrows: []ast.Arrow{{Source: "c1", Target: "c1.grp.n3#a1"}},
 	}
 	if errs := Validate(doc); len(errs) != 0 {
-		t.Errorf("expected group-flattened path to resolve, got %+v", errs)
+		t.Errorf("expected nested path to resolve, got %+v", errs)
 	}
 }
 
@@ -88,9 +92,9 @@ func TestValidateDuplicateIDs(t *testing.T) {
 	})
 
 	t.Run("nested scope", func(t *testing.T) {
-		parent := &ast.ContainerNode{ID: "p", Children: []ast.Node{
-			&ast.ContainerNode{ID: "x"},
-			&ast.ContainerNode{ID: "x"},
+		parent := &ast.ContainerNode{ID: "p", Children: []*ast.ContainerNode{
+			{ID: "x"},
+			{ID: "x"},
 		}}
 		doc := &ast.Document{Nodes: []*ast.ContainerNode{parent}}
 		errs := Validate(doc)
@@ -100,15 +104,20 @@ func TestValidateDuplicateIDs(t *testing.T) {
 	})
 }
 
-func TestValidateConstraints(t *testing.T) {
+func TestValidateLayoutConstraints(t *testing.T) {
 	bigSize := 1.5
 	negMargin := -2.0
-	doc := &ast.Document{Nodes: []*ast.ContainerNode{{
-		ID:      "a",
-		Size:    &bigSize,
-		Margin:  &negMargin,
-		Anchors: map[string][2]float64{"bad": {2.0, -1.0}},
-	}}}
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{ID: "a", Anchors: []string{"bad"}}},
+		Layout: []ast.LayoutRule{{
+			Selector: "a",
+			Decls: &ast.Declarations{
+				Size:    &bigSize,
+				Margin:  &negMargin,
+				Anchors: map[string][2]float64{"bad": {2.0, -1.0}},
+			},
+		}},
+	}
 	errs := Validate(doc)
 	if !containsMsg(errs, "Node 'a' size 1.5 is out of range") {
 		t.Errorf("expected size constraint error, got %+v", errs)
@@ -126,6 +135,48 @@ func TestValidateConstraints(t *testing.T) {
 		if e.Type != ast.ErrorConstraint {
 			t.Errorf("expected constraint type, got %+v", e)
 		}
+	}
+}
+
+func TestValidateDanglingSelector(t *testing.T) {
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "a"}},
+		Layout: []ast.LayoutRule{{Selector: "ghost", Decls: &ast.Declarations{Direction: dirp(ast.Vertical)}, Line: 3, Column: 5}},
+	}
+	errs := Validate(doc)
+	if len(errs) != 1 {
+		t.Fatalf("got %d errors, want 1: %+v", len(errs), errs)
+	}
+	if errs[0].Type != ast.ErrorReference || errs[0].Line != 3 || errs[0].Column != 5 {
+		t.Errorf("error = %+v, want reference at 3,5", errs[0])
+	}
+	if !strings.Contains(errs[0].Message, "Layout selector 'ghost' matches no node") {
+		t.Errorf("message = %q", errs[0].Message)
+	}
+}
+
+func TestValidateConflictingProperty(t *testing.T) {
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{ID: "a"}},
+		Layout: []ast.LayoutRule{
+			{Selector: "a", Decls: &ast.Declarations{Direction: dirp(ast.Vertical)}},
+			{Selector: "a", Decls: &ast.Declarations{Direction: dirp(ast.Horizontal)}},
+		},
+	}
+	errs := Validate(doc)
+	if !containsMsg(errs, "Conflicting layout property 'direction' on node 'a'") {
+		t.Errorf("expected conflict error, got %+v", errs)
+	}
+}
+
+func TestValidateAnchorPositionUndeclared(t *testing.T) {
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "a"}}, // no declared anchors
+		Layout: []ast.LayoutRule{{Selector: "a", Decls: &ast.Declarations{Anchors: map[string][2]float64{"x": {0.5, 0.5}}}}},
+	}
+	errs := Validate(doc)
+	if !containsMsg(errs, "Layout positions anchor 'x' not declared on node 'a'") {
+		t.Errorf("expected undeclared-anchor error, got %+v", errs)
 	}
 }
 

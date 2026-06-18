@@ -1,6 +1,14 @@
 // Package parser turns Arkitecture DSL text into an ast.Document. It is a
 // hand-written tokenizer plus a recursive-descent parser that collects all
-// syntax and range errors as data rather than failing fast.
+// syntax errors as data rather than failing fast.
+//
+// The grammar has three kinds of top-level item: semantic nodes, standalone
+// `@layout { selector {…} }` sheets, and arrows. A node body holds only
+// semantics (label, kind, anchor names, child nodes) plus an inline
+// `@layout {…}`; layout properties (direction, size, margin, box, anchor
+// positions) live exclusively inside `@layout` blocks. An inline block is
+// desugared into a LayoutRule selecting the enclosing node's full path, so the
+// resolver and validator treat inline and standalone layout identically.
 package parser
 
 import (
@@ -35,37 +43,45 @@ type parser struct {
 	tokens  []Token
 	current int
 	errors  []ast.Error
+	rules   []ast.LayoutRule // collected inline + standalone layout rules
 }
 
 func (p *parser) parseDocument() ast.ParseResult {
-	nodes := p.parseNodes()   // phase 1: nodes
-	arrows := p.parseArrows() // phase 2: arrows
-	doc := &ast.Document{Nodes: nodes, Arrows: arrows}
+	nodes := p.parseTopLevel() // phase 1: nodes + @layout sheets
+	arrows := p.parseArrows()  // phase 2: arrows
+	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Arrows: arrows}
 	if len(p.errors) > 0 {
 		return ast.ParseResult{Success: false, Document: doc, Errors: p.errors}
 	}
 	return ast.ParseResult{Success: true, Document: doc}
 }
 
-func (p *parser) parseNodes() []*ast.ContainerNode {
+// parseTopLevel reads nodes and standalone @layout sheets until the first arrow
+// statement (or EOF), which begins the arrow phase.
+func (p *parser) parseTopLevel() []*ast.ContainerNode {
 	var nodes []*ast.ContainerNode
 	for !p.isAtEnd() {
 		if p.check(TokenNewline) {
 			p.advance()
 			continue
 		}
-		// Arrow statements end the node phase.
 		if p.isArrowStatement() {
 			break
 		}
-		if node := p.parseNode(); node != nil {
+		if p.check(TokenAt) {
+			p.parseLayoutSheet()
+			continue
+		}
+		if node := p.parseNode(""); node != nil {
 			nodes = append(nodes, node)
 		}
 	}
 	return nodes
 }
 
-func (p *parser) parseNode() *ast.ContainerNode {
+// parseNode parses `id { … }`. parentPath is the dotted path of the enclosing
+// node ("" at the top level), used to desugar an inline @layout into a rule.
+func (p *parser) parseNode(parentPath string) *ast.ContainerNode {
 	if !p.check(TokenIdentifier) {
 		if !p.isAtEnd() {
 			tok := p.peek()
@@ -77,6 +93,10 @@ func (p *parser) parseNode() *ast.ContainerNode {
 
 	idTok := p.advance()
 	id := idTok.Value
+	fullPath := id
+	if parentPath != "" {
+		fullPath = parentPath + "." + id
+	}
 
 	if !p.check(TokenLBrace) {
 		tok := p.peek()
@@ -87,7 +107,7 @@ func (p *parser) parseNode() *ast.ContainerNode {
 	p.advance() // consume '{'
 
 	node := &ast.ContainerNode{ID: id}
-	p.parseNodeContent(node)
+	p.parseNodeContent(node, fullPath)
 
 	if !p.check(TokenRBrace) {
 		tok := p.peek()
@@ -98,35 +118,42 @@ func (p *parser) parseNode() *ast.ContainerNode {
 	return node
 }
 
-func (p *parser) parseNodeContent(node *ast.ContainerNode) {
+func (p *parser) parseNodeContent(node *ast.ContainerNode, fullPath string) {
 	for !p.check(TokenRBrace) && !p.isAtEnd() {
 		if p.check(TokenNewline) {
 			p.advance()
 			continue
 		}
 
+		if p.check(TokenAt) {
+			// Inline @layout: desugar to a rule selecting this node's path.
+			if rule, ok := p.parseInlineLayout(fullPath); ok {
+				p.rules = append(p.rules, rule)
+			}
+			continue
+		}
+
 		if p.check(TokenIdentifier) {
 			// IDENTIFIER followed by '{' is a nested node; otherwise a property.
 			if nx := p.peekNext(); nx != nil && nx.Type == TokenLBrace {
-				if child := p.parseNode(); child != nil {
+				if child := p.parseNode(fullPath); child != nil {
 					node.Children = append(node.Children, child)
 				}
 				continue
 			}
-			p.parseProperty(node)
-		} else if p.check(TokenGroup) {
-			if g := p.parseGroup(); g != nil {
-				node.Children = append(node.Children, g)
-			}
+			p.parseSemanticProperty(node)
 		} else {
 			tok := p.peek()
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected property name, nested node, or group, got %s", tok.Type), tok.Line, tok.Column)
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected property name, nested node, or @layout, got %s", tok.Type), tok.Line, tok.Column)
 			p.advance()
 		}
 	}
 }
 
-func (p *parser) parseProperty(node *ast.ContainerNode) {
+// parseSemanticProperty handles a node body's semantic properties: label, kind,
+// and anchor names. Layout properties are rejected here with a hint to move
+// them into @layout.
+func (p *parser) parseSemanticProperty(node *ast.ContainerNode) {
 	propTok := p.advance()
 	name := propTok.Value
 
@@ -141,16 +168,15 @@ func (p *parser) parseProperty(node *ast.ContainerNode) {
 	switch name {
 	case "label":
 		p.parseLabel(node)
-	case "direction":
-		p.parseDirection(node)
-	case "size":
-		p.parseSize(node)
-	case "margin":
-		p.parseMargin(node)
-	case "box":
-		p.parseBox(node)
+	case "kind":
+		p.parseKind(node)
 	case "anchors":
-		p.parseAnchors(node)
+		p.parseAnchorNames(node)
+	case "direction", "size", "margin", "box":
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Layout property '%s' must be set inside an @layout block, not on the node", name), propTok.Line, propTok.Column)
+		if !p.check(TokenRBrace) && !p.isAtEnd() {
+			p.advance()
+		}
 	default:
 		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown property '%s'", name), propTok.Line, propTok.Column)
 		if !p.check(TokenRBrace) && !p.isAtEnd() {
@@ -172,58 +198,267 @@ func (p *parser) parseLabel(node *ast.ContainerNode) {
 	node.Label = &v
 }
 
-func (p *parser) parseDirection(node *ast.ContainerNode) {
-	dir, ok := p.parseDirectionValue()
-	if ok {
-		node.Direction = dir
-	}
-}
-
-func (p *parser) parseSize(node *ast.ContainerNode) {
-	if !p.check(TokenNumber) {
+func (p *parser) parseKind(node *ast.ContainerNode) {
+	if !p.check(TokenIdentifier) {
 		tok := p.peek()
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected number value for size, got %s", tok.Type), tok.Line, tok.Column)
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected identifier value for kind, got %s", tok.Type), tok.Line, tok.Column)
 		if !p.check(TokenRBrace) {
 			p.advance()
 		}
 		return
 	}
-	sizeTok := p.advance()
-	v, err := strconv.ParseFloat(sizeTok.Value, 64)
-	if err != nil {
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid size value '%s', expected a number", sizeTok.Value), sizeTok.Line, sizeTok.Column)
-		return
-	}
-	if v < 0.0 || v > 1.0 {
-		p.addError(ast.ErrorConstraint, fmt.Sprintf("Size value %s is out of range, expected 0.0-1.0", formatNum(v)), sizeTok.Line, sizeTok.Column)
-		return
-	}
-	node.Size = &v
+	node.Kind = p.advance().Value
 }
 
-func (p *parser) parseMargin(node *ast.ContainerNode) {
-	if !p.check(TokenNumber) {
+// parseAnchorNames reads `anchors: [name, name, …]` — the declared anchor name
+// set. Positions are layout and live in @layout.
+func (p *parser) parseAnchorNames(node *ast.ContainerNode) {
+	if !p.check(TokenLBracket) {
 		tok := p.peek()
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected number value for margin, got %s", tok.Type), tok.Line, tok.Column)
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '[' to start anchor name list, got %s", tok.Type), tok.Line, tok.Column)
 		if !p.check(TokenRBrace) {
 			p.advance()
 		}
 		return
 	}
-	marginTok := p.advance()
-	v, err := strconv.ParseFloat(marginTok.Value, 64)
-	if err != nil {
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid margin value '%s', expected a number", marginTok.Value), marginTok.Line, marginTok.Column)
+	p.advance() // consume '['
+
+	seen := map[string]bool{}
+	for !p.check(TokenRBracket) && !p.isAtEnd() {
+		if p.check(TokenNewline) || p.check(TokenComma) {
+			p.advance()
+			continue
+		}
+		if !p.check(TokenIdentifier) {
+			tok := p.peek()
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected anchor name, got %s", tok.Type), tok.Line, tok.Column)
+			p.advance()
+			continue
+		}
+		nameTok := p.advance()
+		if seen[nameTok.Value] {
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Duplicate anchor name '%s'", nameTok.Value), nameTok.Line, nameTok.Column)
+			continue
+		}
+		seen[nameTok.Value] = true
+		node.Anchors = append(node.Anchors, nameTok.Value)
+	}
+
+	if !p.check(TokenRBracket) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected ']' to close anchor name list, got %s", tok.Type), tok.Line, tok.Column)
 		return
 	}
-	if v < 0.0 {
-		p.addError(ast.ErrorConstraint, fmt.Sprintf("Margin value %s is out of range, expected >= 0.0", formatNum(v)), marginTok.Line, marginTok.Column)
-		return
-	}
-	node.Margin = &v
+	p.advance() // consume ']'
 }
 
-func (p *parser) parseBox(node *ast.ContainerNode) {
+// --- @layout blocks ---
+
+// parseDirective consumes `@ <name>` and returns the directive name token. It
+// reports an error if `@` is not followed by an identifier.
+func (p *parser) parseDirective() (Token, bool) {
+	atTok := p.advance() // consume '@'
+	if !p.check(TokenIdentifier) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected directive name after '@', got %s", tok.Type), atTok.Line, atTok.Column)
+		return Token{}, false
+	}
+	return p.advance(), true
+}
+
+// parseInlineLayout parses an inline `@layout { decls }` and returns a rule
+// targeting selector (the enclosing node's full path).
+func (p *parser) parseInlineLayout(selector string) (ast.LayoutRule, bool) {
+	dirTok, ok := p.parseDirective()
+	if !ok {
+		return ast.LayoutRule{}, false
+	}
+	if dirTok.Value != "layout" {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown directive '@%s'", dirTok.Value), dirTok.Line, dirTok.Column)
+		p.skipBalancedBlock()
+		return ast.LayoutRule{}, false
+	}
+	if !p.check(TokenLBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '{' after @layout, got %s", tok.Type), tok.Line, tok.Column)
+		return ast.LayoutRule{}, false
+	}
+	p.advance() // consume '{'
+
+	decls := &ast.Declarations{}
+	p.parseDeclarations(decls)
+
+	if !p.check(TokenRBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '}' to close @layout, got %s", tok.Type), tok.Line, tok.Column)
+		return ast.LayoutRule{}, false
+	}
+	p.advance() // consume '}'
+	return ast.LayoutRule{Selector: selector, Decls: decls, Line: dirTok.Line, Column: dirTok.Column}, true
+}
+
+// parseLayoutSheet parses a standalone `@layout { selector { decls } … }`,
+// appending one rule per selector block.
+func (p *parser) parseLayoutSheet() {
+	dirTok, ok := p.parseDirective()
+	if !ok {
+		return
+	}
+	if dirTok.Value != "layout" {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown directive '@%s'", dirTok.Value), dirTok.Line, dirTok.Column)
+		p.skipBalancedBlock()
+		return
+	}
+	if !p.check(TokenLBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '{' after @layout, got %s", tok.Type), tok.Line, tok.Column)
+		return
+	}
+	p.advance() // consume '{'
+
+	for !p.check(TokenRBrace) && !p.isAtEnd() {
+		if p.check(TokenNewline) {
+			p.advance()
+			continue
+		}
+		if rule, ok := p.parseSelectorBlock(); ok {
+			p.rules = append(p.rules, rule)
+		}
+	}
+
+	if !p.check(TokenRBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '}' to close @layout, got %s", tok.Type), tok.Line, tok.Column)
+		return
+	}
+	p.advance() // consume '}'
+}
+
+func (p *parser) parseSelectorBlock() (ast.LayoutRule, bool) {
+	if !p.check(TokenIdentifier) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected a selector path, got %s", tok.Type), tok.Line, tok.Column)
+		p.advance()
+		return ast.LayoutRule{}, false
+	}
+	selTok := p.peek()
+	selector, _ := p.parseDottedPath()
+
+	if !p.check(TokenLBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '{' after selector '%s', got %s", selector, tok.Type), tok.Line, tok.Column)
+		p.skipUntilNodeOrEOF()
+		return ast.LayoutRule{}, false
+	}
+	p.advance() // consume '{'
+
+	decls := &ast.Declarations{}
+	p.parseDeclarations(decls)
+
+	if !p.check(TokenRBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '}' to close selector '%s', got %s", selector, tok.Type), tok.Line, tok.Column)
+		return ast.LayoutRule{}, false
+	}
+	p.advance() // consume '}'
+	return ast.LayoutRule{Selector: selector, Decls: decls, Line: selTok.Line, Column: selTok.Column}, true
+}
+
+// parseDeclarations reads the body of an @layout block: direction, size,
+// margin, box, and anchor positions. A property set twice in the same block is
+// a syntax error (across-rule duplicates are the validator's job).
+func (p *parser) parseDeclarations(d *ast.Declarations) {
+	for !p.check(TokenRBrace) && !p.isAtEnd() {
+		if p.check(TokenNewline) {
+			p.advance()
+			continue
+		}
+		if !p.check(TokenIdentifier) {
+			tok := p.peek()
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected a layout property, got %s", tok.Type), tok.Line, tok.Column)
+			p.advance()
+			continue
+		}
+
+		propTok := p.peek()
+		name := propTok.Value
+		if name == "anchor" {
+			p.parseAnchorPosition(d)
+			continue
+		}
+		p.advance() // consume property name
+
+		if !p.check(TokenColon) {
+			tok := p.peek()
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected ':' after '%s', got %s", name, tok.Type), tok.Line, tok.Column)
+			p.skipUntilRecovery()
+			continue
+		}
+		p.advance() // consume ':'
+
+		switch name {
+		case "direction":
+			p.parseDirectionDecl(d, propTok)
+		case "size":
+			p.parseNumberDecl(&d.Size, "size", propTok)
+		case "margin":
+			p.parseNumberDecl(&d.Margin, "margin", propTok)
+		case "box":
+			p.parseBoxDecl(d, propTok)
+		default:
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown layout property '%s'", name), propTok.Line, propTok.Column)
+			if !p.check(TokenRBrace) && !p.isAtEnd() {
+				p.advance()
+			}
+		}
+	}
+}
+
+func (p *parser) parseDirectionDecl(d *ast.Declarations, propTok Token) {
+	if !p.check(TokenIdentifier) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected 'vertical' or 'horizontal' for direction, got %s", tok.Type), tok.Line, tok.Column)
+		if !p.check(TokenRBrace) {
+			p.advance()
+		}
+		return
+	}
+	tok := p.advance()
+	if tok.Value != "vertical" && tok.Value != "horizontal" {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid direction '%s', expected 'vertical' or 'horizontal'", tok.Value), tok.Line, tok.Column)
+		return
+	}
+	if d.Direction != nil {
+		p.addError(ast.ErrorSyntax, "Duplicate layout property 'direction'", propTok.Line, propTok.Column)
+		return
+	}
+	dir := ast.Direction(tok.Value)
+	d.Direction = &dir
+}
+
+func (p *parser) parseNumberDecl(dst **float64, name string, propTok Token) {
+	if !p.check(TokenNumber) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected number value for %s, got %s", name, tok.Type), tok.Line, tok.Column)
+		if !p.check(TokenRBrace) {
+			p.advance()
+		}
+		return
+	}
+	tok := p.advance()
+	v, err := strconv.ParseFloat(tok.Value, 64)
+	if err != nil {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid %s value '%s', expected a number", name, tok.Value), tok.Line, tok.Column)
+		return
+	}
+	if *dst != nil {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Duplicate layout property '%s'", name), propTok.Line, propTok.Column)
+		return
+	}
+	*dst = &v
+}
+
+func (p *parser) parseBoxDecl(d *ast.Declarations, propTok Token) {
 	if !p.check(TokenIdentifier) {
 		tok := p.peek()
 		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected 'none' or 'default' for box, got %s", tok.Type), tok.Line, tok.Column)
@@ -233,73 +468,54 @@ func (p *parser) parseBox(node *ast.ContainerNode) {
 		return
 	}
 	tok := p.advance()
+	var box ast.Box
 	switch tok.Value {
 	case "none":
-		node.Box = ast.BoxNone
+		box = ast.BoxNone
 	case "default":
-		node.Box = ast.BoxDefault
+		box = ast.BoxDefault
 	default:
 		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid box '%s', expected 'none' or 'default'", tok.Value), tok.Line, tok.Column)
+		return
 	}
+	if d.Box != nil {
+		p.addError(ast.ErrorSyntax, "Duplicate layout property 'box'", propTok.Line, propTok.Column)
+		return
+	}
+	d.Box = &box
 }
 
-func (p *parser) parseAnchors(node *ast.ContainerNode) {
-	if !p.check(TokenLBrace) {
+// parseAnchorPosition reads `anchor name: [x, y]`.
+func (p *parser) parseAnchorPosition(d *ast.Declarations) {
+	p.advance() // consume 'anchor'
+	if !p.check(TokenIdentifier) {
 		tok := p.peek()
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '{' to start anchors object, got %s", tok.Type), tok.Line, tok.Column)
-		if !p.check(TokenRBrace) {
-			p.advance()
-		}
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected anchor name after 'anchor', got %s", tok.Type), tok.Line, tok.Column)
 		return
 	}
-	p.advance() // consume '{'
+	nameTok := p.advance()
+	name := nameTok.Value
 
-	anchors := map[string][2]float64{}
-	for !p.check(TokenRBrace) && !p.isAtEnd() {
-		if p.check(TokenNewline) {
-			p.advance()
-			continue
-		}
-		if !p.check(TokenIdentifier) {
-			tok := p.peek()
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected anchor identifier, got %s", tok.Type), tok.Line, tok.Column)
-			p.advance()
-			continue
-		}
-
-		idTok := p.advance()
-		anchorID := idTok.Value
-		if _, dup := anchors[anchorID]; dup {
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Duplicate anchor ID '%s'", anchorID), idTok.Line, idTok.Column)
-		}
-
-		if !p.check(TokenColon) {
-			tok := p.peek()
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected ':' after anchor ID '%s', got %s", anchorID, tok.Type), tok.Line, tok.Column)
-			p.skipUntilRecovery()
-			continue
-		}
-		p.advance() // consume ':'
-
-		if coord, ok := p.parseCoordinate(); ok {
-			anchors[anchorID] = coord
-		}
-
-		if p.check(TokenComma) {
-			p.advance()
-		}
-	}
-
-	if !p.check(TokenRBrace) {
+	if !p.check(TokenColon) {
 		tok := p.peek()
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '}' to close anchors object, got %s", tok.Type), tok.Line, tok.Column)
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected ':' after anchor '%s', got %s", name, tok.Type), tok.Line, tok.Column)
+		p.skipUntilRecovery()
 		return
 	}
-	p.advance() // consume '}'
+	p.advance() // consume ':'
 
-	if len(anchors) > 0 {
-		node.Anchors = anchors
+	coord, ok := p.parseCoordinate()
+	if !ok {
+		return
 	}
+	if d.Anchors == nil {
+		d.Anchors = map[string][2]float64{}
+	}
+	if _, dup := d.Anchors[name]; dup {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Duplicate anchor position '%s'", name), nameTok.Line, nameTok.Column)
+		return
+	}
+	d.Anchors[name] = coord
 }
 
 func (p *parser) parseCoordinate() ([2]float64, bool) {
@@ -344,9 +560,8 @@ func (p *parser) parseCoordinate() ([2]float64, bool) {
 	return [2]float64{x, y}, true
 }
 
-// parseCoordinateValue reads one numeric coordinate. An out-of-range value is
-// reported as a constraint error but still returned (ok stays true), matching
-// the original behaviour.
+// parseCoordinateValue reads one numeric coordinate. Range is checked by the
+// validator, not here.
 func (p *parser) parseCoordinateValue(axis string) (float64, bool) {
 	if !p.check(TokenNumber) {
 		tok := p.peek()
@@ -361,125 +576,20 @@ func (p *parser) parseCoordinateValue(axis string) (float64, bool) {
 		p.skipUntilBracketOrComma()
 		return 0, false
 	}
-	if v < 0.0 || v > 1.0 {
-		p.addError(ast.ErrorConstraint, fmt.Sprintf("%s coordinate %s is out of range, expected 0.0-1.0", axis, formatNum(v)), tok.Line, tok.Column)
-	}
 	return v, true
 }
 
-func (p *parser) parseGroup() *ast.GroupNode {
-	if !p.check(TokenGroup) {
-		return nil
-	}
-	p.advance() // consume 'group'
-
-	if !p.check(TokenLBrace) {
-		tok := p.peek()
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '{' after 'group', got %s", tok.Type), tok.Line, tok.Column)
-		p.skipUntilNodeOrEOF()
-		return nil
-	}
-	p.advance() // consume '{'
-
-	group := &ast.GroupNode{}
-	p.parseGroupContent(group)
-
-	if !p.check(TokenRBrace) {
-		tok := p.peek()
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '}' to close group, got %s", tok.Type), tok.Line, tok.Column)
-		return group
-	}
-	p.advance() // consume '}'
-	return group
-}
-
-func (p *parser) parseGroupContent(group *ast.GroupNode) {
-	for !p.check(TokenRBrace) && !p.isAtEnd() {
-		if p.check(TokenNewline) {
-			p.advance()
-			continue
-		}
-
-		if p.check(TokenIdentifier) {
-			ahead := p.peek()
-			if nx := p.peekNext(); nx != nil && nx.Type == TokenLBrace {
-				if child := p.parseNode(); child != nil {
-					group.Children = append(group.Children, child)
-				}
-				continue
-			}
-			if ahead.Value == "direction" {
-				p.parseGroupProperty(group)
-			} else {
-				tok := p.peek()
-				p.addError(ast.ErrorSyntax, fmt.Sprintf("Groups can only have 'direction' property, got '%s'", ahead.Value), tok.Line, tok.Column)
-				p.advance() // skip property name
-				if p.check(TokenColon) {
-					p.advance()
-					if !p.check(TokenRBrace) && !p.isAtEnd() {
-						p.advance() // skip value
-					}
-				}
-			}
-		} else if p.check(TokenGroup) {
-			if ng := p.parseGroup(); ng != nil {
-				group.Children = append(group.Children, ng)
-			}
-		} else {
-			tok := p.peek()
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected nested node or group in group, got %s", tok.Type), tok.Line, tok.Column)
-			p.advance()
-		}
-	}
-}
-
-func (p *parser) parseGroupProperty(group *ast.GroupNode) {
-	propTok := p.advance()
-	if propTok.Value != "direction" {
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Groups can only have 'direction' property, got '%s'", propTok.Value), propTok.Line, propTok.Column)
-		return
-	}
-	if !p.check(TokenColon) {
-		tok := p.peek()
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected ':' after 'direction', got %s", tok.Type), tok.Line, tok.Column)
-		p.skipUntilRecovery()
-		return
-	}
-	p.advance() // consume ':'
-
-	if dir, ok := p.parseDirectionValue(); ok {
-		group.Direction = dir
-	}
-}
-
-// parseDirectionValue reads a "vertical"|"horizontal" string value and reports
-// the appropriate error otherwise. It is shared by node and group direction.
-func (p *parser) parseDirectionValue() (ast.Direction, bool) {
-	if !p.check(TokenString) {
-		tok := p.peek()
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected string value for direction, got %s", tok.Type), tok.Line, tok.Column)
-		if !p.check(TokenRBrace) {
-			p.advance()
-		}
-		return ast.DirectionUnset, false
-	}
-	tok := p.advance()
-	if tok.Value != "vertical" && tok.Value != "horizontal" {
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid direction '%s', expected 'vertical' or 'horizontal'", tok.Value), tok.Line, tok.Column)
-		return ast.DirectionUnset, false
-	}
-	return ast.Direction(tok.Value), true
-}
+// --- arrows ---
 
 // isArrowStatement looks ahead for the pattern
-// IDENTIFIER (DOT (IDENTIFIER|GROUP))* (HASH IDENTIFIER)? ARROW without
-// consuming any tokens.
+// IDENTIFIER (DOT IDENTIFIER)* (HASH IDENTIFIER)? ARROW without consuming any
+// tokens.
 func (p *parser) isArrowStatement() bool {
 	if !p.check(TokenIdentifier) {
 		return false
 	}
 	pos := p.current
-	for pos < len(p.tokens) && (p.tokens[pos].Type == TokenIdentifier || p.tokens[pos].Type == TokenGroup) {
+	for pos < len(p.tokens) && p.tokens[pos].Type == TokenIdentifier {
 		pos++
 		if pos < len(p.tokens) && p.tokens[pos].Type == TokenArrow {
 			return true
@@ -530,7 +640,7 @@ func (p *parser) parseArrow() (ast.Arrow, bool) {
 		return ast.Arrow{}, false
 	}
 
-	source, ok := p.parseTargetWithAnchor()
+	source, ok := p.parseRefWithAnchor()
 	if !ok {
 		return ast.Arrow{}, false
 	}
@@ -550,7 +660,7 @@ func (p *parser) parseArrow() (ast.Arrow, bool) {
 		return ast.Arrow{}, false
 	}
 
-	target, ok := p.parseTargetWithAnchor()
+	target, ok := p.parseRefWithAnchor()
 	if !ok {
 		return ast.Arrow{}, false
 	}
@@ -558,14 +668,15 @@ func (p *parser) parseArrow() (ast.Arrow, bool) {
 	return ast.Arrow{Source: source, Target: target}, true
 }
 
-func (p *parser) parseNodePath() (string, bool) {
+// parseDottedPath reads IDENTIFIER (DOT IDENTIFIER)* and joins it with dots.
+func (p *parser) parseDottedPath() (string, bool) {
 	if !p.check(TokenIdentifier) {
 		return "", false
 	}
 	parts := []string{p.advance().Value}
 	for p.check(TokenDot) {
 		p.advance() // consume '.'
-		if !p.check(TokenIdentifier) && !p.check(TokenGroup) {
+		if !p.check(TokenIdentifier) {
 			tok := p.peek()
 			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected identifier after '.', got %s", tok.Type), tok.Line, tok.Column)
 			return strings.Join(parts, "."), true
@@ -575,8 +686,8 @@ func (p *parser) parseNodePath() (string, bool) {
 	return strings.Join(parts, "."), true
 }
 
-func (p *parser) parseTargetWithAnchor() (string, bool) {
-	nodePath, ok := p.parseNodePath()
+func (p *parser) parseRefWithAnchor() (string, bool) {
+	nodePath, ok := p.parseDottedPath()
 	if !ok {
 		return "", false
 	}
@@ -645,4 +756,24 @@ func (p *parser) skipUntilBracketOrComma() {
 	}
 }
 
-func formatNum(v float64) string { return strconv.FormatFloat(v, 'g', -1, 64) }
+// skipBalancedBlock skips a `{ … }` block (with nesting) after an unrecognised
+// directive, so parsing can resume cleanly.
+func (p *parser) skipBalancedBlock() {
+	if !p.check(TokenLBrace) {
+		return
+	}
+	depth := 0
+	for !p.isAtEnd() {
+		switch p.peek().Type {
+		case TokenLBrace:
+			depth++
+		case TokenRBrace:
+			depth--
+			if depth == 0 {
+				p.advance()
+				return
+			}
+		}
+		p.advance()
+	}
+}

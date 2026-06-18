@@ -17,11 +17,13 @@ const (
 	defaultFontFamily = "Arial"
 )
 
-// GenerateSVG lays out the document and renders it to an SVG string. Generation
+// GenerateSVG lays out the document and renders it to an SVG string. resolved
+// is the per-node layout produced by the resolve stage (keyed by full dotted
+// path); a nil map is valid and means every node uses defaults. Generation
 // itself does not produce errors (reference and constraint problems are the
 // validator's job), so the error slice is always empty; the signature keeps the
 // stage uniform with the rest of the pipeline.
-func GenerateSVG(doc *ast.Document, opts Options) (string, []ast.Error) {
+func GenerateSVG(doc *ast.Document, resolved map[string]*ast.Declarations, opts Options) (string, []ast.Error) {
 	if doc == nil {
 		return "", nil
 	}
@@ -35,6 +37,6 @@ func GenerateSVG(doc *ast.Document, opts Options) (string, []ast.Error) {
 		fontFamily = opts.FontFamily
 	}
 
-	layout := computeLayout(doc, fontSize)
+	layout := computeLayout(doc, resolved, fontSize)
 	return renderSVG(doc, layout, fontSize, fontFamily), nil
 }

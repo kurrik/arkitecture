@@ -37,7 +37,7 @@
 
     <article class="example">
       <h2>A simple pipeline</h2>
-      <p>Three top-level nodes laid out left to right, joined by arrows. With no anchors given, each arrow connects centre to centre.</p>
+      <p>Three top-level nodes laid out left to right, joined by arrows. With no anchors given, each arrow auto-routes to the nearest facing edges.</p>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">pipeline.ark</div>
@@ -66,13 +66,12 @@ api --&gt; database</code></pre>
 
     <article class="example">
       <h2>Nesting &amp; direction</h2>
-      <p>Nodes nest to any depth, and each parent arranges its children with a <code>direction</code>. Here a vertical <em>Platform</em> stacks a gateway above a horizontal row of services.</p>
+      <p>Nodes nest to any depth, and a separate <code>@layout</code> block arranges each parent's children with a <code>direction</code>. Here a vertical <em>Platform</em> stacks a gateway above a horizontal row of services.</p>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">nesting.ark</div>
 <pre><code>platform {
   label: "Platform"
-  direction: "vertical"
 
   gateway {
     label: "API Gateway"
@@ -80,12 +79,16 @@ api --&gt; database</code></pre>
 
   services {
     label: "Services"
-    direction: "horizontal"
 
     users   { label: "Users" }
     orders  { label: "Orders" }
     billing { label: "Billing" }
   }
+}
+
+@layout {
+  platform          { direction: vertical }
+  platform.services { direction: horizontal }
 }</code></pre>
         </div>
         <div class="panel render">
@@ -100,34 +103,35 @@ api --&gt; database</code></pre>
 
     <article class="example">
       <h2>Bounded contexts with anchors</h2>
-      <p>A Domain-Driven Design sketch: two bounded contexts, a layout-only <code>group</code>, and an arrow routed through named <code>anchors</code> and a nested node path.</p>
+      <p>A Domain-Driven Design sketch: two bounded contexts, a borderless <code>box: none</code> node that groups Cart and Checkout for layout only, and an arrow routed through named <code>anchors</code> and a nested node path.</p>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">contexts.ark</div>
 <pre><code>ordering {
   label: "Ordering Context"
-  direction: "vertical"
 
-  group {
-    direction: "horizontal"
-
+  row {
     cart     { label: "Cart" }
     checkout { label: "Checkout" }
   }
 
   orders {
     label: "Orders"
-    anchors: {
-      db: [0.5, 1.0]
-    }
+    anchors: [db]
   }
 }
 
 inventory {
   label: "Inventory Context"
-  anchors: {
-    api: [0.0, 0.5]
-  }
+  anchors: [api]
+}
+
+@layout {
+  ordering     { direction: vertical }
+  ordering.row { box: none; margin: 0; direction: horizontal }
+
+  ordering.orders { anchor db: [0.5, 1.0] }
+  inventory       { anchor api: [0.0, 0.5] }
 }
 
 ordering.orders#db --&gt; inventory#api</code></pre>
