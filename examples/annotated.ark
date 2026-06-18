@@ -18,10 +18,17 @@ c1 {
     # node widths are 100% of the height of the parent.  This 100% value can be overridden by the size
     # attribute below.  0.5 is half of the parent width.
     size: 0.5
+    # Margin reserves blank space around this node's border box (uniform, in layout units).
+    # The default is 8; set 0 to pack flush against siblings.  Inside a bordered parent the
+    # margin behaves like padding; inside an invisible parent (box: none, a group, or the
+    # document root) the outer margins collapse and only the gaps between siblings remain.
+    margin: 12
   }
 
   # Groups are used only for layout.  They do not have IDs or presentational attributes like "label"
   # Otherwise, they work like nodes
+  # (A node with "box: none" is the same idea but keeps its id, label, and anchors — it simply
+  # draws no border.  "box: default" — the default — draws the usual 1px border.)
   group {
     direction: "horizontal"
 

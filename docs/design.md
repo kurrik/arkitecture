@@ -63,12 +63,13 @@ choose controllable.
 - **Kind** *(planned)* — an arbitrary semantic classification on a node
   (`kind: database`) that implicitly applies the layout block of the same name
   (`@use database`) as an overridable style baseline.
-- **Margin** *(planned)* — layout space reserved around a node's border box.
-  Counts inside a bordered parent (like padding) but collapses against an
-  invisible (`box: none`) parent. See *Box model & margins*.
-- **Box / border box / margin box** *(planned)* — `box: none` makes a node draw no
-  border (the former "group"); the **border box** is the visible rectangle and the
-  **margin box** is the border box plus its margins.
+- **Margin** — layout space reserved around a node's border box (uniform,
+  default 8; `margin: 0` packs flush). Counts inside a bordered parent (like
+  padding) but collapses against an invisible (`box: none`) parent. See *Box
+  model & margins*.
+- **Box / border box / margin box** — `box: none` makes a node draw no border
+  (an ID-bearing twin of the layout-only group); the **border box** is the
+  visible rectangle and the **margin box** is the border box plus its margins.
 
 ## The workflow
 
@@ -96,8 +97,16 @@ Layout is bottom-up and deterministic:
   child; children span the full height unless they set `size`.
 - `size: f` scales only the orthogonal dimension to a fraction `f` of the parent;
   it does not affect the parent's own size.
-- Groups add no visual space — they only group children for direction.
-- The canvas is sized to exactly fit all top-level content — no padding.
+- Each node reserves a uniform **`margin`** (default 8) around its border box.
+  Inside a **bordered** parent the margin acts like padding; inside an
+  **invisible** parent (`box: none`, a group, or the document root) the outer
+  perimeter margins collapse, leaving only the gaps *between* siblings (the sum
+  of their facing margins). `margin: 0` restores flush packing.
+- `box: none` draws no border, turning a node into an invisible grouping that
+  keeps its ID, label, and anchors. Groups likewise add no border — and no
+  margin of their own.
+- The canvas fits the top-level content exactly: the document root is invisible,
+  so the diagram gains no outer padding even though inner nodes are spaced.
 
 ## Semantic vs. layout (the `@layout` model)
 
@@ -238,6 +247,10 @@ a sheet of selectors (separation / theming). Same declarations either way.
 
 ### Box model & margins
 
+> ✅ Implemented today as inline `margin` / `box` node properties (M1, default
+> margin 8). Only the relocation of these properties into `@layout` (M3) is
+> still pending; the geometry below is live.
+
 Spacing is expressed as a per-node **`margin`** (a layout property), implemented
 with a real box model rather than a parent-level gap. Each node has a **border
 box** (its visible rectangle — content plus a 1px border, or content only when
@@ -301,10 +314,9 @@ wrappers over one library API, so both stay in lock-step.
 
 ## Open questions
 
-- Margin box model: how do adjacent siblings' margins combine — sum, or collapse
-  to the max (CSS-style)? Per-side margins (`margin-top` …) or uniform only in v1?
-  What default margin (0 preserves today's compact look; a positive default
-  changes every diagram and is what auto-routing wants)?
+- Per-side margins (`margin-top` …), or keep the v1 uniform-only margin? (The
+  default is 8, and adjacent siblings *sum* rather than collapse — decided in
+  [decisions.md](decisions.md).)
 - Should auto-cardinal routing offer 8 directions (incl. corners), or stay at 4?
 - Should an unpositioned *named* anchor be an error rather than defaulting to
   centre?

@@ -6,6 +6,14 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **M1 — Box model + margins** (2026-06-18): a real border-box / margin-box
+  layout model. Every node takes a uniform `margin` (default 8; `margin: 0`
+  packs flush as before) and a `box: none|default` to drop its border. Bordered
+  parents inset children like padding; invisible parents (`box: none`, groups,
+  the document root) collapse perimeter margins and keep only the inter-sibling
+  gaps. Anchors stay on the border box. Inline properties for now — they move
+  into `@layout` at M3. All goldens and the site sample SVGs were regenerated;
+  see the ADR in [decisions.md](decisions.md).
 - **Go rewrite at parity with TypeScript v0.1** — full pipeline ported; merged to
   `main` ([#2](https://github.com/kurrik/arkitecture/pull/2), 2026-06-17):
   - module + library-first layout (`ast`, root `arkitecture`, `cmd/arkitecture`,
@@ -27,52 +35,28 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## In progress
 
-- (none) — `main` is Go; the model below is designed and ready to implement.
+- (none) — `main` is Go and M1 (box model + margins) has shipped, so M2 and the
+  M3–M5 authoring epic below are unblocked and implementation-ready.
 
 ## Planned
 
-The near-term arc is the box-model work plus the layered authoring model. The
-detail below is meant to be implementation-ready; the *model* lives in
-[design.md](design.md) and the *rationale* in [decisions.md](decisions.md). Each
-milestone is independently shippable.
+The near-term arc is now M2 (cardinal routing) plus the layered authoring model
+(M3–M5); the box-model foundation (M1) is done. The detail below is meant to be
+implementation-ready; the *model* lives in [design.md](design.md) and the
+*rationale* in [decisions.md](decisions.md). Each milestone is independently
+shippable.
 
 ### Order & dependencies
 
 ```
-M1 box model + margins ─┬─▶ M2 cardinal routing
-                        └─▶ M3 @layout split ─▶ M4 reuse + kind ─▶ M5 regrouping
+M1 box model + margins (done) ─┬─▶ M2 cardinal routing
+                               └─▶ M3 @layout split ─▶ M4 reuse + kind ─▶ M5 regrouping
 ```
 
-M2 depends on M1 (edge-attached arrows need the margin gap, or they collapse to
-zero length between flush-packed boxes). M3–M5 are the authoring epic (the earlier
-"Phase 1/2/3"); `margin`/`box` are declared inline in M1 and *move into* `@layout`
-at M3 — parser rework, but no geometry rework.
-
-### M1 — Box model + margins *(foundational layout refactor)*
-
-Goal: a real border-box / margin-box model so nodes can reserve space around
-themselves, behaving correctly inside invisible vs bordered parents.
-
-- **AST / properties:** add `margin` (uniform value, v1) and `box: none|default`.
-  For now accept them in the current inline property syntax (`parser.parseProperty`);
-  they relocate to `@layout` at M3.
-- **generator/layout (the refactor):**
-  - Track a node's **border box** (visible rect = content + 1px border, or content
-    only when `box: none`) distinct from its **margin box** (border box + margins).
-  - Sizing: a **bordered** parent's content = bounding box of children's **margin**
-    boxes (outer margins count, like padding). An **invisible** (`box: none`)
-    parent's content = children's **border** boxes + the inter-sibling gaps only;
-    perimeter margins collapse to zero. The document root is invisible → no phantom
-    canvas padding.
-  - Positioning: offset children by their margins; lay out margin boxes.
-  - Canvas: bounds of the top-level border boxes plus inter-sibling gaps.
-- **anchors:** keep anchor positions on the **border box** (unchanged math; margin
-  is outside it).
-- **tests:** unit cases for {bordered, invisible} × {leaf, parent}, margin
-  collapse, and nested invisible-in-bordered (the user's edge case). **Regenerate
-  every golden** (positions shift once margins exist) and review the diff.
-- **open:** adjacent-sibling collapse (sum vs max); per-side margins vs uniform;
-  default margin (0 = today's look, >0 changes all output and is what M2 wants).
+M2 builds on M1: edge-attached arrows need the margin gap, or they collapse to
+zero length between flush-packed boxes — which now exists. M3–M5 are the
+authoring epic (the earlier "Phase 1/2/3"); `margin`/`box` are declared inline
+today and *move into* `@layout` at M3 — parser rework, but no geometry rework.
 
 ### M2 — Cardinal arrow routing
 
