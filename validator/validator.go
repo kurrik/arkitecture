@@ -138,6 +138,9 @@ func (v *validator) validateNodeConstraints(node ast.Node) {
 		if n.Size != nil && (*n.Size < 0.0 || *n.Size > 1.0) {
 			v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' size %s is out of range, expected 0.0-1.0", n.ID, formatNum(*n.Size)))
 		}
+		if n.Margin != nil && *n.Margin < 0.0 {
+			v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' margin %s is out of range, expected >= 0.0", n.ID, formatNum(*n.Margin)))
+		}
 		// Iterate anchors in sorted order so diagnostics are deterministic.
 		for _, anchorID := range sortedKeys(n.Anchors) {
 			coord := n.Anchors[anchorID]

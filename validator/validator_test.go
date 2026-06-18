@@ -102,14 +102,19 @@ func TestValidateDuplicateIDs(t *testing.T) {
 
 func TestValidateConstraints(t *testing.T) {
 	bigSize := 1.5
+	negMargin := -2.0
 	doc := &ast.Document{Nodes: []*ast.ContainerNode{{
 		ID:      "a",
 		Size:    &bigSize,
+		Margin:  &negMargin,
 		Anchors: map[string][2]float64{"bad": {2.0, -1.0}},
 	}}}
 	errs := Validate(doc)
 	if !containsMsg(errs, "Node 'a' size 1.5 is out of range") {
 		t.Errorf("expected size constraint error, got %+v", errs)
+	}
+	if !containsMsg(errs, "Node 'a' margin -2 is out of range") {
+		t.Errorf("expected margin constraint error, got %+v", errs)
 	}
 	if !containsMsg(errs, "anchor 'bad' X coordinate 2 is out of range") {
 		t.Errorf("expected X coordinate error, got %+v", errs)

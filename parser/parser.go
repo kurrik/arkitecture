@@ -145,6 +145,10 @@ func (p *parser) parseProperty(node *ast.ContainerNode) {
 		p.parseDirection(node)
 	case "size":
 		p.parseSize(node)
+	case "margin":
+		p.parseMargin(node)
+	case "box":
+		p.parseBox(node)
 	case "anchors":
 		p.parseAnchors(node)
 	default:
@@ -195,6 +199,48 @@ func (p *parser) parseSize(node *ast.ContainerNode) {
 		return
 	}
 	node.Size = &v
+}
+
+func (p *parser) parseMargin(node *ast.ContainerNode) {
+	if !p.check(TokenNumber) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected number value for margin, got %s", tok.Type), tok.Line, tok.Column)
+		if !p.check(TokenRBrace) {
+			p.advance()
+		}
+		return
+	}
+	marginTok := p.advance()
+	v, err := strconv.ParseFloat(marginTok.Value, 64)
+	if err != nil {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid margin value '%s', expected a number", marginTok.Value), marginTok.Line, marginTok.Column)
+		return
+	}
+	if v < 0.0 {
+		p.addError(ast.ErrorConstraint, fmt.Sprintf("Margin value %s is out of range, expected >= 0.0", formatNum(v)), marginTok.Line, marginTok.Column)
+		return
+	}
+	node.Margin = &v
+}
+
+func (p *parser) parseBox(node *ast.ContainerNode) {
+	if !p.check(TokenIdentifier) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected 'none' or 'default' for box, got %s", tok.Type), tok.Line, tok.Column)
+		if !p.check(TokenRBrace) {
+			p.advance()
+		}
+		return
+	}
+	tok := p.advance()
+	switch tok.Value {
+	case "none":
+		node.Box = ast.BoxNone
+	case "default":
+		node.Box = ast.BoxDefault
+	default:
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid box '%s', expected 'none' or 'default'", tok.Value), tok.Line, tok.Column)
+	}
 }
 
 func (p *parser) parseAnchors(node *ast.ContainerNode) {
