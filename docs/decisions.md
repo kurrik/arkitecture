@@ -18,6 +18,16 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-18 — Box model M1: defaults and margin arithmetic
+**Choice:** Implement the margin-based box model (the 2026-06-17 ADR) as inline `margin` / `box` node properties, resolving the open details as:
+- **Default margin of 8** user units, non-zero and uniform on all four sides; `margin: 0` restores the old flush packing. Authored margins are absolute layout units (like coordinates), not a fraction of anything.
+- **Adjacent sibling margins sum** — no CSS-style collapse-to-max. The gap between two siblings is the sum of their facing margins, which falls straight out of packing each node's margin box flush.
+- **Uniform margin only** in v1 (no per-side `margin-top`/…).
+- **`box` takes a bareword** (`box: none` / `box: default`), matching the design's surface syntax instead of the quoted-string form `direction` uses today.
+- A **`box: none` container keeps its own margin** (it is a real node that merely draws no border); only the layout-only `group` contributes zero margin. Both, as invisible *parents*, collapse their children's perimeter margins.
+**Why:** A visible default is what the box model is *for* — it gives auto-cardinal routing (M2) a gap to attach to and makes nesting legible; 8 is a clean, font-independent spacing unit that reads well at the common 12–16px sizes. Summing is the simpler, more predictable rule and the natural consequence of "each node owns its margin box"; collapse-to-max imports CSS's most surprising behaviour for no benefit here. Uniform-only keeps the grammar minimal and is forward-compatible with per-side later. Keeping a margin on `box: none` follows from "it's a node, not a wrapper" — its ID, label, and anchors already separate it from a `group`.
+**Implications:** Every multi-node diagram changes; all goldens and the three site sample SVGs were regenerated. The "exact-fit canvas, no padding" rule now holds only at the invisible document root (top-level perimeter margins still collapse) — bordered parents inset their children. Still open and deferred: per-side margins, and whether `box: none` should instead be fully margin-transparent like a `group`.
+
 ## 2026-06-17 — Margin-based box model
 **Choice:** Express inter-element spacing as a per-node **`margin`** (a layout property), implemented with a real box model that distinguishes a node's **border box** (the visible rectangle) from its **margin box** (border box + margins). Chosen over a parent-level `gap`. A child's margin counts toward a **bordered** parent's size (like padding inside the border) but **collapses** against an **invisible** (`box: none`) parent — including the document root — so it never inflates a box with no wall to sit against. Anchors and arrows attach to the border box.
 **Why:** Margin is the more natural authoring model ("this node wants room around it") and composes per-node, unlike a parent-level gap. It is also the enabler for auto-cardinal arrow routing: without a gap, edge-attached arrows between touching boxes degenerate to zero length (Arkitecture packs siblings flush). The invisible-vs-bordered rule is what keeps an invisible grouping from gaining phantom padding while a real container still insets its children.

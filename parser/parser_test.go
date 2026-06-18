@@ -52,6 +52,27 @@ func TestParseProperties(t *testing.T) {
 	}
 }
 
+func TestParseMarginAndBox(t *testing.T) {
+	doc := parseOK(t, `a { margin: 12 box: none }`)
+	n := doc.Nodes[0]
+	if n.Margin == nil || *n.Margin != 12 {
+		t.Errorf("margin = %v, want 12", n.Margin)
+	}
+	if n.Box != ast.BoxNone {
+		t.Errorf("box = %q, want none", n.Box)
+	}
+
+	// margin: 0 is a real value, distinct from unset; box defaults to bordered.
+	doc = parseOK(t, `a { margin: 0 }`)
+	n = doc.Nodes[0]
+	if n.Margin == nil || *n.Margin != 0 {
+		t.Errorf("margin = %v, want 0 (set, not nil)", n.Margin)
+	}
+	if n.Box != ast.BoxDefault {
+		t.Errorf("box = %q, want default", n.Box)
+	}
+}
+
 func TestParseAnchors(t *testing.T) {
 	doc := parseOK(t, `a { anchors: { top: [0.5, 0.0], c: [0.5, 0.5] } }`)
 	n := doc.Nodes[0]
@@ -142,6 +163,8 @@ func TestParseErrors(t *testing.T) {
 		{"unknown property", `a { foo: 1 }`, ast.ErrorSyntax, "Unknown property 'foo'"},
 		{"bad direction", `a { direction: "diagonal" }`, ast.ErrorSyntax, "Invalid direction 'diagonal'"},
 		{"size out of range", `a { size: 1.5 }`, ast.ErrorConstraint, "Size value 1.5 is out of range"},
+		{"non-number margin", `a { margin: "x" }`, ast.ErrorSyntax, "Expected number value for margin"},
+		{"bad box", `a { box: solid }`, ast.ErrorSyntax, "Invalid box 'solid'"},
 		{"coordinate out of range", `a { anchors: { c: [2, 0] } }`, ast.ErrorConstraint, "X coordinate 2 is out of range"},
 		{"unterminated string", `a { label: "oops`, ast.ErrorSyntax, "Unterminated string"},
 	}

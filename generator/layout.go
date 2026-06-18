@@ -10,6 +10,12 @@ import (
 // borderWidth is the 1px border every container node draws.
 const borderWidth = 1.0
 
+// defaultMargin is the uniform space a node reserves around its border box when
+// it sets no explicit margin. It is non-zero so flush-packed siblings get a
+// visible gap (and auto-routed arrows, later, room to travel); author
+// `margin: 0` to restore the old flush look.
+const defaultMargin = 8.0
+
 type dimensions struct {
 	width, height, x, y float64
 }
@@ -29,7 +35,8 @@ type layoutResult struct {
 
 type layoutNode struct {
 	node     ast.Node
-	dim      dimensions
+	dim      dimensions // the border box: the visible rectangle (content + border)
+	margin   float64    // uniform margin around the border box (the margin box)
 	children []*layoutNode
 }
 
@@ -45,8 +52,14 @@ func computeLayout(doc *ast.Document, fontSize float64) layoutResult {
 		roots = append(roots, l)
 	}
 
+	// The document root is invisible: top-level nodes pack left-to-right with
+	// only the gaps between siblings (each side's margins summed) — their outer
+	// perimeter margins collapse, so the canvas gains no phantom padding.
 	currentX := 0.0
-	for _, l := range roots {
+	for i, l := range roots {
+		if i > 0 {
+			currentX += roots[i-1].margin + l.margin
+		}
 		positionNodes(l, currentX, 0)
 		collectDimensions(l, dims)
 		currentX += l.dim.width
@@ -71,6 +84,7 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 		calcDimensions(c, fontSize)
 	}
 
+	l.margin = marginOf(l.node)
 	container, isContainer := l.node.(*ast.ContainerNode)
 	direction := directionOf(l.node)
 	minDim := fontSize * 2
@@ -87,28 +101,49 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 		return
 	}
 
+	// A bordered parent grows to contain each child's *margin* box (margins act
+	// like padding inside the border). An invisible parent (box:none, group, or
+	// the root) has no wall for perimeter margins to sit against, so it bounds
+	// the children's *border* boxes plus the inter-sibling gaps only.
+	bordered := isBordered(l.node)
 	if direction == ast.Horizontal {
 		sum, maxH := 0.0, 0.0
-		for _, c := range l.children {
-			sum += c.dim.width
-			maxH = math.Max(maxH, c.dim.height)
+		for i, c := range l.children {
+			if bordered {
+				sum += c.dim.width + 2*c.margin
+				maxH = math.Max(maxH, c.dim.height+2*c.margin)
+			} else {
+				if i > 0 {
+					sum += l.children[i-1].margin + c.margin
+				}
+				sum += c.dim.width
+				maxH = math.Max(maxH, c.dim.height)
+			}
 		}
 		l.dim.width, l.dim.height = sum, maxH
-		if isContainer {
+		if bordered {
 			for _, c := range l.children {
-				c.dim.height = l.dim.height
+				c.dim.height = l.dim.height - 2*c.margin
 			}
 		}
 	} else {
 		sum, maxW := 0.0, 0.0
-		for _, c := range l.children {
-			sum += c.dim.height
-			maxW = math.Max(maxW, c.dim.width)
+		for i, c := range l.children {
+			if bordered {
+				sum += c.dim.height + 2*c.margin
+				maxW = math.Max(maxW, c.dim.width+2*c.margin)
+			} else {
+				if i > 0 {
+					sum += l.children[i-1].margin + c.margin
+				}
+				sum += c.dim.height
+				maxW = math.Max(maxW, c.dim.width)
+			}
 		}
 		l.dim.height, l.dim.width = sum, maxW
-		if isContainer {
+		if bordered {
 			for _, c := range l.children {
-				c.dim.width = l.dim.width
+				c.dim.width = l.dim.width - 2*c.margin
 			}
 		}
 	}
@@ -124,16 +159,43 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 	}
 }
 
+// positionNodes places l's border box at (x, y) and lays out its children. A
+// bordered parent insets each child by the child's own margin (perimeter
+// margins become padding inside the border); an invisible parent drops the
+// perimeter inset and instead separates siblings by the sum of their facing
+// margins.
 func positionNodes(l *layoutNode, x, y float64) {
 	l.dim.x, l.dim.y = x, y
 	direction := directionOf(l.node)
-	cx, cy := x, y
-	for _, c := range l.children {
-		positionNodes(c, cx, cy)
-		if direction == ast.Horizontal {
-			cx += c.dim.width
-		} else {
-			cy += c.dim.height
+	bordered := isBordered(l.node)
+
+	if direction == ast.Horizontal {
+		cursor := x
+		for i, c := range l.children {
+			if bordered {
+				positionNodes(c, cursor+c.margin, y+c.margin)
+				cursor += c.dim.width + 2*c.margin
+			} else {
+				if i > 0 {
+					cursor += l.children[i-1].margin + c.margin
+				}
+				positionNodes(c, cursor, y)
+				cursor += c.dim.width
+			}
+		}
+	} else {
+		cursor := y
+		for i, c := range l.children {
+			if bordered {
+				positionNodes(c, x+c.margin, cursor+c.margin)
+				cursor += c.dim.height + 2*c.margin
+			} else {
+				if i > 0 {
+					cursor += l.children[i-1].margin + c.margin
+				}
+				positionNodes(c, x, cursor)
+				cursor += c.dim.height
+			}
 		}
 	}
 }
@@ -200,6 +262,28 @@ func childrenOf(node ast.Node) []ast.Node {
 		return n.Children
 	}
 	return nil
+}
+
+// isBordered reports whether a node draws a border and so insets its children
+// like padding. Groups, box:none containers, and the document root are
+// invisible: they collapse their children's perimeter margins and do not
+// stretch children to fill the cross axis.
+func isBordered(node ast.Node) bool {
+	c, ok := node.(*ast.ContainerNode)
+	return ok && c.Box != ast.BoxNone
+}
+
+// marginOf returns a node's effective uniform margin. Layout-only groups carry
+// no margin of their own; a container uses its explicit margin or the default.
+func marginOf(node ast.Node) float64 {
+	c, ok := node.(*ast.ContainerNode)
+	if !ok {
+		return 0
+	}
+	if c.Margin != nil {
+		return *c.Margin
+	}
+	return defaultMargin
 }
 
 func directionOf(node ast.Node) ast.Direction {

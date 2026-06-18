@@ -22,6 +22,20 @@ const (
 	Horizontal Direction = "horizontal"
 )
 
+// Box controls whether a node draws its border. The empty value means
+// "default" — a bordered box. BoxNone makes the node invisible: it draws no
+// rectangle and, as a parent, collapses its children's perimeter margins. It
+// is the spiritual twin of the layout-only GroupNode, but on a node that still
+// has an ID, label, and anchors.
+type Box string
+
+const (
+	// BoxDefault is the zero value: the node draws its 1px border.
+	BoxDefault Box = ""
+	// BoxNone makes the node borderless and invisible.
+	BoxNone Box = "none"
+)
+
 // Node is implemented by the two things that can appear in a node tree:
 // *ContainerNode and *GroupNode.
 type Node interface {
@@ -35,6 +49,8 @@ type ContainerNode struct {
 	Label     *string               // optional display text
 	Direction Direction             // unset => Vertical
 	Size      *float64              // optional override in [0,1] for the orthogonal dimension
+	Margin    *float64              // optional uniform margin (>=0) around the border box; nil => default
+	Box       Box                   // BoxNone draws no border (invisible); unset => bordered
 	Anchors   map[string][2]float64 // optional named anchor points, relative [x,y] in [0,1]
 	Children  []Node
 }

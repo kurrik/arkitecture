@@ -44,7 +44,9 @@ func collectNodeElements(nodes []ast.Node, layout layoutResult, fontSize float64
 	for _, node := range nodes {
 		if c, ok := node.(*ast.ContainerNode); ok {
 			if d, ok := layout.nodeDimensions[c.ID]; ok {
-				*els = append(*els, nodeRect(d))
+				if c.Box != ast.BoxNone {
+					*els = append(*els, nodeRect(d))
+				}
 				if c.Label != nil && *c.Label != "" {
 					*els = append(*els, nodeText(*c.Label, d, fontSize, fontFamily))
 				}

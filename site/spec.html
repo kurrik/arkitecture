@@ -67,6 +67,8 @@ worker {}</code></pre>
         <tr><td><code>label</code></td><td>string</td><td>Display text, centred in the box. Omit it for an unlabeled box.</td></tr>
         <tr><td><code>direction</code></td><td><code>"vertical"</code> &middot; <code>"horizontal"</code></td><td>How children are stacked. Defaults to <code>vertical</code>.</td></tr>
         <tr><td><code>size</code></td><td>number <code>0.0</code>–<code>1.0</code></td><td>Override for the node's <em>orthogonal</em> dimension, as a fraction of what the parent would otherwise give it.</td></tr>
+        <tr><td><code>margin</code></td><td>number <code>&ge; 0</code></td><td>Uniform blank space reserved around the node's border box. Defaults to <code>8</code>; set <code>0</code> to pack flush against siblings.</td></tr>
+        <tr><td><code>box</code></td><td><code>none</code> &middot; <code>default</code></td><td>Whether the node draws its border. <code>none</code> makes it invisible — no rectangle — while keeping its id, label, and anchors. Defaults to <code>default</code>.</td></tr>
         <tr><td><code>anchors</code></td><td><code>{ name: [x, y], … }</code></td><td>Named connection points for arrows, in relative coordinates (see below).</td></tr>
       </tbody>
     </table>
@@ -74,6 +76,7 @@ worker {}</code></pre>
   label: "User Service"
   direction: "vertical"
   size: 0.75
+  margin: 16
   anchors: {
     db:  [0.5, 1.0]
     api: [0.5, 0.0]
@@ -85,7 +88,8 @@ worker {}</code></pre>
       A <code>group</code> is a layout-only container: it has no id, label, or border
       and draws nothing. It exists purely to arrange a cluster of children with their
       own <code>direction</code>. Its children address as if they were direct children
-      of the enclosing node.
+      of the enclosing node. A node with <code>box: none</code> is the same idea but
+      keeps its id, label, and anchors — it simply draws no border.
     </p>
 <pre><code>services {
   direction: "horizontal"
@@ -135,7 +139,8 @@ services.userService#db --&gt; database#north</code></pre>
       <li>A <strong>vertical</strong> parent stacks children top-to-bottom: its width is the widest child; children span the full width unless they set <code>size</code>.</li>
       <li>A <strong>horizontal</strong> parent places children left-to-right: its height is the tallest child; children span the full height unless they set <code>size</code>.</li>
       <li><code>size: f</code> scales only the orthogonal dimension to a fraction <code>f</code> of the parent; it does not change the parent's own size.</li>
-      <li>The canvas is sized to fit all top-level content exactly.</li>
+      <li>Each node reserves a uniform <code>margin</code> (default <code>8</code>) around its border box. Inside a bordered parent it acts like padding; inside an invisible parent (<code>box: none</code>, a group, or the document root) the outer margins collapse, leaving only the gaps between siblings. <code>margin: 0</code> restores flush packing.</li>
+      <li>The canvas fits the top-level content exactly — the document root is invisible, so there is no outer padding even though inner nodes are spaced.</li>
     </ul>
 
     <h2>Comments</h2>
