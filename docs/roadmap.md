@@ -6,6 +6,12 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **M2 — Cardinal arrow routing** (2026-06-18): anchorless arrows (`a --> b`) now
+  attach to the nearest cardinal edge (N/E/S/W) of each box facing the other
+  node's centre, instead of cutting centre-to-centre. Naming an anchor — including
+  the implicit `#center` — pins a fixed point and always wins. Generator-only (no
+  parser change was needed); builds on M1's margin gap. See the ADR in
+  [decisions.md](decisions.md).
 - **M1 — Box model + margins** (2026-06-18): a real border-box / margin-box
   layout model. Every node takes a uniform `margin` (default 8; `margin: 0`
   packs flush as before) and a `box: none|default` to drop its border. Bordered
@@ -35,46 +41,28 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## In progress
 
-- (none) — `main` is Go and M1 (box model + margins) has shipped, so M2 and the
-  M3–M5 authoring epic below are unblocked and implementation-ready.
+- (none) — `main` is Go and the layout foundation (M1 box model, M2 cardinal
+  routing) has shipped, so the M3–M5 authoring epic below is unblocked and
+  implementation-ready.
 
 ## Planned
 
-The near-term arc is now M2 (cardinal routing) plus the layered authoring model
-(M3–M5); the box-model foundation (M1) is done. The detail below is meant to be
-implementation-ready; the *model* lives in [design.md](design.md) and the
+The near-term arc is now the layered authoring model (M3–M5); the layout
+foundation (M1 box model, M2 cardinal routing) is done. The detail below is meant
+to be implementation-ready; the *model* lives in [design.md](design.md) and the
 *rationale* in [decisions.md](decisions.md). Each milestone is independently
 shippable.
 
 ### Order & dependencies
 
 ```
-M1 box model + margins (done) ─┬─▶ M2 cardinal routing
-                               └─▶ M3 @layout split ─▶ M4 reuse + kind ─▶ M5 regrouping
+M1 box model + margins (done) ──▶ M2 cardinal routing (done)
+M3 @layout split ─▶ M4 reuse + kind ─▶ M5 regrouping
 ```
 
-M2 builds on M1: edge-attached arrows need the margin gap, or they collapse to
-zero length between flush-packed boxes — which now exists. M3–M5 are the
-authoring epic (the earlier "Phase 1/2/3"); `margin`/`box` are declared inline
-today and *move into* `@layout` at M3 — parser rework, but no geometry rework.
-
-### M2 — Cardinal arrow routing
-
-Goal: anchor-less arrows attach to the nearest cardinal edge instead of
-centre-to-centre.
-
-- **generator:** expose a `map[fullPath]box` from layout (alongside the existing
-  anchor positions). For an arrow endpoint with no `#anchor`, attach to the
-  N/E/S/W side of its border box facing the other node's centre (dominant axis of
-  the centre-to-centre vector; ties favour horizontal). Named anchors and explicit
-  `#anchor` unchanged; an explicit anchor always wins.
-- **parser:** distinguish "no anchor" from explicit `#center` so the latter can
-  still force centre-to-centre.
-- **depends on M1:** without a margin gap, the two cardinal endpoints coincide on
-  the shared edge → zero-length arrow.
-- **tests + golden:** new arrow coordinates; add fixtures for each direction and
-  the explicit-override path; regenerate and review.
-- **open:** 4 vs 8 directions; unpositioned *named* anchor → centre or error.
+M3–M5 are the authoring epic (the earlier "Phase 1/2/3"); `margin`/`box` are
+declared inline today and *move into* `@layout` at M3 — parser rework, but no
+geometry rework.
 
 ### M3 — `@layout`, the split *(authoring epic, phase 1)*
 

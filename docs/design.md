@@ -272,6 +272,10 @@ otherwise-touching boxes.
 
 ### Arrow endpoints — an auto-cardinal default
 
+> ✅ Implemented (M2). Lives entirely in the generator's endpoint resolution and
+> needed no parser change — a bare reference and an explicit `#center` are
+> already distinct in the arrow string.
+
 An arrow that names an anchor (`a#db --> b`) uses that anchor's resolved position.
 An arrow that **doesn't** (`a --> b`) auto-routes: each end attaches to the
 **cardinal side (N/E/S/W) facing the other node's centre**, giving a clean
@@ -317,7 +321,8 @@ wrappers over one library API, so both stay in lock-step.
 - Per-side margins (`margin-top` …), or keep the v1 uniform-only margin? (The
   default is 8, and adjacent siblings *sum* rather than collapse — decided in
   [decisions.md](decisions.md).)
-- Should auto-cardinal routing offer 8 directions (incl. corners), or stay at 4?
+- Auto-cardinal routing ships with 4 sides (N/E/S/W); is 8 directions (incl.
+  corners) ever worth the extra ambiguity? (4 is the v1 decision.)
 - Should an unpositioned *named* anchor be an error rather than defaulting to
   centre?
 - Is an unknown `kind` (no matching block) an error (like a dangling `@use`), or a

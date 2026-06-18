@@ -79,6 +79,65 @@ func TestGenerateBoxNoneDrawsNoRect(t *testing.T) {
 	}
 }
 
+func TestArrowCardinalVertical(t *testing.T) {
+	// Two leaves stacked vertically: the arrow leaves a's south edge and enters
+	// b's north edge, not centre-to-centre.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{
+			ID: "p", Direction: ast.Vertical,
+			Children: []ast.Node{
+				&ast.ContainerNode{ID: "a", Label: ptr("A"), Margin: fptr(8)},
+				&ast.ContainerNode{ID: "b", Label: ptr("B"), Margin: fptr(8)},
+			},
+		}},
+		Arrows: []ast.Arrow{{Source: "p.a", Target: "p.b"}},
+	}
+	svg, _ := GenerateSVG(doc, Options{})
+	// a box (8,8,24,24); b box (8,48,24,24). south of a = (20,32); north of b = (20,48).
+	if want := `<line x1="20" y1="32" x2="20" y2="48"`; !strings.Contains(svg, want) {
+		t.Errorf("expected N/S cardinal arrow %q:\n%s", want, svg)
+	}
+}
+
+func TestArrowCardinalHorizontal(t *testing.T) {
+	// Two top-level leaves pack left-to-right: a's east edge to b's west edge.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{
+			{ID: "a", Label: ptr("A"), Margin: fptr(8)},
+			{ID: "b", Label: ptr("B"), Margin: fptr(8)},
+		},
+		Arrows: []ast.Arrow{{Source: "a", Target: "b"}},
+	}
+	svg, _ := GenerateSVG(doc, Options{})
+	// a box (0,0,24,24); b box (40,0,24,24). east of a = (24,12); west of b = (40,12).
+	if want := `<line x1="24" y1="12" x2="40" y2="12"`; !strings.Contains(svg, want) {
+		t.Errorf("expected E/W cardinal arrow %q:\n%s", want, svg)
+	}
+}
+
+func TestArrowExplicitAnchorOverridesCardinal(t *testing.T) {
+	// #center forces a centre-to-centre line; a named anchor uses its position.
+	// A bare end still auto-routes, even when the other end names an anchor.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{
+			{ID: "a", Label: ptr("A"), Margin: fptr(8)},
+			{ID: "b", Label: ptr("B"), Margin: fptr(8), Anchors: map[string][2]float64{"tag": {1.0, 0.0}}},
+		},
+		Arrows: []ast.Arrow{
+			{Source: "a#center", Target: "b#center"},
+			{Source: "a", Target: "b#tag"},
+		},
+	}
+	svg, _ := GenerateSVG(doc, Options{})
+	// a (0,0,24,24) centre (12,12); b (40,0,24,24) centre (52,12); b#tag=[1,0]=(64,0).
+	if want := `<line x1="12" y1="12" x2="52" y2="12"`; !strings.Contains(svg, want) {
+		t.Errorf("expected centre-to-centre for #center %q:\n%s", want, svg)
+	}
+	if want := `<line x1="24" y1="12" x2="64" y2="0"`; !strings.Contains(svg, want) {
+		t.Errorf("expected cardinal source to named-anchor target %q:\n%s", want, svg)
+	}
+}
+
 func TestGenerateSingleNode(t *testing.T) {
 	doc := &ast.Document{Nodes: []*ast.ContainerNode{{ID: "a", Label: ptr("Hi")}}}
 	svg, errs := GenerateSVG(doc, Options{}) // defaults: 12px Arial

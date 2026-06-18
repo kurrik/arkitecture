@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -89,15 +90,16 @@ func nodeText(label string, d dimensions, fontSize float64, fontFamily string) s
 	return b.String()
 }
 
+// point is a resolved coordinate where an arrow attaches.
+type point struct{ x, y float64 }
+
 func renderArrows(arrows []ast.Arrow, layout layoutResult) string {
 	var els []string
 	for _, a := range arrows {
-		srcPath, srcAnchor := parseTarget(a.Source)
-		tgtPath, tgtAnchor := parseTarget(a.Target)
-		src := findAnchor(layout.anchorPositions, srcPath, srcAnchor)
-		tgt := findAnchor(layout.anchorPositions, tgtPath, tgtAnchor)
+		src := resolveEndpoint(a.Source, a.Target, layout)
+		tgt := resolveEndpoint(a.Target, a.Source, layout)
 		if src == nil || tgt == nil {
-			continue // missing anchors are reported by the validator
+			continue // missing nodes/anchors are reported by the validator
 		}
 		els = append(els, fmt.Sprintf(`  <line x1="%s" y1="%s" x2="%s" y2="%s" stroke="black" stroke-width="1" marker-end="url(#arrowhead)" />`,
 			num(src.x), num(src.y), num(tgt.x), num(tgt.y)))
@@ -105,11 +107,67 @@ func renderArrows(arrows []ast.Arrow, layout layoutResult) string {
 	return strings.Join(els, "\n")
 }
 
-func parseTarget(target string) (path, anchor string) {
-	if i := strings.IndexByte(target, '#'); i >= 0 {
-		return target[:i], target[i+1:]
+// resolveEndpoint finds where an arrow attaches to self. An explicit #anchor
+// (named, or #center) uses that anchor's fixed position. A bare reference
+// auto-routes: it attaches to the cardinal edge (N/E/S/W) of self's border box
+// facing the other node's centre.
+func resolveEndpoint(self, other string, layout layoutResult) *point {
+	path, anchor, explicit := splitRef(self)
+	if explicit {
+		ap := findAnchor(layout.anchorPositions, path, anchor)
+		if ap == nil {
+			return nil
+		}
+		return &point{ap.x, ap.y}
 	}
-	return target, "center"
+	selfBox, ok := layout.nodeBoxes[path]
+	if !ok {
+		return nil
+	}
+	otherBox, ok := layout.nodeBoxes[nodePathOf(other)]
+	if !ok {
+		return nil
+	}
+	return cardinalPoint(selfBox, centerOf(otherBox))
+}
+
+// cardinalPoint returns the midpoint of box's edge facing aim, chosen by the
+// dominant axis of the centre-to-aim vector. Exact diagonals (|dx| == |dy|)
+// favour the horizontal (E/W) side.
+func cardinalPoint(box dimensions, aim point) *point {
+	c := centerOf(box)
+	dx, dy := aim.x-c.x, aim.y-c.y
+	if math.Abs(dx) >= math.Abs(dy) {
+		if dx >= 0 {
+			return &point{box.x + box.width, c.y} // east
+		}
+		return &point{box.x, c.y} // west
+	}
+	if dy >= 0 {
+		return &point{c.x, box.y + box.height} // south
+	}
+	return &point{c.x, box.y} // north
+}
+
+func centerOf(d dimensions) point {
+	return point{d.x + d.width/2, d.y + d.height/2}
+}
+
+// splitRef splits an arrow reference into its node path and optional anchor.
+// explicit reports whether an #anchor was present, distinguishing a bare "a"
+// (which auto-routes) from "a#center" (which forces the centre).
+func splitRef(ref string) (path, anchor string, explicit bool) {
+	if i := strings.IndexByte(ref, '#'); i >= 0 {
+		return ref[:i], ref[i+1:], true
+	}
+	return ref, "", false
+}
+
+func nodePathOf(ref string) string {
+	if i := strings.IndexByte(ref, '#'); i >= 0 {
+		return ref[:i]
+	}
+	return ref
 }
 
 func findAnchor(positions []anchorPosition, path, anchorID string) *anchorPosition {
