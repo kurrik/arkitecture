@@ -94,81 +94,102 @@ type Error struct {
 
 ## DSL features
 
-The Arkitecture DSL has a clean, intuitive syntax for describing architecture diagrams. See [examples/annotated.ark](examples/annotated.ark) for a fully commented reference.
+A diagram is authored in **two layers** kept deliberately separate — *semantics*
+(what the components are) and *layout* (where and how they're drawn) — so
+presentation can be retuned, reused, or swapped without touching structure. There
+is no CSS-style cascade: layout targets nodes by exact path, and every position
+traces to a local rule. See [examples/annotated.ark](examples/annotated.ark) for a
+fully commented reference, or the
+[live examples](https://kurrik.github.io/arkitecture/examples.html).
 
-### Container nodes
+### Semantic layer — nodes
 
-Container nodes are the primary building blocks, with IDs, labels, and layout properties:
+A node body holds only *what a component is*: an `id`, an optional `label`, an
+optional `kind`, the anchor **names** it exposes, and nested children. Nesting
+means "is part of".
 
 ```
-# Basic node with a label
 api {
   label: "API Gateway"
-  direction: "vertical"
-}
+  anchors: [south]          # anchor NAMES; their positions live in @layout
 
-# Node with a size override and custom anchors
-userService {
-  label: "User Service"
-  size: 0.75
-  anchors: {
-    db: [0.5, 1.0],
-    api: [0.5, 0.0]
-  }
+  auth    { label: "Authentication" }
+  routing { label: "Request Routing" }
 }
 ```
 
-### Groups
+A borderless grouping is just a node with `box: none` (set in `@layout`) — the
+replacement for the old `group` keyword. It keeps an id, so it still contributes
+a path segment.
 
-Groups provide layout organization without any visual representation:
+### Layout layer — `@layout`
+
+Presentation — `direction`, `size`, `margin`, `box`, and anchor **positions** —
+lives in `@layout` blocks that target nodes by **exact dotted path**. A block can
+sit inline in a node body or stand alone as a sheet:
 
 ```
-services {
-  label: "Microservices"
-  direction: "horizontal"
+@layout {
+  api { direction: vertical; anchor south: [0.5, 1.0] }
 
-  group {
-    direction: "vertical"
-
-    userService {
-      label: "User Service"
-    }
-
-    orderService {
-      label: "Order Service"
-    }
-  }
+  api.auth { size: 0.5 }    # half the orthogonal dimension the parent would give
 }
 ```
+
+### Reuse — `@block` / `@use` / `kind`
+
+Bundle shared layout into a named `@block` and pull it in with `@use`. A node's
+`kind` implicitly `@use`s the block of the same name as a baseline. Imports are
+explicit and overridable — a direct property always wins, with no cascade:
+
+```
+@layout {
+  @block service { size: 0.75 }
+
+  services.userService  { @use service }
+  services.orderService { @use service; size: 0.5 }   # direct wins over the import
+}
+```
+
+A small set of kinds is built in (`invisible` → `box: none`); any kind can be
+(re)declared with `@block <name> { … }`. An explicit `@use` of an undefined block
+is an error, but an unknown `kind` is a harmless semantic tag.
 
 ### Arrows
 
-Connect nodes with arrow syntax and optional anchor references:
+Connect nodes with `-->`, optionally naming an anchor with `#`. A bare endpoint
+auto-routes to the cardinal edge (N/E/S/W) facing the other node; naming an anchor
+pins a fixed point.
 
 ```
-# Simple arrow between nodes
-api --> database
-
-# Arrow with anchor points
-api#south --> services#north
-
-# Nested node references
-services.userService#db --> database#north
+api --> database                            # auto-routed, edge to edge
+api#south --> services#north                # explicit anchors
+services.userService#db --> database#north  # nested paths
 ```
 
 ### Properties
 
-- **`label`**: display text for the node
-- **`direction`**: layout direction (`"vertical"` or `"horizontal"`)
-- **`size`**: size override (0.0–1.0) for the orthogonal dimension
-- **`anchors`**: custom anchor points as `{ anchorId: [x, y] }`
+Semantic (in the node body):
+
+- **`label`** — display text for the node
+- **`kind`** — semantic classification; imports the layout block of the same name
+- **`anchors`** — declared anchor names, e.g. `[db, north]`
+
+Layout (in `@layout`):
+
+- **`direction`** — `vertical` (default) or `horizontal`
+- **`size`** — override (0.0–1.0) for the orthogonal dimension
+- **`margin`** — space around the node's border box (default 8; `0` packs flush)
+- **`box`** — `default` (bordered) or `none` (borderless grouping)
+- **`anchor <name>: [x, y]`** — position a declared anchor
+- **`@use <block>`** — import a named `@block`
 
 ### Coordinate system
 
 Anchors use relative coordinates within the node bounding box:
 
 - `[0.0, 0.0]` — top-left corner
-- `[0.5, 0.5]` — center (the default anchor on every node)
+- `[0.5, 0.5]` — center (the implicit `center` anchor on every node)
 - `[1.0, 1.0]` — bottom-right corner
 - `[0.5, 0.0]` — top edge, horizontally centered
 

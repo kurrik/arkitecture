@@ -1,11 +1,17 @@
 // Package validator performs semantic checks over a parsed Document: duplicate
 // IDs within a scope, layout selector/conflict/range checks, anchor-position
-// declarations, and arrow/anchor reference resolution. It is non-fail-fast —
-// every error is collected.
+// declarations, undefined `@use` blocks, `@use` composition cycles, and
+// arrow/anchor reference resolution. It is non-fail-fast — every error is
+// collected.
 //
 // Most diagnostics carry line/column 1,1 because the semantic AST does not
-// record node positions; dangling-selector errors are the exception, reporting
-// at the selector position the parser preserved on each layout rule.
+// record node positions; dangling-selector, `@use`, and block-cycle errors are
+// the exception, reporting at the position the parser preserved.
+//
+// An unknown `kind` is deliberately not an error: `kind` is a semantic tag, so a
+// missing layout block of that name simply contributes no baseline. An explicit
+// `@use` of an undefined block is an error — that is a layout import the author
+// asked for that cannot be satisfied.
 package validator
 
 import (
@@ -32,6 +38,7 @@ func Validate(doc *ast.Document) []ast.Error {
 
 	v.validateIDUniqueness(doc.Nodes, "")
 	v.validateLayout(doc)
+	v.validateLayoutBlocks(doc)
 	v.validateArrowReferences(doc)
 	v.validateAnchorReferences(doc)
 	return v.errors
@@ -186,6 +193,121 @@ func (v *validator) validateAnchorPositions(selector string, d *ast.Declarations
 			v.addError(ast.ErrorReference, fmt.Sprintf("Layout positions anchor '%s' not declared on node '%s'", name, selector))
 		}
 	}
+}
+
+// validateLayoutBlocks checks the reuse layer: every `@use` (in a selector,
+// inline block, or block composition) names a defined block, and block
+// composition has no cycles. An unknown `kind` is intentionally not checked —
+// it is a semantic tag, not a layout import.
+func (v *validator) validateLayoutBlocks(doc *ast.Document) {
+	defined := map[string]bool{}
+	for name := range ast.BuiltinBlocks() {
+		defined[name] = true
+	}
+	for _, b := range doc.Blocks {
+		defined[b.Name] = true
+	}
+
+	for _, r := range doc.Layout {
+		v.checkUsesDefined(r.Uses, defined)
+	}
+	for _, b := range doc.Blocks {
+		v.checkUsesDefined(b.Uses, defined)
+	}
+
+	v.validateBlockCycles(doc.Blocks)
+}
+
+func (v *validator) checkUsesDefined(uses []ast.Use, defined map[string]bool) {
+	for _, u := range uses {
+		if !defined[u.Block] {
+			v.errors = append(v.errors, ast.Error{
+				Type:    ast.ErrorReference,
+				Message: fmt.Sprintf("Layout block '%s' is not defined", u.Block),
+				Line:    u.Line,
+				Column:  u.Column,
+			})
+		}
+	}
+}
+
+// validateBlockCycles reports `@use` composition cycles among `@block`
+// definitions, via a coloured DFS over the block graph. Built-in blocks have no
+// imports, so they cannot take part in a cycle. Each distinct cycle is reported
+// once, at the position of the block the back-edge points to.
+func (v *validator) validateBlockCycles(blocks []ast.Block) {
+	const (
+		white = iota
+		gray
+		black
+	)
+	graph := map[string][]ast.Use{}
+	line := map[string]int{}
+	col := map[string]int{}
+	var names []string
+	for _, b := range blocks {
+		if _, seen := graph[b.Name]; !seen {
+			names = append(names, b.Name)
+		}
+		graph[b.Name] = b.Uses // a redefined block keeps its last body (last wins)
+		line[b.Name], col[b.Name] = b.Line, b.Column
+	}
+	sort.Strings(names)
+
+	color := map[string]int{}
+	reported := map[string]bool{}
+	var stack []string
+	var visit func(name string)
+	visit = func(name string) {
+		color[name] = gray
+		stack = append(stack, name)
+		for _, u := range graph[name] {
+			if _, ok := graph[u.Block]; !ok {
+				continue // built-in or undefined target: not part of a user-block cycle
+			}
+			switch color[u.Block] {
+			case white:
+				visit(u.Block)
+			case gray:
+				cycle := cycleFrom(stack, u.Block)
+				if sig := cycleSig(cycle); !reported[sig] {
+					reported[sig] = true
+					v.errors = append(v.errors, ast.Error{
+						Type:    ast.ErrorReference,
+						Message: fmt.Sprintf("Layout block cycle detected: %s", strings.Join(append(cycle, u.Block), " -> ")),
+						Line:    line[u.Block],
+						Column:  col[u.Block],
+					})
+				}
+			}
+		}
+		stack = stack[:len(stack)-1]
+		color[name] = black
+	}
+	for _, name := range names {
+		if color[name] == white {
+			visit(name)
+		}
+	}
+}
+
+// cycleFrom returns the suffix of stack starting at the first occurrence of
+// start — the members of the cycle in traversal order.
+func cycleFrom(stack []string, start string) []string {
+	for i, n := range stack {
+		if n == start {
+			return append([]string(nil), stack[i:]...)
+		}
+	}
+	return append([]string(nil), stack...)
+}
+
+// cycleSig is an order-independent signature for a cycle's member set, used to
+// report each distinct cycle only once.
+func cycleSig(cycle []string) string {
+	s := append([]string(nil), cycle...)
+	sort.Strings(s)
+	return strings.Join(s, ",")
 }
 
 func (v *validator) validateArrowReferences(doc *ast.Document) {

@@ -11,8 +11,9 @@
 //     *names*, and children;
 //   - a layout layer of [Declarations] — direction, size, margin, box, and
 //     anchor *positions* — authored in `@layout` blocks, either inline on a
-//     node ([ContainerNode.Layout]) or as standalone sheet rules
-//     ([Document.Layout]).
+//     node or as standalone sheet rules ([Document.Layout]). Layout can be
+//     bundled into reusable named [Block]s and imported with [Use]; a node's
+//     `kind` imports the block of the same name as a baseline.
 package ast
 
 import "fmt"
@@ -72,14 +73,41 @@ type Declarations struct {
 	Anchors   map[string][2]float64
 }
 
-// LayoutRule is one standalone `@layout` sheet selector: a node target by exact
-// dotted path plus the declarations applied to it. Line/Column point at the
-// selector for dangling-selector diagnostics.
+// Use is an `@use <block>` directive: a request to import a named layout block's
+// declarations as a baseline. Uses compose (a block may itself `@use` another;
+// cycles are a validation error) and sit in the imported precedence tier, below
+// direct declarations. Line/Column point at the block name for undefined-block
+// diagnostics.
+type Use struct {
+	Block  string
+	Line   int
+	Column int
+}
+
+// LayoutRule is one `@layout` selector block: a node targeted by exact dotted
+// path, the direct declarations applied to it, and any `@use` directives it
+// imports. Line/Column point at the selector for dangling-selector diagnostics.
+// An inline `@layout {…}` is desugared into a rule whose selector is the node's
+// full path, so inline and standalone layout are uniform.
 type LayoutRule struct {
 	Selector string
 	Decls    *Declarations
+	Uses     []Use // @use directives in this block, in source order
 	Line     int
 	Column   int
+}
+
+// Block is a named, reusable bundle of layout declarations defined by
+// `@block <name> { decls }` inside an `@layout` sheet. A block may itself `@use`
+// other blocks (composition); a node pulls one in explicitly via `@use` or
+// implicitly via a matching `kind`. A user block overrides a built-in of the
+// same name. Line/Column point at the block name.
+type Block struct {
+	Name   string
+	Decls  *Declarations
+	Uses   []Use
+	Line   int
+	Column int
 }
 
 // Arrow is a directed connection between two node paths. Source and Target are
@@ -91,13 +119,27 @@ type Arrow struct {
 }
 
 // Document is a whole parsed .ark file: the top-level semantic nodes, the
-// standalone layout sheet rules, and the arrows between nodes. Arrows are
-// parsed in a later phase, so they live in a flat list rather than on the
-// nodes.
+// layout sheet rules, the named layout blocks (`@block`), and the arrows between
+// nodes. Layout, blocks, and arrows are parsed in phases, so they live in flat
+// lists rather than on the nodes.
 type Document struct {
 	Nodes  []*ContainerNode
 	Layout []LayoutRule
+	Blocks []Block
 	Arrows []Arrow
+}
+
+// BuiltinBlocks are the layout blocks every document gets for free, keyed by
+// name. A `kind` or `@use` naming one applies its declarations as a baseline; a
+// user `@block` of the same name overrides it. v1 ships a single kind,
+// `invisible` (box: none) — the layout layer is structural, so built-ins can
+// only set structural properties for now. A fresh map is returned per call so
+// callers can treat it as their own.
+func BuiltinBlocks() map[string]*Declarations {
+	none := BoxNone
+	return map[string]*Declarations{
+		"invisible": {Box: &none},
+	}
 }
 
 // ErrorType categorises a diagnostic.

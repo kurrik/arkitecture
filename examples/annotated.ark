@@ -6,7 +6,9 @@
 #   * the LAYOUT layer — `@layout` blocks: direction, size, margin, box, and
 #     anchor POSITIONS. This is "where and how they're drawn".
 # Keeping them apart means layout can be retuned, reused, or swapped without
-# touching the semantics. Comments start with '#'.
+# touching the semantics. Layout can also be bundled into reusable `@block`s and
+# imported with `@use`, and a node's `kind` imports the block of the same name as
+# a baseline. Comments start with '#'.
 
 # A node with ID c1. A node body holds only semantics.
 c1 {
@@ -27,11 +29,14 @@ c1 {
     }
   }
 
-  # This node draws no border (`box: none`, set in @layout below), so it acts as
-  # a pure layout grouping — the modern replacement for the old `group`. Unlike
-  # a group it still has an id, so it contributes a path segment (its children
-  # are addressed as c1.grp.n3 / c1.grp.n4).
+  # `kind` is a semantic tag — what this node *is*. It implicitly applies the
+  # layout @block of the same name as a baseline. The built-in `invisible` kind
+  # sets `box: none`, so grp draws no border and acts as a pure layout grouping
+  # — the modern replacement for the old `group`. It still has an id, so it
+  # contributes a path segment (its children are c1.grp.n3 / c1.grp.n4).
   grp {
+    kind: invisible
+
     n3 {
       label: "Node 3"
       # Declare the anchor NAMES this node exposes for arrows. The positions
@@ -50,22 +55,31 @@ c1 {
 # A standalone `@layout` sheet targets nodes by exact dotted path. The same
 # declarations are available here as in an inline @layout block. There is no
 # cascade: one selector names exactly one node, and a property may be set only
-# once per node (inline + sheet combined).
+# once per node directly (inline + sheet combined) — but an imported value (from
+# `kind` or `@use`) is freely overridden by a direct one.
 @layout {
+  # `@block` defines a reusable, parameterless bundle of layout that you pull in
+  # with `@use`. Unlike a CSS class it matches nothing on its own — importing is
+  # explicit and opt-in. Blocks may compose (`@use` another block); cycles error.
+  @block emphasis { size: 0.75 }
+
   # `direction` is "vertical" (default) or "horizontal".
   c1 { direction: vertical }
 
-  # `box: none` drops the border; `direction` arranges the invisible grouping.
-  # grp is addressed by its full path:
-  c1.grp { box: none; direction: horizontal }
+  # grp's borderless box comes from `kind: invisible` (in its body above); here
+  # we only arrange the invisible grouping. grp is addressed by its full path.
+  c1.grp { direction: horizontal }
 
   # Anchor positions are relative [x, y] in [0,1]: [0,0] is the top-left corner,
   # [1,1] the bottom-right. `anchor <name>: [x, y]` positions a declared name.
   c1.grp.n3 {
+    @use emphasis           # import emphasis's size (0.75) as a baseline
     anchor a1: [1.0, 0.0]   # top-right corner of n3
     anchor c:  [0.5, 0.5]   # centre of n3 (same as the implicit center)
   }
   c1.grp.n4 {
+    @use emphasis           # import the same baseline …
+    size: 1.0               # … but a direct property overrides the import (no conflict)
     anchor a1: [0.0, 0.0]   # top-left corner of n4
   }
 }

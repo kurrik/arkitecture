@@ -16,6 +16,17 @@ for "where is this project at?". Move items between sections as work progresses:
   Reset control and inline compile errors; with JS off it is byte-for-byte the
   old static page. Artifacts stay un-committed (`.wasm` git-ignored, `wasm_exec.js`
   added to `.gitignore`). See the ADR in [decisions.md](decisions.md).
+- **M4 — `@layout` reuse + `kind`** (2026-06-18): layout is now reusable.
+  `@block <name> { decls }` (inside an `@layout` sheet) defines a parameterless,
+  composable bundle; `@use <name>` (in a selector, inline block, or another
+  block) imports it. Resolution gained a lower-precedence **imported** tier — the
+  `kind` baseline first, then each `@use` in source order — under the existing
+  **direct** tier, which overrides imports without conflict. A small built-in set
+  ships (`invisible` → `box: none`); a user `@block` of the same name overrides a
+  built-in. The validator flags an undefined `@use` block and `@use` cycles; an
+  **unknown `kind` is a no-op**, not an error (it's a semantic tag, resolving the
+  design open question — see the ADR in [decisions.md](decisions.md)). Generator
+  unchanged; a new `kind-and-use` golden locks the behaviour in.
 - **M3 — `@layout`, the split** (2026-06-18): semantics and presentation are now
   separate layers. A node body holds only semantics (`label`, `kind`, anchor
   *names*, children); all presentation — `direction`, `size`, `margin`, `box`,
@@ -64,38 +75,27 @@ for "where is this project at?". Move items between sections as work progresses:
 ## In progress
 
 - (none) — `main` is Go; the layout foundation (M1 box model, M2 cardinal
-  routing) and the M3 `@layout` split have shipped, so M4 (reuse + `kind`) is
-  unblocked and implementation-ready.
+  routing), the M3 `@layout` split, and M4 (reuse + `kind`) have all shipped, so
+  M5 (regrouping) is unblocked and implementation-ready.
 
 ## Planned
 
-The near-term arc is the layered authoring model; M3 (`@layout` split) is done,
-leaving M4–M5. The detail below is meant to be implementation-ready; the *model*
-lives in [design.md](design.md) and the *rationale* in
-[decisions.md](decisions.md). Each milestone is independently shippable.
+The near-term arc is the layered authoring model; M3 (split) and M4 (reuse +
+`kind`) are done, leaving M5. The detail below is meant to be
+implementation-ready; the *model* lives in [design.md](design.md) and the
+*rationale* in [decisions.md](decisions.md). Each milestone is independently
+shippable.
 
 ### Order & dependencies
 
 ```
 M1 box model + margins (done) ──▶ M2 cardinal routing (done)
-M3 @layout split (done) ─▶ M4 reuse + kind ─▶ M5 regrouping
+M3 @layout split (done) ─▶ M4 reuse + kind (done) ─▶ M5 regrouping
 ```
 
-M4–M5 build on the resolve stage and `@layout` grammar M3 introduced: M3 collapsed
-`group` into a `box: none` node and moved `direction`/`size`/`margin`/`box`/anchor
-positions into `@layout`. The `kind` property already parses (it records a name but
-applies nothing) — M4 makes it hook a layout block.
-
-### M4 — `@layout` reuse + `kind` *(phase 2)*
-
-- **parser:** `@block name { decls }` and `@use name`.
-- **resolve:** expand `@use` in place (source order, last-write-wins); `kind`
-  expands to an implicit lowest-precedence `@use <kind>`; detect `@use` cycles.
-- **built-in kinds:** ship a small set (`invisible` → `box: none`); any kind is
-  redeclarable via `@block`.
-- **validator:** undefined block/kind; cycles.
-- **tests:** override precedence (direct beats imported), composition, cycle error,
-  unknown-kind handling.
+M5 builds on the resolve stage and `@layout` grammar M3/M4 introduced: M3
+collapsed `group` into a `box: none` node and moved presentation into `@layout`;
+M4 added `@block`/`@use` reuse and made `kind` hook a layout block.
 
 ### M5 — `@layout` regrouping *(phase 3)*
 

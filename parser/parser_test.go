@@ -176,6 +176,75 @@ c1.n2 --> c1.grp.n3#a1`
 	}
 }
 
+func TestParseBlockAndUse(t *testing.T) {
+	doc := parseOK(t, `s { web {} api {} }
+@layout {
+  @block half { size: 0.5 }
+  s.web { @use half }
+  s.api { @use half; size: 0.75 }
+}`)
+
+	if len(doc.Blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1: %+v", len(doc.Blocks), doc.Blocks)
+	}
+	b := doc.Blocks[0]
+	if b.Name != "half" {
+		t.Errorf("block name = %q, want half", b.Name)
+	}
+	if b.Decls == nil || b.Decls.Size == nil || *b.Decls.Size != 0.5 {
+		t.Errorf("block decls = %+v, want size 0.5", b.Decls)
+	}
+
+	web := ruleFor(doc, "s.web")
+	if web == nil || len(web.Uses) != 1 || web.Uses[0].Block != "half" {
+		t.Fatalf("s.web rule = %+v, want one @use half", web)
+	}
+
+	api := ruleFor(doc, "s.api")
+	if api == nil || len(api.Uses) != 1 || api.Uses[0].Block != "half" {
+		t.Fatalf("s.api rule = %+v, want one @use half", api)
+	}
+	if api.Decls == nil || api.Decls.Size == nil || *api.Decls.Size != 0.75 {
+		t.Errorf("s.api direct size = %+v, want 0.75", api.Decls)
+	}
+}
+
+func TestParseInlineUse(t *testing.T) {
+	doc := parseOK(t, `a { @layout { @use service; size: 0.5 } }`)
+	r := ruleFor(doc, "a")
+	if r == nil || len(r.Uses) != 1 || r.Uses[0].Block != "service" {
+		t.Fatalf("inline rule = %+v, want one @use service", r)
+	}
+	if r.Decls == nil || r.Decls.Size == nil || *r.Decls.Size != 0.5 {
+		t.Errorf("inline direct size = %+v, want 0.5", r.Decls)
+	}
+}
+
+func TestParseBlockComposition(t *testing.T) {
+	doc := parseOK(t, `@layout {
+  @block base { margin: 4 }
+  @block wide { @use base; size: 0.9 }
+}`)
+	if len(doc.Blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2", len(doc.Blocks))
+	}
+	wide := doc.Blocks[1]
+	if wide.Name != "wide" || len(wide.Uses) != 1 || wide.Uses[0].Block != "base" {
+		t.Errorf("wide = %+v, want @use base", wide)
+	}
+}
+
+func TestParseUseRecordsPosition(t *testing.T) {
+	doc := parseOK(t, "a {}\n@layout {\n  a { @use svc }\n}")
+	r := ruleFor(doc, "a")
+	if r == nil || len(r.Uses) != 1 {
+		t.Fatalf("rule = %+v, want one use", r)
+	}
+	if u := r.Uses[0]; u.Line != 3 || u.Column != 12 {
+		t.Errorf("use position = %d,%d, want 3,12 (the block name token)", u.Line, u.Column)
+	}
+}
+
 func TestParseErrors(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -192,7 +261,11 @@ func TestParseErrors(t *testing.T) {
 		{"bad box", `a { @layout { box: solid } }`, ast.ErrorSyntax, "Invalid box 'solid'"},
 		{"unknown layout property", `a { @layout { foo: 1 } }`, ast.ErrorSyntax, "Unknown layout property 'foo'"},
 		{"duplicate layout property", `a { @layout { size: 0.5; size: 0.6 } }`, ast.ErrorSyntax, "Duplicate layout property 'size'"},
-		{"unknown directive", `@block { }`, ast.ErrorSyntax, "Unknown directive '@block'"},
+		{"unknown top-level directive", `@block { }`, ast.ErrorSyntax, "Unknown directive '@block'"},
+		{"block without name", `@layout { @block { size: 0.5 } }`, ast.ErrorSyntax, "Expected block name after @block"},
+		{"use without name", `a { @layout { @use } }`, ast.ErrorSyntax, "Expected block name after @use"},
+		{"use at sheet top level", `@layout { @use svc }`, ast.ErrorSyntax, "Unknown directive '@use' inside @layout, expected @block or a selector"},
+		{"unknown directive in block", `a { @layout { @group x } }`, ast.ErrorSyntax, "Unknown directive '@group' in layout block, expected @use"},
 		{"unterminated string", `a { label: "oops`, ast.ErrorSyntax, "Unterminated string"},
 	}
 
