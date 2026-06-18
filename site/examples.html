@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Examples — Arkitecture</title>
+  <meta name="description" content="Side-by-side Arkitecture examples: the .ark source and the SVG it renders to." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="index.html">
+        <svg class="logo" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="1.5" y="2.5" width="21" height="19" rx="1" fill="#fff" stroke="#1b1b1a" stroke-width="1.4"/>
+          <rect x="4.5" y="5.5" width="9" height="5" rx="1" fill="#fff" stroke="#1b1b1a" stroke-width="1.2"/>
+          <rect x="4.5" y="13" width="15" height="5" rx="1" fill="#fff" stroke="#1b1b1a" stroke-width="1.2"/>
+          <path d="M9 10.5 V12.6" stroke="#1b1b1a" stroke-width="1.2"/>
+        </svg>
+        <span>Arkitecture</span>
+      </a>
+      <nav class="links">
+        <a href="index.html">Home</a>
+        <a href="spec.html">Syntax</a>
+        <a href="examples.html" aria-current="page">Examples</a>
+        <a href="https://github.com/kurrik/arkitecture">GitHub&nbsp;↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1>Examples</h1>
+    <p class="lede" style="font-size:1.15rem; max-width:64ch">
+      The <code>.ark</code> source on the left, the SVG it compiles to on the right —
+      every render below was produced by the CLI from the file beside it.
+    </p>
+
+    <article class="example">
+      <h2>A simple pipeline</h2>
+      <p>Three top-level nodes laid out left to right, joined by arrows. With no anchors given, each arrow connects centre to centre.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">pipeline.ark</div>
+<pre><code>webapp {
+  label: "Web App"
+}
+api {
+  label: "API"
+}
+database {
+  label: "Database"
+}
+
+webapp --&gt; api
+api --&gt; database</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/pipeline.svg" alt="Web App, API, and Database boxes connected left to right." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/pipeline.ark">pipeline.ark</a></p>
+    </article>
+
+    <article class="example">
+      <h2>Nesting &amp; direction</h2>
+      <p>Nodes nest to any depth, and each parent arranges its children with a <code>direction</code>. Here a vertical <em>Platform</em> stacks a gateway above a horizontal row of services.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">nesting.ark</div>
+<pre><code>platform {
+  label: "Platform"
+  direction: "vertical"
+
+  gateway {
+    label: "API Gateway"
+  }
+
+  services {
+    label: "Services"
+    direction: "horizontal"
+
+    users   { label: "Users" }
+    orders  { label: "Orders" }
+    billing { label: "Billing" }
+  }
+}</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/nesting.svg" alt="A Platform box containing an API Gateway above a row of Users, Orders, and Billing." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/nesting.ark">nesting.ark</a></p>
+    </article>
+
+    <article class="example">
+      <h2>Bounded contexts with anchors</h2>
+      <p>A Domain-Driven Design sketch: two bounded contexts, a layout-only <code>group</code>, and an arrow routed through named <code>anchors</code> and a nested node path.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">contexts.ark</div>
+<pre><code>ordering {
+  label: "Ordering Context"
+  direction: "vertical"
+
+  group {
+    direction: "horizontal"
+
+    cart     { label: "Cart" }
+    checkout { label: "Checkout" }
+  }
+
+  orders {
+    label: "Orders"
+    anchors: {
+      db: [0.5, 1.0]
+    }
+  }
+}
+
+inventory {
+  label: "Inventory Context"
+  anchors: {
+    api: [0.0, 0.5]
+  }
+}
+
+ordering.orders#db --&gt; inventory#api</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/contexts.svg" alt="An Ordering Context and an Inventory Context joined by an arrow from Orders to Inventory." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/contexts.ark">contexts.ark</a></p>
+    </article>
+
+    <p style="margin-top:40px">
+      Want the full grammar? Head to the <a href="spec.html">syntax reference</a>.
+    </p>
+  </main>
+
+  <footer class="wrap foot">
+    <span>Arkitecture — MIT licensed.</span>
+    <span><a href="https://github.com/kurrik/arkitecture">github.com/kurrik/arkitecture</a></span>
+  </footer>
+</body>
+</html>
