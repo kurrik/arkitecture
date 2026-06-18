@@ -46,26 +46,22 @@ type layoutNode struct {
 // computeLayout sizes and positions every node bottom-up then top-down, sizes
 // the canvas to fit, and resolves anchor coordinates. It is deterministic.
 func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontSize float64) layoutResult {
-	// wall=false at the top level: the document root is invisible and provides
-	// no wall, so a top-level node's (and any all-invisible chain's) perimeter
-	// margins collapse rather than padding the canvas.
 	roots := make([]*layoutNode, 0, len(doc.Nodes))
 	for _, n := range doc.Nodes {
 		l := buildLayoutTree(n, "", layout)
-		calcDimensions(l, fontSize, false)
+		calcDimensions(l, fontSize)
 		roots = append(roots, l)
 	}
 
 	// The document root is invisible: top-level nodes pack left-to-right with
 	// only the collapsed gap between siblings (the larger of their facing
-	// margins) — their outer perimeter margins collapse, so the canvas gains no
-	// phantom padding.
+	// margins) — there is no perimeter, so the canvas gains no phantom padding.
 	currentX := 0.0
 	for i, l := range roots {
 		if i > 0 {
 			currentX += math.Max(roots[i-1].margin, l.margin)
 		}
-		positionNodes(l, currentX, 0, false)
+		positionNodes(l, currentX, 0)
 		currentX += l.dim.width
 	}
 
@@ -121,24 +117,25 @@ func buildArrangement(items []ast.ArrangementItem, parent *ast.ContainerNode, pa
 	return out
 }
 
-// calcDimensions sizes l and its subtree bottom-up. wall reports whether a
-// bordered ancestor encloses l: a bordered node is always a wall for its
-// subtree, and an invisible (box:none) node passes the flag through unchanged.
-// Perimeter margins are reserved (children's margin boxes count, like padding)
-// whenever a wall encloses the node — so a box:none group nested in a bordered
-// parent pushes its children's margins out to that wall, while an invisible
-// chain with no wall (e.g. a top-level group) collapses them.
-func calcDimensions(l *layoutNode, fontSize float64, wall bool) {
-	wall = wall || nodeBordered(l)
+// calcDimensions sizes l and its subtree bottom-up and sets l.margin to l's
+// *effective* margin — the space a parent reserves around it. A bordered node's
+// border is the boundary, so its effective margin is just its own. A `box: none`
+// node is transparent: it adds no perimeter of its own, and its children's
+// margins show through it, so its effective margin is the larger of its own and
+// its children's. That single effective margin then collapses against neighbours
+// like any other, so a box:none group never doubles a channel.
+func calcDimensions(l *layoutNode, fontSize float64) {
 	for _, c := range l.children {
-		calcDimensions(c, fontSize, wall)
+		calcDimensions(c, fontSize)
 	}
 
-	l.margin = marginOf(l.decls)
+	ownMargin := marginOf(l.decls)
 	direction := directionOf(l.decls)
 	minDim := fontSize * 2
+	bordered := nodeBordered(l)
 
 	if len(l.children) == 0 {
+		l.margin = ownMargin
 		if l.node == nil {
 			return // an empty @group occupies no space
 		}
@@ -151,12 +148,21 @@ func calcDimensions(l *layoutNode, fontSize float64, wall bool) {
 		return
 	}
 
+	// Effective margin: a transparent box:none group carries its children's
+	// margins outward (the larger of its own and theirs).
+	l.margin = ownMargin
+	if !bordered {
+		for _, c := range l.children {
+			l.margin = math.Max(l.margin, c.margin)
+		}
+	}
+
 	// Channels between boxes collapse rather than stack: the gap between two
 	// adjacent siblings is the larger of their facing margins (not the sum), so
-	// it stays one uniform margin wide — matching the gap to the wall. A walled
-	// parent reserves that perimeter (the edge children's margins become padding
-	// inside the wall) and stretches children to fill the cross axis; a wall-less
-	// invisible parent (a top-level box:none group or the root) drops both,
+	// every channel is one uniform margin wide. A bordered parent additionally
+	// reserves a perimeter (the edge children's margins become padding inside the
+	// border) and stretches children to fill the cross axis; a transparent
+	// box:none parent (and the root) reserves no perimeter and does not stretch,
 	// bounding the children's border boxes plus the collapsed gaps only.
 	n := len(l.children)
 	if direction == ast.Horizontal {
@@ -167,16 +173,16 @@ func calcDimensions(l *layoutNode, fontSize float64, wall bool) {
 			}
 			main += c.dim.width
 			ch := c.dim.height
-			if wall {
+			if bordered {
 				ch += 2 * c.margin
 			}
 			cross = math.Max(cross, ch)
 		}
-		if wall && n > 0 {
+		if bordered && n > 0 {
 			main += l.children[0].margin + l.children[n-1].margin
 		}
 		l.dim.width, l.dim.height = main, cross
-		if wall {
+		if bordered {
 			for _, c := range l.children {
 				c.dim.height = l.dim.height - 2*c.margin
 			}
@@ -189,16 +195,16 @@ func calcDimensions(l *layoutNode, fontSize float64, wall bool) {
 			}
 			main += c.dim.height
 			cw := c.dim.width
-			if wall {
+			if bordered {
 				cw += 2 * c.margin
 			}
 			cross = math.Max(cross, cw)
 		}
-		if wall && n > 0 {
+		if bordered && n > 0 {
 			main += l.children[0].margin + l.children[n-1].margin
 		}
 		l.dim.height, l.dim.width = main, cross
-		if wall {
+		if bordered {
 			for _, c := range l.children {
 				c.dim.width = l.dim.width - 2*c.margin
 			}
@@ -217,19 +223,19 @@ func calcDimensions(l *layoutNode, fontSize float64, wall bool) {
 }
 
 // positionNodes places l's border box at (x, y) and lays out its children with
-// collapsed channels (mirroring calcDimensions). A walled parent insets the
+// collapsed channels (mirroring calcDimensions). A bordered parent insets the
 // first child by its margin (perimeter) and insets each child on the cross axis
-// by its margin; a wall-less invisible parent drops those insets. Between two
-// siblings the gap is the larger of their facing margins — margins collapse,
-// they do not stack. wall is threaded as in calcDimensions.
-func positionNodes(l *layoutNode, x, y float64, wall bool) {
-	wall = wall || nodeBordered(l)
+// by its margin; a transparent box:none parent (and the root) places children at
+// its own origin. Between two siblings the gap is the larger of their facing
+// margins — margins collapse, they do not stack.
+func positionNodes(l *layoutNode, x, y float64) {
 	l.dim.x, l.dim.y = x, y
 	direction := directionOf(l.decls)
+	bordered := nodeBordered(l)
 
 	if direction == ast.Horizontal {
 		cursor := x
-		if wall && len(l.children) > 0 {
+		if bordered && len(l.children) > 0 {
 			cursor += l.children[0].margin
 		}
 		for i, c := range l.children {
@@ -237,15 +243,15 @@ func positionNodes(l *layoutNode, x, y float64, wall bool) {
 				cursor += math.Max(l.children[i-1].margin, c.margin)
 			}
 			cy := y
-			if wall {
+			if bordered {
 				cy = y + c.margin
 			}
-			positionNodes(c, cursor, cy, wall)
+			positionNodes(c, cursor, cy)
 			cursor += c.dim.width
 		}
 	} else {
 		cursor := y
-		if wall && len(l.children) > 0 {
+		if bordered && len(l.children) > 0 {
 			cursor += l.children[0].margin
 		}
 		for i, c := range l.children {
@@ -253,10 +259,10 @@ func positionNodes(l *layoutNode, x, y float64, wall bool) {
 				cursor += math.Max(l.children[i-1].margin, c.margin)
 			}
 			cx := x
-			if wall {
+			if bordered {
 				cx = x + c.margin
 			}
-			positionNodes(c, cx, cursor, wall)
+			positionNodes(c, cx, cursor)
 			cursor += c.dim.height
 		}
 	}
