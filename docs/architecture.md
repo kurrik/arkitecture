@@ -47,6 +47,9 @@ github.com/kurrik/arkitecture        (module)
   cmd/arkitecture/   package main — the CLI (flags, file I/O, watch); imports the library
   wasm/              package main — js,wasm shim exposing ToSVG to JS (+ host stub)
 examples/            sample .ark inputs
+site/                static docs site (GitHub Pages); examples.html is enhanced
+                     into a live WASM editor by playground.js
+scripts/build-site.sh  generation step: render site examples + build the site WASM
 ```
 
 Dependency direction is one-way: `cmd`/`wasm` → `arkitecture` → `{parser,
@@ -159,3 +162,25 @@ standard `testing` package (table-driven). The **golden** test renders
 `generator/testdata/golden/*.ark` through the full pipeline and diffs against the
 checked-in `.svg`/`.error` references, regenerated with `-update`. CI runs gofmt +
 vet + `go test -race` + the CLI and WASM builds on Go 1.23 and 1.24.
+
+## Docs site
+
+`site/` is a hand-rolled static site (no framework, no bundler) published to
+GitHub Pages by `.github/workflows/pages.yml`. Publishing is a **generation
+step**, not a verbatim copy: the workflow runs `scripts/build-site.sh`, which
+
+1. re-renders every `site/examples/*.ark` to `.svg` via the CLI (the committed
+   SVGs are a refreshed-at-publish snapshot and the no-JS fallback), and
+2. builds `site/arkitecture.wasm` (`-ldflags="-s -w"`) and copies Go's
+   `wasm_exec.js` beside it,
+
+then uploads `site/`. Both build artifacts are git-ignored. The same script runs
+locally to preview the site as it ships. Pages triggers on changes to `site/**`,
+the script, the workflow, or any Go source (the site embeds the library).
+
+The Examples page is **progressively enhanced** by `site/playground.js`: it loads
+the WASM (the same `arkitectureToSVG` the JS/TS interop uses), replaces each
+example's read-only source with an editable textarea, and re-renders live in the
+browser on input — with a Reset control and inline compile errors. The library
+stays pure; the page is just another thin consumer of `wasm/`, like the CLI. With
+JS or WASM unavailable the page is unchanged (static SVGs, read-only source).

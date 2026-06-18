@@ -6,6 +6,16 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **Generated docs site + live WASM playground** (2026-06-18): the GitHub Pages
+  publish is now a generation step (`scripts/build-site.sh`, run by `pages.yml`)
+  that re-renders every `site/examples/*.ark` to `.svg` via the CLI and builds
+  `site/arkitecture.wasm` (+ `wasm_exec.js`) before upload, so a publish always
+  reflects the current library. The Examples page is progressively enhanced
+  (`site/playground.js`): with JS on, each example's source becomes an editable
+  textarea that re-renders live in the browser through the `wasm/` build, with a
+  Reset control and inline compile errors; with JS off it is byte-for-byte the
+  old static page. Artifacts stay un-committed (`.wasm` git-ignored, `wasm_exec.js`
+  added to `.gitignore`). See the ADR in [decisions.md](decisions.md).
 - **M3 — `@layout`, the split** (2026-06-18): semantics and presentation are now
   separate layers. A node body holds only semantics (`label`, `kind`, anchor
   *names*, children); all presentation — `direction`, `size`, `margin`, `box`,
@@ -102,7 +112,9 @@ applies nothing) — M4 makes it hook a layout block.
 ### Other tracks (lower priority)
 
 - **Distribution:** portable binary release builds (per-OS/arch); a usable JS/TS
-  package around the `wasm/` build, with an example.
+  package around the `wasm/` build, with an example. *(The docs site is now a
+  first consumer of the `wasm/` build — see the live Examples playground — but a
+  published, versioned package is still open.)*
 - **Diagnostics & DX:** stable error codes; source positions on validator errors
   (the AST carries none today); large/deep-document performance tests.
 - **Rendering reach beyond the above:** arrow labels; non-straight routing; visual
@@ -114,5 +126,7 @@ applies nothing) — M4 makes it hook a layout block.
   `@import` for layout (the payoff that motivates the `@layout` epic).
 - Migrating an arrow's *choice* of anchor into the layout layer (routing).
 - Additional output targets (PNG/PDF) via downstream conversion.
-- A web playground that renders `.ark` live in the browser (via the WASM build).
+- A fuller standalone web playground (the Examples page now does per-example live
+  editing via the WASM build; a dedicated playground/share-URL page is the bigger
+  version still parked here).
 - Revisit text measurement if pixel-accurate fitting is ever needed.

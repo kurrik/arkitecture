@@ -1,6 +1,9 @@
 name: Pages
 
 # Publishes the static site in site/ to GitHub Pages.
+# Before uploading it runs scripts/build-site.sh, which re-renders the example
+# SVGs from their .ark sources and builds the WebAssembly module the Examples
+# page loads for live editing — so a publish always reflects the current library.
 # One-time setup: in repo Settings → Pages, set Source to "GitHub Actions".
 
 on:
@@ -8,7 +11,12 @@ on:
     branches: [main]
     paths:
       - 'site/**'
+      - 'scripts/build-site.sh'
       - '.github/workflows/pages.yml'
+      # The site embeds the library (rendered examples + WASM), so a change to
+      # the Go sources should republish too.
+      - '**/*.go'
+      - 'go.mod'
   workflow_dispatch:
 
 permissions:
@@ -30,6 +38,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build site (render examples + WASM)
+        run: ./scripts/build-site.sh
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

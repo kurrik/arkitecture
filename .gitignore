@@ -2,6 +2,8 @@
 /arkitecture
 *.wasm
 *.test
+# WASM support runtime copied into the site by scripts/build-site.sh
+/site/wasm_exec.js
 
 # Coverage
 coverage.out
