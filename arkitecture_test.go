@@ -133,6 +133,29 @@ func anyErrorContains(errs []arkitecture.Error, sub string) bool {
 	return false
 }
 
+func TestToSVGArrowBeforeLayout(t *testing.T) {
+	// An arrow colocated with the semantic nodes — placed before the @layout
+	// sheet — must compile, not derail parsing.
+	const in = `ordering {
+  orders { label: "Orders" anchors: [db] }
+}
+inventory { label: "Inventory" anchors: [api] }
+
+ordering.orders#db --> inventory#api
+
+@layout {
+  ordering.orders { anchor db: [0.5, 1.0] }
+  inventory       { anchor api: [0.0, 0.5] }
+}`
+	res := arkitecture.ToSVG(in, nil)
+	if !res.Success {
+		t.Fatalf("expected success, got %+v", res.Errors)
+	}
+	if !strings.Contains(res.SVG, "<line") {
+		t.Errorf("expected an arrow line in the SVG")
+	}
+}
+
 func TestToSVGGeneratesSVG(t *testing.T) {
 	res := arkitecture.ToSVG(`a { label: "x" }`, nil)
 	if !res.Success {

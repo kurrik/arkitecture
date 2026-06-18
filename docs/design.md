@@ -104,13 +104,19 @@ Layout is bottom-up and deterministic:
 - `size: f` scales only the orthogonal dimension to a fraction `f` of the parent;
   it does not affect the parent's own size.
 - Each node reserves a uniform **`margin`** (default 8) around its border box.
-  Inside a **bordered** parent the margin acts like padding; inside an
-  **invisible** parent (`box: none`, a group, or the document root) the outer
-  perimeter margins collapse, leaving only the gaps *between* siblings (the sum
-  of their facing margins). `margin: 0` restores flush packing.
-- `box: none` draws no border, turning a node into an invisible grouping that
-  keeps its ID, label, and anchors. Groups likewise add no border — and no
-  margin of their own.
+  Margins **collapse** rather than stack: the channel between two adjacent
+  siblings is the *larger* of their facing margins (not the sum), and a child's
+  gap to its parent's wall is its own margin — so every channel is one uniform
+  margin wide. `margin: 0` restores flush packing.
+- A **box: none** group is *transparent*: it draws no border and adds no wall of
+  its own, but it is not a barrier to margins. Its children's perimeter margins
+  push straight through it to the nearest **bordered** ancestor (where they
+  become padding inside that border). Only when there is no bordered ancestor —
+  an invisible chain up to the document root, e.g. a top-level group — do those
+  perimeter margins collapse to nothing, so the canvas gains no outer padding.
+- `box: none` turns a node into such an invisible grouping while keeping its ID,
+  label, and anchors. It keeps its *own* margin too (set `margin: 0` to make it
+  fully transparent, contributing only its children's margins).
 - The canvas fits the top-level content exactly: the document root is invisible,
   so the diagram gains no outer padding even though inner nodes are spaced.
 
@@ -273,24 +279,28 @@ a sheet of selectors (separation / theming). Same declarations either way.
 
 ### Box model & margins
 
-> ✅ Implemented today as inline `margin` / `box` node properties (M1, default
-> margin 8). Only the relocation of these properties into `@layout` (M3) is
-> still pending; the geometry below is live.
+> ✅ Implemented. `margin`/`box` are `@layout` properties (relocated in M3);
+> the geometry below is live. The original M1 model summed adjacent margins and
+> collapsed *all* perimeter margins of a `box: none` node; both were revised to
+> the collapsing, wall-seeking rules below (see [decisions.md](decisions.md)).
 
 Spacing is expressed as a per-node **`margin`** (a layout property), implemented
 with a real box model rather than a parent-level gap. Each node has a **border
 box** (its visible rectangle — content plus a 1px border, or content only when
 `box: none`) and a **margin box** (the border box plus its margins).
 
-The one rule that needs care is how a child's margin affects its parent's size,
-and it turns on whether the parent draws a box:
+Two rules govern how margins consume space:
 
-- **Bordered parent** — the child's margin counts, like padding inside the border:
-  the parent grows to contain each child's *margin* box.
-- **Invisible parent** (`box: none`, including the document root) — there is no
-  wall for the margin to sit against, so perimeter margins **collapse to zero**:
-  the parent is the bounding box of its children's *border* boxes, keeping only the
-  gaps *between* siblings. An invisible grouping never gains phantom padding.
+- **Channels collapse, they don't stack.** The gap between two adjacent siblings
+  is the *larger* of their facing margins (not the sum), and a child's gap to its
+  parent's wall is its own margin — so every channel is one uniform margin wide.
+- **A child's margin lands at the nearest wall.** A **bordered** parent grows to
+  contain each child's *margin* box (margins are padding inside the border). A
+  **`box: none`** parent is transparent: it is not a wall, so its children's
+  perimeter margins push *through* it to the nearest bordered ancestor and land
+  there. Only with no bordered ancestor at all — an invisible chain up to the
+  document root — do perimeter margins **collapse to zero**, so the canvas (and a
+  top-level group) never gains phantom padding.
 
 Anchors and arrows attach to the **border box**; margins are the empty space
 around it — which is also what gives auto-routed arrows room to travel between
@@ -348,8 +358,8 @@ no-JavaScript fallback.
 ## Open questions
 
 - Per-side margins (`margin-top` …), or keep the v1 uniform-only margin? (The
-  default is 8, and adjacent siblings *sum* rather than collapse — decided in
-  [decisions.md](decisions.md).)
+  default is 8, and adjacent siblings *collapse* to the larger facing margin —
+  decided in [decisions.md](decisions.md).)
 - Auto-cardinal routing ships with 4 sides (N/E/S/W); is 8 directions (incl.
   corners) ever worth the extra ambiguity? (4 is the v1 decision.)
 - Should an unpositioned *named* anchor be an error rather than defaulting to

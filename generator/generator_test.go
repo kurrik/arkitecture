@@ -28,9 +28,9 @@ func render(t *testing.T, doc *ast.Document, opts Options) string {
 }
 
 func TestGenerateMarginSpacing(t *testing.T) {
-	// A bordered vertical parent insets each child by the child's margin and
-	// separates two siblings by the sum of their facing margins; the parent
-	// grows to contain the children's margin boxes.
+	// A bordered vertical parent insets each child by the child's margin; two
+	// siblings are separated by the larger of their facing margins (collapsed,
+	// not summed), so every channel is one uniform margin wide.
 	doc := &ast.Document{
 		Nodes: []*ast.ContainerNode{{
 			ID: "p",
@@ -47,13 +47,73 @@ func TestGenerateMarginSpacing(t *testing.T) {
 	}
 	svg := render(t, doc, Options{}) // 12px => leaf min 24x24
 	for _, want := range []string{
-		`width="44" height="88">`,                    // p contains both 24x24 margin boxes
+		`width="44" height="78">`,                    // 10 + 24 + 10 + 24 + 10 (uniform channels)
 		`<rect x="10" y="10" width="24" height="24"`, // a inset by its margin
-		`<rect x="10" y="54" width="24" height="24"`, // b sits a 20px (10+10) gap below a
+		`<rect x="10" y="44" width="24" height="24"`, // b sits a 10px (collapsed) gap below a
 	} {
 		if !strings.Contains(svg, want) {
 			t.Errorf("SVG missing %q:\n%s", want, svg)
 		}
+	}
+}
+
+func TestGenerateChannelsCollapseToMax(t *testing.T) {
+	// Adjacent margins collapse to the larger of the two, not their sum.
+	// p (vertical, default margin) with a (margin 4) over b (margin 12): the gap
+	// is max(4,12)=12, and each child is inset from the wall by its own margin.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{
+			ID: "p",
+			Children: []*ast.ContainerNode{
+				{ID: "a", Label: ptr("A")},
+				{ID: "b", Label: ptr("B")},
+			},
+		}},
+		Layout: []ast.LayoutRule{
+			rule("p", &ast.Declarations{Direction: dirp(ast.Vertical)}),
+			rule("p.a", &ast.Declarations{Margin: fptr(4)}),
+			rule("p.b", &ast.Declarations{Margin: fptr(12)}),
+		},
+	}
+	svg := render(t, doc, Options{})
+	// a inset by margin 4, b by margin 12; a bottom=28, gap max(4,12)=12 => b at
+	// y=40. (a's width stretches to the cross axis set by b's wider margin box.)
+	for _, want := range []string{
+		`<rect x="4" y="4" width="40" height="24"`,
+		`<rect x="12" y="40" width="24" height="24"`,
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("SVG missing %q:\n%s", want, svg)
+		}
+	}
+}
+
+func TestGenerateBoxNoneGroupPushesChildMarginsToWall(t *testing.T) {
+	// A box:none group nested in a bordered parent is transparent: its children's
+	// perimeter margins push out to the bordered wall, so they are inset just like
+	// a normal child would be — even though the group itself has margin 0.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{
+			ID: "outer",
+			Children: []*ast.ContainerNode{{
+				ID:       "grp",
+				Children: []*ast.ContainerNode{{ID: "c", Label: ptr("C")}},
+			}},
+		}},
+		Layout: []ast.LayoutRule{
+			rule("outer", &ast.Declarations{Direction: dirp(ast.Vertical)}),
+			rule("outer.grp", &ast.Declarations{Box: boxp(ast.BoxNone), Margin: fptr(0)}),
+			rule("outer.grp.c", &ast.Declarations{Margin: fptr(8)}),
+		},
+	}
+	svg := render(t, doc, Options{})
+	// outer is bordered → a wall. grp is box:none (margin 0) but transparent, so
+	// c's margin 8 insets it from outer's border: c at (8,8).
+	if want := `<rect x="8" y="8" width="24" height="24"`; !strings.Contains(svg, want) {
+		t.Errorf("expected c inset by its margin to the bordered wall %q:\n%s", want, svg)
+	}
+	if got := strings.Count(svg, "<rect"); got != 2 { // outer + c; grp draws none
+		t.Errorf("got %d rects, want 2 (outer + c):\n%s", got, svg)
 	}
 }
 
@@ -129,8 +189,9 @@ func TestArrowCardinalVertical(t *testing.T) {
 		Arrows: []ast.Arrow{{Source: "p.a", Target: "p.b"}},
 	}
 	svg := render(t, doc, Options{})
-	// a box (8,8,24,24); b box (8,48,24,24). south of a = (20,32); north of b = (20,48).
-	if want := `<line x1="20" y1="32" x2="20" y2="48"`; !strings.Contains(svg, want) {
+	// a box (8,8,24,24); b box (8,40,24,24) — collapsed 8px gap. south of a =
+	// (20,32); north of b = (20,40).
+	if want := `<line x1="20" y1="32" x2="20" y2="40"`; !strings.Contains(svg, want) {
 		t.Errorf("expected N/S cardinal arrow %q:\n%s", want, svg)
 	}
 }
@@ -146,8 +207,9 @@ func TestArrowCardinalHorizontal(t *testing.T) {
 		Arrows: []ast.Arrow{{Source: "a", Target: "b"}},
 	}
 	svg := render(t, doc, Options{})
-	// a box (0,0,24,24); b box (40,0,24,24). east of a = (24,12); west of b = (40,12).
-	if want := `<line x1="24" y1="12" x2="40" y2="12"`; !strings.Contains(svg, want) {
+	// a box (0,0,24,24); b box (32,0,24,24) — collapsed 8px gap. east of a =
+	// (24,12); west of b = (32,12).
+	if want := `<line x1="24" y1="12" x2="32" y2="12"`; !strings.Contains(svg, want) {
 		t.Errorf("expected E/W cardinal arrow %q:\n%s", want, svg)
 	}
 }
@@ -167,11 +229,11 @@ func TestArrowExplicitAnchorOverridesCardinal(t *testing.T) {
 		},
 	}
 	svg := render(t, doc, Options{})
-	// a (0,0,24,24) centre (12,12); b (40,0,24,24) centre (52,12); b#tag=[1,0]=(64,0).
-	if want := `<line x1="12" y1="12" x2="52" y2="12"`; !strings.Contains(svg, want) {
+	// a (0,0,24,24) centre (12,12); b (32,0,24,24) centre (44,12); b#tag=[1,0]=(56,0).
+	if want := `<line x1="12" y1="12" x2="44" y2="12"`; !strings.Contains(svg, want) {
 		t.Errorf("expected centre-to-centre for #center %q:\n%s", want, svg)
 	}
-	if want := `<line x1="24" y1="12" x2="64" y2="0"`; !strings.Contains(svg, want) {
+	if want := `<line x1="24" y1="12" x2="56" y2="0"`; !strings.Contains(svg, want) {
 		t.Errorf("expected cardinal source to named-anchor target %q:\n%s", want, svg)
 	}
 }
@@ -186,8 +248,8 @@ func TestUnpositionedNamedAnchorDefaultsToCenter(t *testing.T) {
 		Arrows: []ast.Arrow{{Source: "a#center", Target: "b#side"}},
 	}
 	svg := render(t, doc, Options{})
-	// b (40,0,24,24) centre (52,12); a#center (12,12).
-	if want := `<line x1="12" y1="12" x2="52" y2="12"`; !strings.Contains(svg, want) {
+	// b (32,0,24,24) centre (44,12); a#center (12,12).
+	if want := `<line x1="12" y1="12" x2="44" y2="12"`; !strings.Contains(svg, want) {
 		t.Errorf("expected unpositioned anchor at centre %q:\n%s", want, svg)
 	}
 }
