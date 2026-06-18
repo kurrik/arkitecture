@@ -1,0 +1,12 @@
+webapp {
+  label: "Web App"
+}
+api {
+  label: "API"
+}
+database {
+  label: "Database"
+}
+
+webapp --> api
+api --> database

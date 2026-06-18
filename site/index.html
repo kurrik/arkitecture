@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arkitecture — architecture diagrams you control</title>
+  <meta name="description" content="Arkitecture compiles a tiny .ark text file into a clean SVG architecture diagram, with manual, deterministic layout instead of automatic graph layout." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="index.html">
+        <svg class="logo" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="1.5" y="2.5" width="21" height="19" rx="1" fill="#fff" stroke="#1b1b1a" stroke-width="1.4"/>
+          <rect x="4.5" y="5.5" width="9" height="5" rx="1" fill="#fff" stroke="#1b1b1a" stroke-width="1.2"/>
+          <rect x="4.5" y="13" width="15" height="5" rx="1" fill="#fff" stroke="#1b1b1a" stroke-width="1.2"/>
+          <path d="M9 10.5 V12.6" stroke="#1b1b1a" stroke-width="1.2"/>
+        </svg>
+        <span>Arkitecture</span>
+      </a>
+      <nav class="links">
+        <a href="index.html" aria-current="page">Home</a>
+        <a href="spec.html">Syntax</a>
+        <a href="examples.html">Examples</a>
+        <a href="https://github.com/kurrik/arkitecture">GitHub&nbsp;↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <h1>Architecture diagrams you actually control.</h1>
+      <p class="lede">
+        Arkitecture compiles a tiny <code>.ark</code> text file into a clean SVG
+        diagram. You describe the structure and the layout — the tool only measures
+        text and packs boxes. It never moves anything you didn't ask it to.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="examples.html">See examples</a>
+        <a class="btn" href="spec.html">Read the syntax</a>
+        <a class="btn ghost" href="https://github.com/kurrik/arkitecture">View on GitHub</a>
+      </div>
+
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">pipeline.ark</div>
+<pre><code>webapp {
+  label: "Web App"
+}
+api {
+  label: "API"
+}
+database {
+  label: "Database"
+}
+
+webapp --&gt; api
+api --&gt; database</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/pipeline.svg" alt="Three boxes — Web App, API, Database — connected left to right by arrows." />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <h2>Why a manual layout language?</h2>
+      <p class="lede" style="font-size:1.05rem">
+        Graphviz, Mermaid, and friends decide where the boxes go — the result is
+        often "good enough" but rarely exactly what you want, and you can't fix it
+        without fighting the algorithm. Arkitecture inverts that: the layout is a
+        consequence of rules you can see in the source.
+      </p>
+      <div class="grid">
+        <div class="feature">
+          <h3>Deterministic layout</h3>
+          <p>The same input always produces the same diagram. Every position follows a rule in the source — no hidden engine to second-guess.</p>
+        </div>
+        <div class="feature">
+          <h3>Plain, legible output</h3>
+          <p>White boxes, a 1px border, one font. Built for high-level diagrams — DDD bounded contexts, service boundaries, system overviews.</p>
+        </div>
+        <div class="feature">
+          <h3>Diagrams as text</h3>
+          <p>The <code>.ark</code> source lives in version control next to the code it documents, and diffs like any other file.</p>
+        </div>
+        <div class="feature">
+          <h3>One portable binary</h3>
+          <p>A single self-contained Go executable — nothing to install at runtime, nothing to keep up to date.</p>
+        </div>
+        <div class="feature">
+          <h3>Runs in the browser</h3>
+          <p>The same pure library compiles to WebAssembly, so the exact pipeline runs in Node or the browser too.</p>
+        </div>
+        <div class="feature">
+          <h3>Errors as data</h3>
+          <p>Syntax, reference, and range problems are reported all at once with line and column positions — never one-at-a-time.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <h2>Quick start</h2>
+      <p>Arkitecture is a Go module. Run it straight from source, or install the binary:</p>
+<pre><code># Run without installing
+go run github.com/kurrik/arkitecture/cmd/arkitecture diagram.ark diagram.svg
+
+# Or install the CLI
+go install github.com/kurrik/arkitecture/cmd/arkitecture@latest
+arkitecture diagram.ark diagram.svg
+
+# Validate without generating, or watch and regenerate on save
+arkitecture diagram.ark --validate-only
+arkitecture diagram.ark --watch</code></pre>
+      <p>Or use it as a library:</p>
+<pre><code>import "github.com/kurrik/arkitecture"
+
+res := arkitecture.ToSVG(dsl, nil)
+if res.Success {
+    fmt.Println(res.SVG)
+}</code></pre>
+      <p>Next: <a href="spec.html">the full syntax</a> &middot; <a href="examples.html">more examples</a>.</p>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <span>Arkitecture — MIT licensed.</span>
+    <span><a href="https://github.com/kurrik/arkitecture">github.com/kurrik/arkitecture</a></span>
+  </footer>
+</body>
+</html>

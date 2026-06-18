@@ -6,10 +6,7 @@ A domain-specific language (DSL) for generating SVG architecture diagrams with p
 
 Unlike tools that use automatic layout algorithms, Arkitecture gives you fine-grained control over element positioning and sizing: you describe the structure and the layout, and the tool only measures text and packs boxes — deterministically.
 
-> 🚧 **Rewrite in progress.** Arkitecture is being ported from TypeScript to Go
-> (a single portable binary, plus a WASM library for JS/TS interop). The full
-> pipeline — parser, validator, generator, and CLI — is ported and at parity;
-> the switchover lands as one PR. See [docs/roadmap.md](docs/roadmap.md).
+📖 **[Project site, syntax reference, and live examples →](https://kurrik.github.io/arkitecture/)**
 
 ## Documentation
 

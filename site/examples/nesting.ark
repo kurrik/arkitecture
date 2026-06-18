@@ -1,0 +1,17 @@
+platform {
+  label: "Platform"
+  direction: "vertical"
+
+  gateway {
+    label: "API Gateway"
+  }
+
+  services {
+    label: "Services"
+    direction: "horizontal"
+
+    users   { label: "Users" }
+    orders  { label: "Orders" }
+    billing { label: "Billing" }
+  }
+}

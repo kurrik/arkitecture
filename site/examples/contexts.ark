@@ -1,0 +1,27 @@
+ordering {
+  label: "Ordering Context"
+  direction: "vertical"
+
+  group {
+    direction: "horizontal"
+
+    cart     { label: "Cart" }
+    checkout { label: "Checkout" }
+  }
+
+  orders {
+    label: "Orders"
+    anchors: {
+      db: [0.5, 1.0]
+    }
+  }
+}
+
+inventory {
+  label: "Inventory Context"
+  anchors: {
+    api: [0.0, 0.5]
+  }
+}
+
+ordering.orders#db --> inventory#api

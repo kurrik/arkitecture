@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Syntax &amp; specification — Arkitecture</title>
+  <meta name="description" content="The Arkitecture DSL in depth: nodes, properties, groups, arrows, anchors, the coordinate system, and the layout model." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="index.html">
+        <svg class="logo" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="1.5" y="2.5" width="21" height="19" rx="1" fill="#fff" stroke="#1b1b1a" stroke-width="1.4"/>
+          <rect x="4.5" y="5.5" width="9" height="5" rx="1" fill="#fff" stroke="#1b1b1a" stroke-width="1.2"/>
+          <rect x="4.5" y="13" width="15" height="5" rx="1" fill="#fff" stroke="#1b1b1a" stroke-width="1.2"/>
+          <path d="M9 10.5 V12.6" stroke="#1b1b1a" stroke-width="1.2"/>
+        </svg>
+        <span>Arkitecture</span>
+      </a>
+      <nav class="links">
+        <a href="index.html">Home</a>
+        <a href="spec.html" aria-current="page">Syntax</a>
+        <a href="examples.html">Examples</a>
+        <a href="https://github.com/kurrik/arkitecture">GitHub&nbsp;↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap prose">
+    <h1>Syntax &amp; specification</h1>
+    <p class="lede" style="font-size:1.15rem">
+      An Arkitecture document is a small text file with a <code>.ark</code> extension.
+      It describes <strong>nodes</strong> (the boxes, possibly nested) and the
+      <strong>arrows</strong> between them. The compiler tokenises and parses it into a
+      tree, validates references and ranges, then lays it out and emits SVG.
+    </p>
+
+    <h2>Nodes</h2>
+    <p>
+      A node is an identifier followed by a brace block. The identifier is required;
+      everything inside is optional. Identifiers are letters, digits, and underscores.
+    </p>
+<pre><code>api {
+  label: "API Gateway"
+}
+
+# The minimal node — just an id
+worker {}</code></pre>
+    <p>
+      Nodes nest: put a node inside another node's block and it becomes a child. A
+      parent sizes itself to its children; a leaf sizes to its label.
+    </p>
+<pre><code>platform {
+  label: "Platform"
+
+  gateway { label: "API Gateway" }
+  worker  { label: "Worker" }
+}</code></pre>
+
+    <h2>Properties</h2>
+    <p>Inside a node's block you can set any of these properties:</p>
+    <table class="proptable">
+      <thead><tr><th>Property</th><th>Value</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>label</code></td><td>string</td><td>Display text, centred in the box. Omit it for an unlabeled box.</td></tr>
+        <tr><td><code>direction</code></td><td><code>"vertical"</code> &middot; <code>"horizontal"</code></td><td>How children are stacked. Defaults to <code>vertical</code>.</td></tr>
+        <tr><td><code>size</code></td><td>number <code>0.0</code>–<code>1.0</code></td><td>Override for the node's <em>orthogonal</em> dimension, as a fraction of what the parent would otherwise give it.</td></tr>
+        <tr><td><code>anchors</code></td><td><code>{ name: [x, y], … }</code></td><td>Named connection points for arrows, in relative coordinates (see below).</td></tr>
+      </tbody>
+    </table>
+<pre><code>userService {
+  label: "User Service"
+  direction: "vertical"
+  size: 0.75
+  anchors: {
+    db:  [0.5, 1.0]
+    api: [0.5, 0.0]
+  }
+}</code></pre>
+
+    <h2>Groups</h2>
+    <p>
+      A <code>group</code> is a layout-only container: it has no id, label, or border
+      and draws nothing. It exists purely to arrange a cluster of children with their
+      own <code>direction</code>. Its children address as if they were direct children
+      of the enclosing node.
+    </p>
+<pre><code>services {
+  direction: "horizontal"
+
+  group {
+    direction: "vertical"
+
+    users  { label: "Users" }
+    orders { label: "Orders" }
+  }
+
+  database { label: "Database" }
+}</code></pre>
+
+    <h2>Arrows &amp; anchors</h2>
+    <p>
+      After the nodes, connect them with <code>--&gt;</code>. Each endpoint is a node
+      path — a dotted reference like <code>parent.child</code> — with an optional
+      <code>#anchor</code>. Every node has an implicit <code>center</code> anchor, so a
+      bare <code>a --&gt; b</code> connects centre to centre.
+    </p>
+<pre><code># Simple arrow (centre to centre)
+api --&gt; database
+
+# Connect specific anchors
+api#south --&gt; services#north
+
+# Nested node paths
+services.userService#db --&gt; database#north</code></pre>
+
+    <h2>Coordinate system</h2>
+    <p>
+      Anchor positions are relative to the node's bounding box, so they stay correct
+      whatever size the box ends up. Both coordinates are in <code>[0, 1]</code>.
+    </p>
+    <ul>
+      <li><code>[0.0, 0.0]</code> — top-left corner</li>
+      <li><code>[0.5, 0.5]</code> — centre (the default anchor on every node)</li>
+      <li><code>[1.0, 1.0]</code> — bottom-right corner</li>
+      <li><code>[0.5, 0.0]</code> — top edge, horizontally centred</li>
+    </ul>
+
+    <h2>The layout model</h2>
+    <p>Layout is bottom-up and deterministic:</p>
+    <ul>
+      <li>A leaf node sizes to its label text, measured with a fixed font.</li>
+      <li>A <strong>vertical</strong> parent stacks children top-to-bottom: its width is the widest child; children span the full width unless they set <code>size</code>.</li>
+      <li>A <strong>horizontal</strong> parent places children left-to-right: its height is the tallest child; children span the full height unless they set <code>size</code>.</li>
+      <li><code>size: f</code> scales only the orthogonal dimension to a fraction <code>f</code> of the parent; it does not change the parent's own size.</li>
+      <li>The canvas is sized to fit all top-level content exactly.</li>
+    </ul>
+
+    <h2>Comments</h2>
+    <p>
+      <code>#</code> begins a comment that runs to the end of the line — when it starts
+      a line or follows whitespace. Directly after a node path (no space), <code>#</code>
+      instead introduces an anchor reference, as in <code>node#anchor</code>.
+    </p>
+
+    <h2>Command line</h2>
+<pre><code>arkitecture &lt;input.ark&gt; [output.svg]    # output defaults to the input name + .svg
+
+  --validate-only      parse and validate without generating SVG
+  --watch, -w          regenerate whenever the input changes
+  --verbose, -v        detailed processing output
+  --font-size  &lt;n&gt;     override the default font size (12)
+  --font-family &lt;f&gt;    override the default font family (Arial)
+  --version</code></pre>
+    <p>Exit codes: <code>0</code> success &middot; <code>1</code> validation or parse errors &middot; <code>2</code> filesystem errors.</p>
+
+    <h2>Library API (Go)</h2>
+    <p>The CLI is a thin wrapper over the library; the same API is available directly.</p>
+<pre><code>import "github.com/kurrik/arkitecture"
+
+res := arkitecture.ToSVG(dsl, &amp;arkitecture.Options{ValidateOnly: false})
+if !res.Success {
+    for _, e := range res.Errors {
+        log.Printf("%s (line %d, col %d): %s", e.Type, e.Line, e.Column, e.Message)
+    }
+    return
+}
+fmt.Println(res.SVG)</code></pre>
+    <p>
+      <code>Parse</code>, <code>Validate</code>, and <code>GenerateSVG</code> expose
+      the individual pipeline stages, and every diagnostic is structured data
+      (<code>line</code>, <code>column</code>, <code>message</code>, and a
+      <code>type</code> of <code>syntax</code>, <code>reference</code>, or
+      <code>constraint</code>).
+    </p>
+
+    <div class="note">
+      <strong>The layout model is evolving.</strong> A forthcoming <code>@layout</code>
+      layer will separate presentation (direction, size, anchor positions, margins)
+      from the semantic structure, add reusable style blocks, and bring auto-routed
+      arrows — without giving up determinism. Follow along in the
+      <a href="https://github.com/kurrik/arkitecture/blob/main/docs/roadmap.md">roadmap</a>.
+    </div>
+  </main>
+
+  <footer class="wrap foot">
+    <span>Arkitecture — MIT licensed.</span>
+    <span><a href="https://github.com/kurrik/arkitecture">github.com/kurrik/arkitecture</a></span>
+  </footer>
+</body>
+</html>
