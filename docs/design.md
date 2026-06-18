@@ -115,8 +115,10 @@ Layout is bottom-up and deterministic:
   an invisible chain up to the document root, e.g. a top-level group — do those
   perimeter margins collapse to nothing, so the canvas gains no outer padding.
 - `box: none` turns a node into such an invisible grouping while keeping its ID,
-  label, and anchors. It keeps its *own* margin too (set `margin: 0` to make it
-  fully transparent, contributing only its children's margins).
+  label, and anchors. Its **effective margin** — the channel a parent reserves
+  around it — is the *larger* of its own margin and its children's, so it never
+  doubles a channel; `margin: 0` makes it contribute exactly its children's
+  margins.
 - The canvas fits the top-level content exactly: the document root is invisible,
   so the diagram gains no outer padding even though inner nodes are spaced.
 

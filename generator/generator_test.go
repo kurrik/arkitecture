@@ -117,6 +117,36 @@ func TestGenerateBoxNoneGroupPushesChildMarginsToWall(t *testing.T) {
 	}
 }
 
+func TestGenerateBoxNoneGroupDoesNotDoubleChannel(t *testing.T) {
+	// A box:none row stacked with a normal sibling: the gap between the row's
+	// children and the sibling is a single collapsed margin (8), not doubled. The
+	// transparent group adds no perimeter that would stack with the sibling gap.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{
+			ID: "outer",
+			Children: []*ast.ContainerNode{
+				{ID: "row", Children: []*ast.ContainerNode{{ID: "a", Label: ptr("A")}, {ID: "b", Label: ptr("B")}}},
+				{ID: "sib", Label: ptr("S")},
+			},
+		}},
+		Layout: []ast.LayoutRule{
+			rule("outer", &ast.Declarations{Direction: dirp(ast.Vertical)}),
+			rule("outer.row", &ast.Declarations{Box: boxp(ast.BoxNone), Margin: fptr(0), Direction: dirp(ast.Horizontal)}),
+		},
+	}
+	svg := render(t, doc, Options{})
+	// a (8,8) is 24 tall → bottom 32; sib sits one collapsed margin (8) below at
+	// y=40, not 48 (no doubled channel from the transparent row's perimeter).
+	for _, want := range []string{
+		`<rect x="8" y="8" width="24" height="24"`, // a, inset to the wall
+		`<rect x="8" y="40"`,                       // sib, 8 below the row
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("SVG missing %q:\n%s", want, svg)
+		}
+	}
+}
+
 func TestGenerateMarginZeroIsFlush(t *testing.T) {
 	// margin:0 everywhere restores the old flush packing: children touch and
 	// the parent is exactly their bounding box.
