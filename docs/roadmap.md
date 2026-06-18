@@ -6,6 +6,17 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **M5 — `@layout` regrouping** (2026-06-18): an anonymous `@group { … }` inside a
+  node's `@layout` block wraps sibling children into an invisible layout
+  sub-container (its own `direction`/`size`/`margin`, no border, no path segment),
+  and a node's children can be reordered by listing them. The arrangement is
+  modelled on `Declarations` (a group is itself a nested `Declarations`) and is
+  **direct-only** — never imported via `@use`/`kind`. The validator enforces
+  same-parent (only the node's direct children, including those nested in groups)
+  and completeness (each child referenced exactly once), keeping the layout tree a
+  refinement of the semantic tree. A new `arrangement` golden locks it in. This
+  completes the layered-authoring arc (split → reuse → regrouping). See the ADR in
+  [decisions.md](decisions.md).
 - **Generated docs site + live WASM playground** (2026-06-18): the GitHub Pages
   publish is now a generation step (`scripts/build-site.sh`, run by `pages.yml`)
   that re-renders every `site/examples/*.ark` to `.svg` via the CLI and builds
@@ -74,40 +85,15 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## In progress
 
-- (none) — `main` is Go; the layout foundation (M1 box model, M2 cardinal
-  routing), the M3 `@layout` split, and M4 (reuse + `kind`) have all shipped, so
-  M5 (regrouping) is unblocked and implementation-ready.
+- (none) — `main` is Go and the full layered-authoring arc has shipped: M1 box
+  model, M2 cardinal routing, M3 `@layout` split, M4 reuse + `kind`, and M5
+  regrouping. The next work is from the lower-priority tracks below.
 
 ## Planned
 
-The near-term arc is the layered authoring model; M3 (split) and M4 (reuse +
-`kind`) are done, leaving M5. The detail below is meant to be
-implementation-ready; the *model* lives in [design.md](design.md) and the
-*rationale* in [decisions.md](decisions.md). Each milestone is independently
-shippable.
-
-### Order & dependencies
-
-```
-M1 box model + margins (done) ──▶ M2 cardinal routing (done)
-M3 @layout split (done) ─▶ M4 reuse + kind (done) ─▶ M5 regrouping
-```
-
-M5 builds on the resolve stage and `@layout` grammar M3/M4 introduced: M3
-collapsed `group` into a `box: none` node and moved presentation into `@layout`;
-M4 added `@block`/`@use` reuse and made `kind` hook a layout block.
-
-### M5 — `@layout` regrouping *(phase 3)*
-
-- **parser:** anonymous `@group { … }` inside a node's arrangement, listing child
-  ids and nested groups.
-- **ast/resolve:** an arrangement tree per node (ordered children + anonymous group
-  wrappers); groups arrange like invisible sub-containers (reuse M1's invisible
-  box).
-- **validator:** same-parent (only direct children of the enclosing node) and
-  completeness (each child referenced exactly once).
-- **generator:** lay out via the arrangement tree.
-- **tests:** nesting, plus foreign/duplicate/missing-child errors.
+The layered authoring model (M1–M5) is complete. What remains are the broader
+tracks below; each is independently shippable. The *model* lives in
+[design.md](design.md) and the *rationale* in [decisions.md](decisions.md).
 
 ### Other tracks (lower priority)
 

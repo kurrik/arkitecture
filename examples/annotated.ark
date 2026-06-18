@@ -3,8 +3,9 @@
 # A diagram is authored in two layers:
 #   * the SEMANTIC layer — the node tree below: ids, labels, kinds, anchor
 #     NAMES, nesting, and arrows. This is "what the components are".
-#   * the LAYOUT layer — `@layout` blocks: direction, size, margin, box, and
-#     anchor POSITIONS. This is "where and how they're drawn".
+#   * the LAYOUT layer — `@layout` blocks: direction, size, margin, box, anchor
+#     POSITIONS, and child arrangement (`@group`). This is "where and how they're
+#     drawn".
 # Keeping them apart means layout can be retuned, reused, or swapped without
 # touching the semantics. Layout can also be bundled into reusable `@block`s and
 # imported with `@use`, and a node's `kind` imports the block of the same name as
@@ -52,6 +53,14 @@ c1 {
   }
 }
 
+# A second top-level node, used below to show child arrangement with @group.
+row {
+  label: "Row"
+  a { label: "A" }
+  b { label: "B" }
+  c { label: "C" }
+}
+
 # A standalone `@layout` sheet targets nodes by exact dotted path. The same
 # declarations are available here as in an inline @layout block. There is no
 # cascade: one selector names exactly one node, and a property may be set only
@@ -81,6 +90,17 @@ c1 {
     @use emphasis           # import the same baseline …
     size: 1.0               # … but a direct property overrides the import (no conflict)
     anchor a1: [0.0, 0.0]   # top-left corner of n4
+  }
+
+  # Child arrangement: list a node's children to reorder them, and wrap a run of
+  # them in an anonymous `@group` for purely visual nesting (the layout-layer
+  # cousin of an HTML <div>). A @group is invisible and has no id/path. The rules:
+  # reference each direct child exactly once, and a group may hold only the node's
+  # own children. `@use` is not allowed inside a @group.
+  row {
+    direction: horizontal
+    @group { direction: vertical; a; b }   # a over b, as one unit …
+    c                                       # … sitting to the left of c
   }
 }
 

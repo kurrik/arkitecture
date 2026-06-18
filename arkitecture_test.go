@@ -90,6 +90,49 @@ func TestToSVGUnknownKindSucceeds(t *testing.T) {
 	}
 }
 
+func TestToSVGArrangementWithGroup(t *testing.T) {
+	const in = `services {
+  userService { label: "User" }
+  orderService { label: "Order" }
+  payments { label: "Pay" }
+}
+@layout {
+  services {
+    direction: horizontal
+    @group { direction: vertical; userService; orderService }
+    payments
+  }
+}`
+	res := arkitecture.ToSVG(in, nil)
+	if !res.Success {
+		t.Fatalf("expected success, got %+v", res.Errors)
+	}
+	// services + the three leaves draw rects; the @group is invisible.
+	if got := strings.Count(res.SVG, "<rect"); got != 4 {
+		t.Errorf("rect count = %d, want 4 (the @group draws none)", got)
+	}
+}
+
+func TestToSVGIncompleteArrangementErrors(t *testing.T) {
+	// b is omitted from the arrangement.
+	res := arkitecture.ToSVG("s { a {} b {} }\n@layout { s { @group { a } } }", nil)
+	if res.Success {
+		t.Fatal("expected failure for an incomplete arrangement")
+	}
+	if !anyErrorContains(res.Errors, "omits child") {
+		t.Errorf("expected an omits-child error, got %+v", res.Errors)
+	}
+}
+
+func anyErrorContains(errs []arkitecture.Error, sub string) bool {
+	for _, e := range errs {
+		if strings.Contains(e.Message, sub) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestToSVGGeneratesSVG(t *testing.T) {
 	res := arkitecture.ToSVG(`a { label: "x" }`, nil)
 	if !res.Success {

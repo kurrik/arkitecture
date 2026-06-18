@@ -155,6 +155,26 @@ A small set of kinds is built in (`invisible` → `box: none`); any kind can be
 (re)declared with `@block <name> { … }`. An explicit `@use` of an undefined block
 is an error, but an unknown `kind` is a harmless semantic tag.
 
+### Regrouping — `@group`
+
+Inside a node's `@layout` block, list its children to reorder them and wrap a run
+of them in an anonymous `@group` for purely visual nesting (a layout-layer `<div>`).
+A group is invisible and has no id — a child inside one keeps its real path:
+
+```
+@layout {
+  services {
+    direction: horizontal
+    @group { direction: vertical; userService; orderService }   # stacked, as one unit
+    payments
+  }
+}
+```
+
+Once you arrange a node's children, reference each exactly once, and a group may
+contain only that node's own children — so the layout stays a faithful regrouping
+of the structure.
+
 ### Arrows
 
 Connect nodes with `-->`, optionally naming an anchor with `#`. A bare endpoint

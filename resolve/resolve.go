@@ -73,11 +73,17 @@ func Resolve(doc *ast.Document) Layout {
 		}
 
 		// Direct tier: declarations naming the node override the imported tier.
+		// The child arrangement is direct-only — it is never imported from a
+		// block or kind (mergeDecls leaves it untouched), so a later direct rule
+		// is the only thing that sets it (last one wins).
 		for _, r := range doc.Layout {
 			if r.Selector != path {
 				continue
 			}
 			mergeDecls(merged, r.Decls)
+			if r.Decls != nil && r.Decls.Arrangement != nil {
+				merged.Arrangement = r.Decls.Arrangement
+			}
 		}
 
 		out[path] = merged

@@ -167,6 +167,42 @@ func TestResolveCycleTerminates(t *testing.T) {
 	}
 }
 
+func TestResolveArrangementIsDirect(t *testing.T) {
+	doc := &ast.Document{
+		Layout: []ast.LayoutRule{
+			{Selector: "n", Decls: &ast.Declarations{
+				Direction:   dirp(ast.Horizontal),
+				Arrangement: []ast.ArrangementItem{{ChildID: "a"}, {ChildID: "b"}},
+			}},
+		},
+	}
+	n := Resolve(doc)["n"]
+	if n == nil || len(n.Arrangement) != 2 {
+		t.Fatalf("n.Arrangement = %+v, want 2 items", n)
+	}
+	if n.Arrangement[0].ChildID != "a" || n.Arrangement[1].ChildID != "b" {
+		t.Errorf("arrangement = %+v, want [a b]", n.Arrangement)
+	}
+}
+
+func TestResolveArrangementNotImportedFromBlock(t *testing.T) {
+	// A @use imports a block's scalar properties but never its arrangement.
+	doc := &ast.Document{
+		Blocks: []ast.Block{{Name: "b", Decls: &ast.Declarations{
+			Size:        fptr(0.5),
+			Arrangement: []ast.ArrangementItem{{ChildID: "x"}},
+		}}},
+		Layout: []ast.LayoutRule{{Selector: "n", Uses: []ast.Use{{Block: "b"}}}},
+	}
+	n := Resolve(doc)["n"]
+	if n == nil || n.Size == nil || *n.Size != 0.5 {
+		t.Fatalf("n = %+v, want size 0.5 imported", n)
+	}
+	if len(n.Arrangement) != 0 {
+		t.Errorf("arrangement must not be imported from a block, got %+v", n.Arrangement)
+	}
+}
+
 func TestResolveUserBlockOverridesBuiltin(t *testing.T) {
 	// A user @block invisible redefines the built-in kind.
 	doc := &ast.Document{
