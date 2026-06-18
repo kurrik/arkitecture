@@ -63,6 +63,12 @@ choose controllable.
 - **Kind** *(planned)* — an arbitrary semantic classification on a node
   (`kind: database`) that implicitly applies the layout block of the same name
   (`@use database`) as an overridable style baseline.
+- **Margin** *(planned)* — layout space reserved around a node's border box.
+  Counts inside a bordered parent (like padding) but collapses against an
+  invisible (`box: none`) parent. See *Box model & margins*.
+- **Box / border box / margin box** *(planned)* — `box: none` makes a node draw no
+  border (the former "group"); the **border box** is the visible rectangle and the
+  **margin box** is the border box plus its margins.
 
 ## The workflow
 
@@ -230,6 +236,27 @@ Two rules keep the picture honest:
 `@layout { … }` may sit inside a node body (local presentation) or stand alone as
 a sheet of selectors (separation / theming). Same declarations either way.
 
+### Box model & margins
+
+Spacing is expressed as a per-node **`margin`** (a layout property), implemented
+with a real box model rather than a parent-level gap. Each node has a **border
+box** (its visible rectangle — content plus a 1px border, or content only when
+`box: none`) and a **margin box** (the border box plus its margins).
+
+The one rule that needs care is how a child's margin affects its parent's size,
+and it turns on whether the parent draws a box:
+
+- **Bordered parent** — the child's margin counts, like padding inside the border:
+  the parent grows to contain each child's *margin* box.
+- **Invisible parent** (`box: none`, including the document root) — there is no
+  wall for the margin to sit against, so perimeter margins **collapse to zero**:
+  the parent is the bounding box of its children's *border* boxes, keeping only the
+  gaps *between* siblings. An invisible grouping never gains phantom padding.
+
+Anchors and arrows attach to the **border box**; margins are the empty space
+around it — which is also what gives auto-routed arrows room to travel between
+otherwise-touching boxes.
+
 ### Arrow endpoints — an auto-cardinal default
 
 An arrow that names an anchor (`a#db --> b`) uses that anchor's resolved position.
@@ -244,8 +271,9 @@ This is auto-*routing*, not auto-*placement*: it never moves a box, only chooses
 where a line attaches to boxes the author positioned — the one bounded "automatic"
 behaviour in the tool. A **named** anchor stays a single fixed point (it can serve
 many arrows, so it has no one "other node" to aim at); unpositioned, it defaults
-to centre. This routing is independent of the rest of the `@layout` model and
-could land separately.
+to centre. This routing depends on margins for room — without a gap, edge
+attachment between touching boxes degenerates to a zero-length arrow — but is
+otherwise independent of the rest of the `@layout` model.
 
 ## Distribution
 
@@ -273,8 +301,10 @@ wrappers over one library API, so both stay in lock-step.
 
 ## Open questions
 
-- Should spacing/padding (between siblings and inside nodes) become configurable,
-  or stay at zero for predictability?
+- Margin box model: how do adjacent siblings' margins combine — sum, or collapse
+  to the max (CSS-style)? Per-side margins (`margin-top` …) or uniform only in v1?
+  What default margin (0 preserves today's compact look; a positive default
+  changes every diagram and is what auto-routing wants)?
 - Should auto-cardinal routing offer 8 directions (incl. corners), or stay at 4?
 - Should an unpositioned *named* anchor be an error rather than defaulting to
   centre?
