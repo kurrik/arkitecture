@@ -18,6 +18,11 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-18 — Top-level statements parse in any order (single-pass)
+**Choice:** The parser reads node definitions, standalone `@layout` sheets, and arrow statements in a **single pass that accepts them in any order**, dispatching each by lookahead (an identifier that reaches `-->`, after an optional dotted path and `#anchor`, is an arrow; `@` starts a sheet; otherwise it's a node). This replaces the previous two-phase parse (all nodes/sheets, then a trailing block of arrows).
+**Why:** The two-phase parser broke the moment an arrow appeared before an `@layout` block: the first arrow flipped it into arrow-mode and every later `@layout`/node was then mis-parsed as an arrow, producing a cascade of bogus "Expected '-->'" errors. Authors reasonably want to colocate an arrow with the nodes it connects (e.g. an arrow right after the two contexts it links, above the layout sheet), so order should not matter. Arrow endpoints are resolved by the validator against the fully-built node map, so forward references (an arrow naming a node defined later) were already fine — only the parser's phase split was forcing arrows to the end.
+**Implications:** Strictly more permissive — every previously valid document still parses identically (trailing-arrow style is unchanged), and arrows/sheets/nodes may now interleave freely. The disambiguation rests entirely on the existing `isArrowStatement` lookahead (a node is `id {`, an arrow is `id … -->`), so there is no ambiguity. `parseArrows` (the old second phase) is gone, folded into the single top-level loop.
+
 ## 2026-06-18 — `@layout` regrouping M5: implementation
 **Choice:** Implement the regrouping phase: an anonymous `@group { … }` inside a node's `@layout` block wraps sibling children into an invisible layout sub-container, and a node's children can be reordered by listing them. Concretely:
 - **Grammar.** Inside an `@layout` block a bare identifier (no `:`) is an *arrangement child reference*; `@group { … }` is a wrapper whose body is the same grammar (declarations + nested arrangement). The trailing `:` is what disambiguates a property (`direction: …`) from a child reference (`payments`).

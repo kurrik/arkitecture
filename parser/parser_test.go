@@ -142,6 +142,31 @@ func TestParseArrowWithPath(t *testing.T) {
 	}
 }
 
+func TestParseArrowsInterleaved(t *testing.T) {
+	// Arrows may appear anywhere at the top level — before an @layout sheet,
+	// between node definitions, and may forward-reference a not-yet-defined node.
+	doc := parseOK(t, `a { anchors: [out] }
+a#out --> b#in
+@layout { a { anchor out: [1.0, 0.5] } }
+b { anchors: [in] }
+b --> a`)
+	if len(doc.Nodes) != 2 {
+		t.Fatalf("got %d nodes, want 2", len(doc.Nodes))
+	}
+	if len(doc.Layout) != 1 {
+		t.Errorf("got %d layout rules, want 1", len(doc.Layout))
+	}
+	if len(doc.Arrows) != 2 {
+		t.Fatalf("got %d arrows, want 2: %+v", len(doc.Arrows), doc.Arrows)
+	}
+	if doc.Arrows[0] != (ast.Arrow{Source: "a#out", Target: "b#in"}) {
+		t.Errorf("arrow[0] = %+v, want a#out --> b#in", doc.Arrows[0])
+	}
+	if doc.Arrows[1] != (ast.Arrow{Source: "b", Target: "a"}) {
+		t.Errorf("arrow[1] = %+v, want b --> a", doc.Arrows[1])
+	}
+}
+
 func TestParseFullExample(t *testing.T) {
 	const example = `c1 {
   label: "Container 1"
