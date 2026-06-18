@@ -300,7 +300,10 @@ otherwise independent of the rest of the `@layout` model.
 Arkitecture ships as a single self-contained binary (no runtime to install) and,
 from the same library, as a WebAssembly module usable directly from
 JavaScript/TypeScript in the browser or Node. The CLI and the WASM build are thin
-wrappers over one library API, so both stay in lock-step.
+wrappers over one library API, so both stay in lock-step. The docs site is the
+first consumer of that WASM build: its Examples page lets you edit any example and
+see it re-render live in the browser, with the static, CLI-rendered SVG as the
+no-JavaScript fallback.
 
 ## Out of scope (v1)
 
