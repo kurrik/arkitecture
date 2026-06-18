@@ -18,6 +18,11 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-18 — Auto-cardinal routing M2: implementation
+**Choice:** Implement the 2026-06-17 auto-cardinal ADR with: **4 sides** (N/E/S/W) only; each bare endpoint aims at the **other node's box centre** (never the other end's anchor), so routing is stable whatever the far end does; and **no parser or AST change** — the distinction between a bare `a` (auto-route) and an explicit `a#center` (force centre) is already carried by the arrow string, so it is resolved entirely in the generator. Layout exposes a new full-path→border-box map; an explicit anchor (named or `#center`) still resolves to its fixed position and wins.
+**Why:** 4 sides keep the side choice unambiguous (a single dominant-axis test) and match the design; 8 would add corner cases for little gain. Aiming at the box centre (not the far anchor) means a named anchor — which can serve many arrows — never destabilises the auto-routed end. The roadmap had pencilled in a parser change to "distinguish no-anchor from `#center`", but inspection showed the raw `ast.Arrow` strings already differ (`a` vs `a#center`), so the only place that ambiguity was being lost was the generator's old `parseTarget`, which defaulted no-anchor to centre.
+**Implications:** Cardinal routing depends on M1's margins for a gap to span (flush boxes would give a zero-length edge-to-edge arrow). Anchorless arrows in every diagram move from centre-to-centre to edge-to-edge (goldens and the `pipeline` site sample regenerated; explicitly-anchored arrows such as the `contexts` sample are unaffected). Still open: whether to ever offer 8 directions.
+
 ## 2026-06-18 — Box model M1: defaults and margin arithmetic
 **Choice:** Implement the margin-based box model (the 2026-06-17 ADR) as inline `margin` / `box` node properties, resolving the open details as:
 - **Default margin of 8** user units, non-zero and uniform on all four sides; `margin: 0` restores the old flush packing. Authored margins are absolute layout units (like coordinates), not a fraction of anything.

@@ -28,6 +28,7 @@ type anchorPosition struct {
 
 type layoutResult struct {
 	nodeDimensions  map[string]dimensions // keyed by bare node ID
+	nodeBoxes       map[string]dimensions // border boxes keyed by full dotted path
 	anchorPositions []anchorPosition
 	canvasWidth     float64
 	canvasHeight    float64
@@ -67,8 +68,10 @@ func computeLayout(doc *ast.Document, fontSize float64) layoutResult {
 
 	cw, ch := canvasSize(roots)
 	anchors := collectAnchors(toNodes(doc.Nodes), dims, "")
+	boxes := make(map[string]dimensions)
+	collectBoxes(toNodes(doc.Nodes), dims, "", boxes)
 
-	return layoutResult{nodeDimensions: dims, anchorPositions: anchors, canvasWidth: cw, canvasHeight: ch}
+	return layoutResult{nodeDimensions: dims, nodeBoxes: boxes, anchorPositions: anchors, canvasWidth: cw, canvasHeight: ch}
 }
 
 func buildLayoutTree(node ast.Node) *layoutNode {
@@ -235,6 +238,27 @@ func collectAnchors(nodes []ast.Node, dims map[string]dimensions, parentPath str
 		}
 	}
 	return out
+}
+
+// collectBoxes records each container's border box keyed by its full dotted
+// path, mirroring collectAnchors' traversal (groups pass their parent path
+// through). Arrow routing uses it to find cardinal edges by path.
+func collectBoxes(nodes []ast.Node, dims map[string]dimensions, parentPath string, out map[string]dimensions) {
+	for _, node := range nodes {
+		switch n := node.(type) {
+		case *ast.ContainerNode:
+			full := n.ID
+			if parentPath != "" {
+				full = parentPath + "." + n.ID
+			}
+			if d, ok := dims[n.ID]; ok {
+				out[full] = d
+			}
+			collectBoxes(n.Children, dims, full, out)
+		case *ast.GroupNode:
+			collectBoxes(n.Children, dims, parentPath, out)
+		}
+	}
 }
 
 func resolveNodeAnchors(n *ast.ContainerNode, d dimensions, full string) []anchorPosition {

@@ -108,11 +108,16 @@ worker {}</code></pre>
     <p>
       After the nodes, connect them with <code>--&gt;</code>. Each endpoint is a node
       path — a dotted reference like <code>parent.child</code> — with an optional
-      <code>#anchor</code>. Every node has an implicit <code>center</code> anchor, so a
-      bare <code>a --&gt; b</code> connects centre to centre.
+      <code>#anchor</code>. A <strong>bare</strong> endpoint auto-routes to the nearest
+      cardinal edge (N/E/S/W) of its box facing the other node's centre, giving a clean
+      edge-to-edge line. Naming an anchor — including the implicit <code>#center</code> —
+      pins the end to a fixed point instead, and always wins.
     </p>
-<pre><code># Simple arrow (centre to centre)
+<pre><code># Auto-routes to the nearest edges
 api --&gt; database
+
+# Force a centre-to-centre line
+api#center --&gt; database#center
 
 # Connect specific anchors
 api#south --&gt; services#north
@@ -184,8 +189,8 @@ fmt.Println(res.SVG)</code></pre>
     <div class="note">
       <strong>The layout model is evolving.</strong> A forthcoming <code>@layout</code>
       layer will separate presentation (direction, size, anchor positions, margins)
-      from the semantic structure, add reusable style blocks, and bring auto-routed
-      arrows — without giving up determinism. Follow along in the
+      from the semantic structure and add reusable style blocks — without giving up
+      determinism. Follow along in the
       <a href="https://github.com/kurrik/arkitecture/blob/main/docs/roadmap.md">roadmap</a>.
     </div>
   </main>

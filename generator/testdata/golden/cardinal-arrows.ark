@@ -1,0 +1,27 @@
+# Auto-cardinal arrow routing: anchorless ends attach to the nearest cardinal
+# edge facing the other node's centre; an explicit anchor (named or #center)
+# always wins.
+col {
+  direction: "vertical"
+  a { label: "A" }
+  b { label: "B" }
+}
+row {
+  direction: "horizontal"
+  c { label: "C" }
+  d {
+    label: "D"
+    anchors: {
+      tag: [0.5, 1.0]
+    }
+  }
+}
+
+# Vertical siblings -> south edge to north edge.
+col.a --> col.b
+# Horizontal siblings -> east edge to west edge.
+row.c --> row.d
+# Explicit #center forces the old centre-to-centre line.
+row.c#center --> row.d#center
+# Bare source auto-routes; explicit named target stays fixed.
+col.a --> row.d#tag
