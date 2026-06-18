@@ -1,0 +1,29 @@
+# M4: a reusable @block imported with @use, plus a kind hooking a built-in.
+app {
+  label: "App"
+
+  group1 {
+    a { label: "A1" }
+    b { label: "B1" }
+  }
+  group2 {
+    c { label: "C2" }
+    d { label: "D2" }
+  }
+
+  # kind: invisible applies the built-in box:none baseline, so this node is a
+  # pure grouping (no border) even though it keeps an id and a path segment.
+  external {
+    kind: invisible
+    e { label: "Ext" }
+  }
+}
+
+@layout {
+  # A reusable bundle: lay a node out as a borderless horizontal row.
+  @block row { box: none; direction: horizontal }
+
+  app        { direction: vertical }
+  app.group1 { @use row }                       # imported: box none + horizontal
+  app.group2 { @use row; direction: vertical }  # direct direction overrides the import
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="160">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+            refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <polygon points="0 0, 10 3.5, 0 7" fill="black" />
+    </marker>
+  </defs>
+
+  <!-- Node rectangles and labels -->
+  <rect x="0" y="0" width="80" height="160" fill="white" stroke="black" stroke-width="1" />
+  <text x="40" y="80" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">App</text>
+  <rect x="8" y="8" width="24" height="24" fill="white" stroke="black" stroke-width="1" />
+  <text x="20" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">A1</text>
+  <rect x="48" y="8" width="24" height="24" fill="white" stroke="black" stroke-width="1" />
+  <text x="60" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">B1</text>
+  <rect x="8" y="48" width="24" height="24" fill="white" stroke="black" stroke-width="1" />
+  <text x="20" y="60" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">C2</text>
+  <rect x="8" y="88" width="24" height="24" fill="white" stroke="black" stroke-width="1" />
+  <text x="20" y="100" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">D2</text>
+  <rect x="8" y="128" width="24" height="24" fill="white" stroke="black" stroke-width="1" />
+  <text x="20" y="140" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Ext</text>
+</svg>

@@ -60,9 +60,13 @@ choose controllable.
   anchor *names*, nesting, arrows) is authored separately from presentation
   (`@layout`: `direction`, `size`, anchor *positions*, `margin`, `box`, child
   arrangement). See the section below.
-- **Kind** *(parsed; hook planned)* — an arbitrary semantic classification on a node
+- **Kind** *(M4)* — an arbitrary semantic classification on a node
   (`kind: database`) that implicitly applies the layout block of the same name
-  (`@use database`) as an overridable style baseline.
+  (`@use database`) as an overridable style baseline. An unknown kind (no
+  matching block) is a harmless no-op, since `kind` is a semantic tag.
+- **Block / use** *(M4)* — `@block <name> { decls }` defines a reusable,
+  parameterless layout bundle inside an `@layout` sheet; `@use <name>` imports it
+  into a node (or another block). Imports are explicit and opt-in — no cascade.
 - **Margin** — layout space reserved around a node's border box (uniform,
   default 8; `margin: 0` packs flush). Counts inside a bordered parent (like
   padding) but collapses against an invisible (`box: none`) parent. See *Box
@@ -111,9 +115,9 @@ Layout is bottom-up and deterministic:
 ## Semantic vs. layout (the `@layout` model)
 
 > 🚧 The **split** (this section's two-layer authoring, `@layout` blocks, exact-path
-> selectors, and the no-cascade resolution) shipped in M3. The remaining phases —
-> reusable `@block`/`@use`, `kind` actually hooking layout, and presentational
-> `@group` regrouping — are still planned (see [roadmap.md](roadmap.md)). In M3 the
+> selectors, and the no-cascade resolution) shipped in M3, and **reuse** (`@block`/
+> `@use` and `kind` hooking a layout block) shipped in M4. Only presentational
+> `@group` regrouping is still planned (see [roadmap.md](roadmap.md)). In M3 the
 > inline `size`/`direction`/`anchors:{pos}` shorthand was **dropped**: a node body is
 > purely semantic and all presentation lives in `@layout`.
 
@@ -214,7 +218,12 @@ Rules:
   sheet) overrides it without conflict — the "redeclare for explicit control"
   path. Conflicts *between explicit selectors* are still errors.
 - A small set of **built-in kinds** ships (e.g. `invisible` → `box: none`); any
-  kind can be (re)declared with `@block <kind> { … }` to take full control.
+  kind can be (re)declared with `@block <kind> { … }` to take full control (a user
+  block overrides the built-in of the same name).
+- An **unknown kind** (no built-in and no `@block`) is a **no-op**, not an error:
+  `kind` is a semantic tag, so a node may carry one without a matching layout
+  block. An explicit **`@use` of an undefined block *is* an error**, because that
+  is a layout import the author asked for that cannot be satisfied. (M4 decision.)
 - v1 layout is structural (box, size, direction, anchors), so built-in kinds can
   only touch those for now. `kind` is the natural hook for visual styling (colour,
   fonts) if/when that layer lands — part of why the bridge is worth building now.
@@ -331,8 +340,6 @@ no-JavaScript fallback.
   corners) ever worth the extra ambiguity? (4 is the v1 decision.)
 - Should an unpositioned *named* anchor be an error rather than defaulting to
   centre?
-- Is an unknown `kind` (no matching block) an error (like a dangling `@use`), or a
-  no-op semantic tag with a lint warning?
 - Should a node be allowed *multiple* kinds later, and if so how do their blocks
   combine?
 - Cross-file layout sheets / an `@import` for sharing layout across diagrams?

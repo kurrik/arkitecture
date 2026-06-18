@@ -3,12 +3,14 @@
 // syntax errors as data rather than failing fast.
 //
 // The grammar has three kinds of top-level item: semantic nodes, standalone
-// `@layout { selector {…} }` sheets, and arrows. A node body holds only
-// semantics (label, kind, anchor names, child nodes) plus an inline
-// `@layout {…}`; layout properties (direction, size, margin, box, anchor
-// positions) live exclusively inside `@layout` blocks. An inline block is
-// desugared into a LayoutRule selecting the enclosing node's full path, so the
-// resolver and validator treat inline and standalone layout identically.
+// `@layout { … }` sheets, and arrows. A node body holds only semantics (label,
+// kind, anchor names, child nodes) plus an inline `@layout {…}`; layout
+// properties (direction, size, margin, box, anchor positions) live exclusively
+// inside `@layout` blocks. An inline block is desugared into a LayoutRule
+// selecting the enclosing node's full path, so the resolver and validator treat
+// inline and standalone layout identically. Inside an `@layout` sheet a
+// `@block <name> { … }` defines a reusable bundle, and a selector or inline
+// block may `@use <name>` to import one.
 package parser
 
 import (
@@ -44,12 +46,13 @@ type parser struct {
 	current int
 	errors  []ast.Error
 	rules   []ast.LayoutRule // collected inline + standalone layout rules
+	blocks  []ast.Block      // collected @block definitions
 }
 
 func (p *parser) parseDocument() ast.ParseResult {
 	nodes := p.parseTopLevel() // phase 1: nodes + @layout sheets
 	arrows := p.parseArrows()  // phase 2: arrows
-	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Arrows: arrows}
+	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Blocks: p.blocks, Arrows: arrows}
 	if len(p.errors) > 0 {
 		return ast.ParseResult{Success: false, Document: doc, Errors: p.errors}
 	}
@@ -286,7 +289,7 @@ func (p *parser) parseInlineLayout(selector string) (ast.LayoutRule, bool) {
 	p.advance() // consume '{'
 
 	decls := &ast.Declarations{}
-	p.parseDeclarations(decls)
+	uses := p.parseDeclarations(decls)
 
 	if !p.check(TokenRBrace) {
 		tok := p.peek()
@@ -294,7 +297,7 @@ func (p *parser) parseInlineLayout(selector string) (ast.LayoutRule, bool) {
 		return ast.LayoutRule{}, false
 	}
 	p.advance() // consume '}'
-	return ast.LayoutRule{Selector: selector, Decls: decls, Line: dirTok.Line, Column: dirTok.Column}, true
+	return ast.LayoutRule{Selector: selector, Decls: decls, Uses: uses, Line: dirTok.Line, Column: dirTok.Column}, true
 }
 
 // parseLayoutSheet parses a standalone `@layout { selector { decls } … }`,
@@ -321,6 +324,10 @@ func (p *parser) parseLayoutSheet() {
 			p.advance()
 			continue
 		}
+		if p.check(TokenAt) {
+			p.parseBlockDef()
+			continue
+		}
 		if rule, ok := p.parseSelectorBlock(); ok {
 			p.rules = append(p.rules, rule)
 		}
@@ -332,6 +339,45 @@ func (p *parser) parseLayoutSheet() {
 		return
 	}
 	p.advance() // consume '}'
+}
+
+// parseBlockDef parses `@block <name> { decls }` inside an @layout sheet,
+// appending the definition to p.blocks. A block body holds the same
+// declarations as a selector block and may itself `@use` other blocks.
+func (p *parser) parseBlockDef() {
+	dirTok, ok := p.parseDirective()
+	if !ok {
+		return
+	}
+	if dirTok.Value != "block" {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown directive '@%s' inside @layout, expected @block or a selector", dirTok.Value), dirTok.Line, dirTok.Column)
+		p.skipBalancedBlock()
+		return
+	}
+	if !p.check(TokenIdentifier) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected block name after @block, got %s", tok.Type), tok.Line, tok.Column)
+		p.skipBalancedBlock()
+		return
+	}
+	nameTok := p.advance()
+	if !p.check(TokenLBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '{' after @block '%s', got %s", nameTok.Value, tok.Type), tok.Line, tok.Column)
+		return
+	}
+	p.advance() // consume '{'
+
+	decls := &ast.Declarations{}
+	uses := p.parseDeclarations(decls)
+
+	if !p.check(TokenRBrace) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '}' to close @block '%s', got %s", nameTok.Value, tok.Type), tok.Line, tok.Column)
+		return
+	}
+	p.advance() // consume '}'
+	p.blocks = append(p.blocks, ast.Block{Name: nameTok.Value, Decls: decls, Uses: uses, Line: nameTok.Line, Column: nameTok.Column})
 }
 
 func (p *parser) parseSelectorBlock() (ast.LayoutRule, bool) {
@@ -353,7 +399,7 @@ func (p *parser) parseSelectorBlock() (ast.LayoutRule, bool) {
 	p.advance() // consume '{'
 
 	decls := &ast.Declarations{}
-	p.parseDeclarations(decls)
+	uses := p.parseDeclarations(decls)
 
 	if !p.check(TokenRBrace) {
 		tok := p.peek()
@@ -361,21 +407,29 @@ func (p *parser) parseSelectorBlock() (ast.LayoutRule, bool) {
 		return ast.LayoutRule{}, false
 	}
 	p.advance() // consume '}'
-	return ast.LayoutRule{Selector: selector, Decls: decls, Line: selTok.Line, Column: selTok.Column}, true
+	return ast.LayoutRule{Selector: selector, Decls: decls, Uses: uses, Line: selTok.Line, Column: selTok.Column}, true
 }
 
-// parseDeclarations reads the body of an @layout block: direction, size,
-// margin, box, and anchor positions. A property set twice in the same block is
-// a syntax error (across-rule duplicates are the validator's job).
-func (p *parser) parseDeclarations(d *ast.Declarations) {
+// parseDeclarations reads the body of an @layout block: `@use` imports plus the
+// direct properties direction, size, margin, box, and anchor positions. It
+// returns the `@use` directives in source order. A property set twice in the
+// same block is a syntax error (across-rule duplicates are the validator's job).
+func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
+	var uses []ast.Use
 	for !p.check(TokenRBrace) && !p.isAtEnd() {
 		if p.check(TokenNewline) {
 			p.advance()
 			continue
 		}
+		if p.check(TokenAt) {
+			if u, ok := p.parseUse(); ok {
+				uses = append(uses, u)
+			}
+			continue
+		}
 		if !p.check(TokenIdentifier) {
 			tok := p.peek()
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected a layout property, got %s", tok.Type), tok.Line, tok.Column)
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected a layout property or @use, got %s", tok.Type), tok.Line, tok.Column)
 			p.advance()
 			continue
 		}
@@ -412,6 +466,27 @@ func (p *parser) parseDeclarations(d *ast.Declarations) {
 			}
 		}
 	}
+	return uses
+}
+
+// parseUse parses `@use <block>` inside a declarations block. It assumes the
+// cursor is on the `@`.
+func (p *parser) parseUse() (ast.Use, bool) {
+	dirTok, ok := p.parseDirective()
+	if !ok {
+		return ast.Use{}, false
+	}
+	if dirTok.Value != "use" {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown directive '@%s' in layout block, expected @use", dirTok.Value), dirTok.Line, dirTok.Column)
+		return ast.Use{}, false
+	}
+	if !p.check(TokenIdentifier) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected block name after @use, got %s", tok.Type), tok.Line, tok.Column)
+		return ast.Use{}, false
+	}
+	nameTok := p.advance()
+	return ast.Use{Block: nameTok.Value, Line: nameTok.Line, Column: nameTok.Column}, true
 }
 
 func (p *parser) parseDirectionDecl(d *ast.Declarations, propTok Token) {

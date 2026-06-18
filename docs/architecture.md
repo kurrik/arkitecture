@@ -19,9 +19,11 @@ DSL text → Tokenizer → Parser → Validator → Resolver → Generator → S
             ([]Token)   (Document) (errors?)  (layout map) (layout+SVG)  (string)
 ```
 
-The Document carries two layers: a semantic node tree and a flat list of layout
-rules. The validator checks both; the resolver merges the layout rules onto the
-tree by exact path into a per-node resolved layout the generator reads.
+The Document carries two layers: a semantic node tree and the layout layer (a
+flat list of selector rules plus named `@block` definitions). The validator
+checks both; the resolver merges the layout onto the tree by exact path —
+applying each node's `kind` baseline and `@use` imports below its direct
+declarations — into a per-node resolved layout the generator reads.
 
 Each stage is a pure function of its input. Errors are *collected* as
 `[]ast.Error`, never thrown across stage boundaries; the top-level `ToSVG`
@@ -35,8 +37,8 @@ github.com/kurrik/arkitecture        (module)
   arkitecture.go     package arkitecture — public API (ToSVG/Parse/Validate/
                      GenerateSVG); re-exports the AST types as aliases
   ast/               package ast — Document, ContainerNode, Declarations,
-                     LayoutRule, Arrow, Error, ParseResult; no deps, so every
-                     stage can import it
+                     LayoutRule, Use, Block, Arrow, Error, ParseResult, plus
+                     BuiltinBlocks(); no deps, so every stage can import it
   parser/            tokenizer + recursive-descent parser → ast.Document
   validator/         Document → []ast.Error (references, ID uniqueness, layout
                      selectors/conflicts/ranges, anchor names)
@@ -64,19 +66,23 @@ until a stage genuinely needs sub-packages.
 The AST (`ast` package) is the contract every stage shares, split into a
 semantic layer and a layout layer:
 
-- **`Document`** — `{ Nodes []*ContainerNode; Layout []LayoutRule; Arrows []Arrow }`.
-  Nodes, layout, and arrows are parsed in phases, so layout rules and arrows are
-  flat lists, not attached to nodes.
+- **`Document`** — `{ Nodes []*ContainerNode; Layout []LayoutRule; Blocks []Block; Arrows []Arrow }`.
+  Nodes, layout, blocks, and arrows are parsed in phases, so layout rules, blocks,
+  and arrows are flat lists, not attached to nodes.
 - **`ContainerNode`** — the single node type: `ID`, optional `Label`, `Kind`,
   `Anchors` (declared anchor *names*), and `Children []*ContainerNode`. It carries
   no layout — `GroupNode` is gone; a borderless grouping is a `box: none` node.
 - **`Declarations`** — a set of layout properties (`Direction`, `Size`, `Margin`,
   `Box`, and `Anchors` name→position). Each scalar is a pointer so "unset" stays
   distinguishable, which the conflict check relies on.
-- **`LayoutRule`** — `{ Selector string; Decls *Declarations; Line, Column }`. One
-  per `@layout` selector block. An inline `@layout` is desugared by the parser into
-  a rule whose selector is the enclosing node's full path, so inline and standalone
-  layout are uniform.
+- **`LayoutRule`** — `{ Selector string; Decls *Declarations; Uses []Use; Line, Column }`.
+  One per `@layout` selector block: the node's direct declarations plus any `@use`
+  imports. An inline `@layout` is desugared by the parser into a rule whose selector
+  is the enclosing node's full path, so inline and standalone layout are uniform.
+- **`Use` / `Block`** — `Use` is a `@use <name>` import (with position); `Block` is
+  a named `@block <name> { decls }` bundle (declarations plus its own `@use`s, so
+  blocks compose). `ast.BuiltinBlocks()` supplies the built-in kinds (`invisible` →
+  `box: none`); a user `Block` of the same name overrides a built-in.
 - **`Arrow`** — `Source` and `Target` strings, each a dotted node path with an
   optional `#anchor` suffix (e.g. `c1.n2 --> c1.n3#a1`). Resolved by the validator.
 - **`Error`** — `Line`, `Column`, `Message`, and `Type` (`syntax` | `reference` |
@@ -92,21 +98,29 @@ semantic layer and a layout layer:
 - **Parser** (`parser/parser.go`) — recursive-descent build of the `Document`:
   semantic node bodies (`label`/`kind`/anchor names/children), inline and
   standalone `@layout` blocks (the declaration grammar and exact-path selectors),
-  then arrows in a final phase. An inline `@layout` is desugared into a path
-  selector. Collects syntax errors with positions and recovers to keep going;
-  range checks moved to the validator. `parser.Parse` wires tokenizer and parser.
+  `@block` definitions and `@use` imports inside `@layout`, then arrows in a final
+  phase. An inline `@layout` is desugared into a path selector. Collects syntax
+  errors with positions and recovers to keep going; range checks moved to the
+  validator. `parser.Parse` wires tokenizer and parser.
 - **Validator** (`validator/validator.go`) — semantic checks over a parsed
   `Document`: ID uniqueness within a scope, dangling layout selectors (reported at
   the selector position), duplicate **direct** layout properties on a node, layout
-  ranges (`size`/`margin`/coords), anchor positions naming a declared anchor, and
-  arrow source/target + anchor-name resolution (with the implicit `center`);
-  non-fail-fast. Apart from dangling selectors, diagnostics report at line 1,
-  column 1 — the semantic AST carries no node positions.
-- **Resolver** (`resolve/resolve.go`) — pure merge of the document's layout rules
-  onto node paths, producing `map[path]*ast.Declarations`. It assumes a validated
-  document (conflicts already rejected), so merging is a deterministic overlay.
-  The two precedence tiers from the design collapse to one direct tier in M3;
-  `kind`/`@use` (M4) will add a lower-precedence pass here.
+  ranges (`size`/`margin`/coords), anchor positions naming a declared anchor,
+  undefined `@use` blocks and `@use` composition cycles (reported at the `@use` /
+  block position), and arrow source/target + anchor-name resolution (with the
+  implicit `center`); non-fail-fast. An unknown `kind` is deliberately *not* an
+  error (it's a semantic tag). Apart from the position-bearing cases above,
+  diagnostics report at line 1, column 1 — the semantic AST carries no node
+  positions.
+- **Resolver** (`resolve/resolve.go`) — pure merge of the document's layout onto
+  node paths, producing `map[path]*ast.Declarations`. It assumes a validated
+  document (conflicts already rejected), so merging is a deterministic overlay
+  with two precedence tiers: the **imported** tier (a node's `kind` baseline, then
+  each `@use` in source order, each block expanded recursively as its own
+  imports-then-decls) underneath the **direct** tier (declarations naming the
+  node). A visiting set makes block composition cycle-safe even though the
+  validator rejects cycles first (so `GenerateSVG`, which skips validation, can't
+  loop).
 - **Generator** (`generator/`) — takes the document plus the resolved layout.
   `text.go` measures labels with a deterministic, dependency-free rune-width
   approximation; `layout.go` builds a path-keyed tree, reads each node's resolved

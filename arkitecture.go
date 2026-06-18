@@ -24,6 +24,8 @@ type (
 	ContainerNode = ast.ContainerNode
 	Declarations  = ast.Declarations
 	LayoutRule    = ast.LayoutRule
+	Block         = ast.Block
+	Use           = ast.Use
 	Arrow         = ast.Arrow
 	Direction     = ast.Direction
 	Box           = ast.Box

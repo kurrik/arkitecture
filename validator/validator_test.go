@@ -180,6 +180,113 @@ func TestValidateAnchorPositionUndeclared(t *testing.T) {
 	}
 }
 
+func TestValidateUndefinedBlock(t *testing.T) {
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "a"}},
+		Layout: []ast.LayoutRule{{Selector: "a", Uses: []ast.Use{{Block: "ghost", Line: 4, Column: 9}}}},
+	}
+	errs := Validate(doc)
+	if len(errs) != 1 {
+		t.Fatalf("got %d errors, want 1: %+v", len(errs), errs)
+	}
+	e := errs[0]
+	if e.Type != ast.ErrorReference || e.Line != 4 || e.Column != 9 {
+		t.Errorf("error = %+v, want reference at 4,9", e)
+	}
+	if !strings.Contains(e.Message, "Layout block 'ghost' is not defined") {
+		t.Errorf("message = %q", e.Message)
+	}
+}
+
+func TestValidateUndefinedBlockInComposition(t *testing.T) {
+	doc := &ast.Document{
+		Blocks: []ast.Block{{Name: "wide", Uses: []ast.Use{{Block: "missing"}}, Decls: &ast.Declarations{}}},
+	}
+	if !containsMsg(Validate(doc), "Layout block 'missing' is not defined") {
+		t.Error("expected undefined-block error from block composition")
+	}
+}
+
+func TestValidateUseOfBuiltinIsValid(t *testing.T) {
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "a"}},
+		Layout: []ast.LayoutRule{{Selector: "a", Uses: []ast.Use{{Block: "invisible"}}}},
+	}
+	if errs := Validate(doc); len(errs) != 0 {
+		t.Errorf("@use of a built-in should be valid, got %+v", errs)
+	}
+}
+
+func TestValidateUserDefinedBlockIsValid(t *testing.T) {
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "a"}},
+		Blocks: []ast.Block{{Name: "wide", Decls: &ast.Declarations{Size: ptr(0.75)}}},
+		Layout: []ast.LayoutRule{{Selector: "a", Uses: []ast.Use{{Block: "wide"}}}},
+	}
+	if errs := Validate(doc); len(errs) != 0 {
+		t.Errorf("@use of a defined block should be valid, got %+v", errs)
+	}
+}
+
+func TestValidateUnknownKindIsNotAnError(t *testing.T) {
+	// kind is a semantic tag; an unknown one contributes no layout but is not
+	// itself an error (unlike an explicit @use).
+	doc := &ast.Document{Nodes: []*ast.ContainerNode{{ID: "a", Kind: "database"}}}
+	if errs := Validate(doc); len(errs) != 0 {
+		t.Errorf("unknown kind should not error, got %+v", errs)
+	}
+}
+
+func TestValidateBlockCycle(t *testing.T) {
+	doc := &ast.Document{
+		Blocks: []ast.Block{
+			{Name: "a", Uses: []ast.Use{{Block: "b"}}, Line: 2, Column: 3},
+			{Name: "b", Uses: []ast.Use{{Block: "a"}}, Line: 3, Column: 3},
+		},
+	}
+	errs := Validate(doc)
+	if !containsMsg(errs, "Layout block cycle detected") {
+		t.Fatalf("expected a cycle error, got %+v", errs)
+	}
+	// Exactly one cycle is reported despite two back-edges being reachable.
+	n := 0
+	for _, e := range errs {
+		if strings.Contains(e.Message, "cycle detected") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("got %d cycle errors, want 1: %+v", n, errs)
+	}
+}
+
+func TestValidateBlockSelfCycle(t *testing.T) {
+	doc := &ast.Document{
+		Blocks: []ast.Block{{Name: "a", Uses: []ast.Use{{Block: "a"}}, Line: 5, Column: 3}},
+	}
+	errs := Validate(doc)
+	if !containsMsg(errs, "Layout block cycle detected: a -> a") {
+		t.Fatalf("expected self-cycle error, got %+v", errs)
+	}
+}
+
+func TestValidateBlockCompositionNoCycle(t *testing.T) {
+	// A diamond (wide and tall both use base) is not a cycle.
+	doc := &ast.Document{
+		Blocks: []ast.Block{
+			{Name: "base", Decls: &ast.Declarations{Margin: ptr(4)}},
+			{Name: "wide", Uses: []ast.Use{{Block: "base"}}},
+			{Name: "tall", Uses: []ast.Use{{Block: "base"}}},
+			{Name: "both", Uses: []ast.Use{{Block: "wide"}, {Block: "tall"}}},
+		},
+	}
+	if errs := Validate(doc); len(errs) != 0 {
+		t.Errorf("diamond composition should be valid, got %+v", errs)
+	}
+}
+
+func ptr(f float64) *float64 { return &f }
+
 func containsMsg(errs []ast.Error, sub string) bool {
 	for _, e := range errs {
 		if strings.Contains(e.Message, sub) {

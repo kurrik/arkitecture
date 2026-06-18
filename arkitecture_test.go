@@ -47,6 +47,49 @@ func TestToSVGParseErrorSurfaces(t *testing.T) {
 	}
 }
 
+func TestToSVGReuseAndKind(t *testing.T) {
+	const in = `app {
+  grp { a {} b {} }
+  ext { kind: invisible c {} }
+}
+@layout {
+  @block row { box: none; direction: horizontal }
+  app     { direction: vertical }
+  app.grp { @use row }
+}`
+	res := arkitecture.ToSVG(in, nil)
+	if !res.Success {
+		t.Fatalf("expected success, got %+v", res.Errors)
+	}
+	// app.grp (via @use row) and app.ext (via kind: invisible) are box:none and
+	// draw no rect; app and the three leaves a/b/c do. Confirms both the @use
+	// import and the kind hook reached the generator.
+	if got := strings.Count(res.SVG, "<rect"); got != 4 {
+		t.Errorf("rect count = %d, want 4 (app + a + b + c; grp and ext are box:none)", got)
+	}
+}
+
+func TestToSVGUndefinedUseErrors(t *testing.T) {
+	res := arkitecture.ToSVG("a {}\n@layout { a { @use ghost } }", nil)
+	if res.Success {
+		t.Fatal("expected failure for @use of an undefined block")
+	}
+	if len(res.Errors) == 0 || res.Errors[0].Type != arkitecture.ErrorReference {
+		t.Fatalf("expected a reference error, got %+v", res.Errors)
+	}
+	if !strings.Contains(res.Errors[0].Message, "Layout block 'ghost' is not defined") {
+		t.Errorf("unexpected message: %q", res.Errors[0].Message)
+	}
+}
+
+func TestToSVGUnknownKindSucceeds(t *testing.T) {
+	// An unknown kind is a semantic tag, not an error.
+	res := arkitecture.ToSVG(`a { kind: database label: "DB" }`, nil)
+	if !res.Success {
+		t.Fatalf("unknown kind should render, got %+v", res.Errors)
+	}
+}
+
 func TestToSVGGeneratesSVG(t *testing.T) {
 	res := arkitecture.ToSVG(`a { label: "x" }`, nil)
 	if !res.Success {
