@@ -146,6 +146,115 @@ ordering.orders#db --&gt; inventory#api</code></pre>
       <p class="dl"><a href="examples/contexts.ark">contexts.ark</a></p>
     </article>
 
+    <article class="example">
+      <h2>Reusable layout (<code>@block</code> &amp; <code>@use</code>)</h2>
+      <p>A named <code>@block</code> bundles layout you import with <code>@use</code> — explicit and opt-in, with no cascade matching nodes for you. Both groups pull in the same borderless <code>row</code>; the second then overrides its <code>direction</code> directly, because a direct property always beats an imported one.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">reuse.ark</div>
+<pre><code>app {
+  label: "App"
+
+  group1 { web { label: "Web" }   api { label: "API" } }
+  group2 { jobs { label: "Jobs" } cron { label: "Cron" } }
+}
+
+@layout {
+  # A reusable layout bundle. There is no cascade: @use is an explicit, opt-in
+  # import, and a property set directly on a node overrides the imported one.
+  @block row { box: none; direction: horizontal }
+
+  app        { direction: vertical }
+  app.group1 { @use row }                       # imported: box none + horizontal
+  app.group2 { @use row; direction: vertical }  # same block, direction overridden
+}</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/reuse.svg" alt="An App box with a borderless Web–API row above a borderless Jobs–Cron stack." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/reuse.ark">reuse.ark</a></p>
+    </article>
+
+    <article class="example">
+      <h2>Semantic kinds (<code>kind</code>)</h2>
+      <p>A node's <code>kind</code> is a semantic tag — what the component <em>is</em> — that implicitly imports the <code>@block</code> of the same name as a layout baseline. Both tiers share one <code>tier</code> rule instead of repeating it, and the built-in <code>invisible</code> kind makes <em>external</em> a borderless grouping.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">kinds.ark</div>
+<pre><code>platform {
+  label: "Platform"
+
+  # `kind` is a semantic tag — what the node *is*. A custom kind imports the
+  # @block of the same name as a layout baseline, so both tiers lay out the same
+  # way from one rule, with no per-node repetition.
+  edge { kind: tier; cdn { label: "CDN" } lb { label: "Load Balancer" } }
+  core { kind: tier; app { label: "App" } db { label: "Database" } }
+
+  # The built-in `invisible` kind applies box: none, so this node groups its
+  # children for layout only — no border — while keeping its id and path.
+  external {
+    kind: invisible
+    stripe { label: "Stripe" }
+    twilio { label: "Twilio" }
+  }
+}
+
+@layout {
+  @block tier { direction: horizontal }
+
+  platform          { direction: vertical }
+  platform.external { direction: horizontal }
+}</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/kinds.svg" alt="A Platform box stacking two bordered tiers above a borderless row of Stripe and Twilio." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/kinds.ark">kinds.ark</a></p>
+    </article>
+
+    <article class="example">
+      <h2>Regrouping with <code>@group</code></h2>
+      <p>Inside a node's <code>@layout</code> you can list its children to reorder them and wrap a run of them in an anonymous <code>@group</code> for purely visual nesting. Here a vertical group of two services sits, as one unit, to the left of <em>Payments</em> — the group draws no border and adds no path segment.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">arrangement.ark</div>
+<pre><code>services {
+  label: "Services"
+
+  userService  { label: "User Service" }
+  orderService { label: "Order Service" }
+  payments     { label: "Payments" }
+}
+
+@layout {
+  services {
+    direction: horizontal
+
+    # Wrap two children in an anonymous @group so they stack vertically and sit,
+    # as one unit, to the left of payments. A @group is invisible and has no id.
+    @group { direction: vertical; userService; orderService }
+    payments
+  }
+}</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/arrangement.svg" alt="A Services box with User Service stacked over Order Service, that pair sitting to the left of Payments." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/arrangement.ark">arrangement.ark</a></p>
+    </article>
+
     <p style="margin-top:40px">
       Want the full grammar? Head to the <a href="spec.html">syntax reference</a>.
     </p>

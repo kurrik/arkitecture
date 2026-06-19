@@ -35,8 +35,10 @@
       It is authored in two layers: the <strong>semantic</strong> structure — the
       <strong>nodes</strong> (boxes, possibly nested) and the <strong>arrows</strong>
       between them — and a <strong>layout</strong> layer in <code>@layout</code> blocks
-      that says where and how they're drawn. The compiler parses both, resolves the
-      layout onto the tree, validates, then lays it out and emits SVG.
+      that says where and how they're drawn. Layout can be factored into reusable
+      <code>@block</code>s and shared by <code>@use</code> or a node's <code>kind</code>.
+      The compiler parses both, resolves the layout onto the tree, validates, then lays
+      it out and emits SVG.
     </p>
 
     <h2>Nodes</h2>
@@ -67,7 +69,7 @@ worker {}</code></pre>
       <thead><tr><th>Property</th><th>Value</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>label</code></td><td>string</td><td>Display text, centred in the box. Omit it for an unlabeled box.</td></tr>
-        <tr><td><code>kind</code></td><td>identifier</td><td>An optional semantic classification (e.g. <code>kind: database</code>). Reserved for hooking shared layout; today it is recorded but applies nothing.</td></tr>
+        <tr><td><code>kind</code></td><td>identifier</td><td>An optional semantic classification (e.g. <code>kind: database</code>). It implicitly imports the <a href="#reuse">layout block</a> of the same name as a style baseline — <code>kind: database</code> behaves as a leading <code>@use database</code>. An unknown kind (no matching block) is a harmless no-op.</td></tr>
         <tr><td><code>anchors</code></td><td><code>[name, …]</code></td><td>The connection-point <em>names</em> this node exposes for arrows. Their <em>positions</em> are layout (see below).</td></tr>
       </tbody>
     </table>
@@ -84,7 +86,9 @@ worker {}</code></pre>
       block can sit <strong>inline</strong> in a node's body (applying to that node) or
       <strong>standalone</strong> as a sheet of selectors that target nodes by
       <strong>exact dotted path</strong>. No wildcards, no specificity, no inheritance:
-      one selector names one node, and a given property may be set only once per node.
+      one selector names one node, and a given property may be set only once per node
+      directly (an imported value from <code>@use</code> or <code>kind</code> is freely
+      overridden by a direct one — see <a href="#reuse">Reusable layout</a>).
     </p>
     <table class="proptable">
       <thead><tr><th>Declaration</th><th>Value</th><th>Meaning</th></tr></thead>
@@ -113,8 +117,95 @@ worker {}</code></pre>
 }</code></pre>
     <p>
       A node with <code>box: none</code> draws no border, so it groups its children for
-      layout only — the replacement for the old <code>group</code> keyword. Unlike a
-      group it keeps its id (and so a path segment), label, and anchors.
+      layout only, while keeping its id (and so a path segment), label, and anchors. For
+      an <em>anonymous</em> grouping with no id — purely a layout wrapper — use a
+      <a href="#group"><code>@group</code></a> in the node's arrangement (below).
+    </p>
+
+    <h2 id="reuse">Reusable layout (<code>@block</code> &amp; <code>@use</code>)</h2>
+    <p>
+      Shared layout is <strong>opt-in and explicit</strong> — a named bundle you pull
+      in, not a class that matches at a distance. Inside an <code>@layout</code> sheet,
+      <code>@block &lt;name&gt; { … }</code> defines a reusable, parameterless bundle of
+      layout properties (<code>direction</code>, <code>size</code>, <code>margin</code>,
+      <code>box</code>, anchor positions); <code>@use &lt;name&gt;</code> imports it
+      into a selector, an inline block, or another block. Blocks may compose (a block
+      may <code>@use</code> another); a composition <strong>cycle</strong> is an error,
+      as is a <code>@use</code> of an <strong>undefined</strong> block.
+    </p>
+<pre><code>@layout {
+  # A reusable bundle: lay a node out as a borderless horizontal row.
+  @block row { box: none; direction: horizontal }
+
+  app        { direction: vertical }
+  app.group1 { @use row }                       # imported: box none + horizontal
+  app.group2 { @use row; direction: vertical }  # direct direction overrides the import
+}</code></pre>
+    <p>
+      A node's <code>kind</code> is the implicit form of the same mechanism:
+      <code>kind: database</code> behaves as a leading <code>@use database</code>,
+      importing the block of that name as a baseline. The difference is that
+      <code>@use</code> is a layout import the author asked for — an undefined one is an
+      error — while <code>kind</code> is a semantic tag, so an unknown kind simply
+      contributes no baseline and is <em>not</em> an error. A small set of
+      <strong>built-in blocks</strong> ships — currently <code>invisible</code>
+      (<code>box: none</code>) — and a user <code>@block</code> of the same name
+      overrides the built-in.
+    </p>
+
+    <h3>Resolution &amp; precedence — no cascade</h3>
+    <p>Resolution has just <strong>two precedence tiers</strong>, the entire "specificity" model:</p>
+    <ul>
+      <li><strong>Imported</strong> (lower) — what a node receives via its
+        <code>kind</code> baseline first, then each <code>@use</code> in source order (a
+        later <code>@use</code> beats an earlier one).</li>
+      <li><strong>Direct</strong> (higher) — declarations that name the node itself,
+        inline or in a sheet selector for its exact path. Direct
+        <strong>overrides imported</strong> for any property, with no conflict.</li>
+    </ul>
+    <p>
+      Within the <strong>direct</strong> tier a property may be set at most once: two
+      direct rules setting the same property on the same node is a validation error,
+      never a silent cascade. Anchor positions from different tiers union by name.
+    </p>
+
+    <h2 id="group">Child arrangement (<code>@group</code>)</h2>
+    <p>
+      Inside a node's <code>@layout</code> block you may <strong>list its children</strong>
+      to set the order they're laid out in, and wrap a run of them in an anonymous
+      <code>@group { … }</code> for purely visual nesting — the layout-layer cousin of an
+      HTML wrapper <code>&lt;div&gt;</code>. A bare identifier (no <code>:</code>) is a
+      child reference; a <code>@group</code> is a wrapper with its own
+      <code>direction</code>/<code>size</code>/<code>margin</code> and its own nested
+      arrangement.
+    </p>
+<pre><code>@layout {
+  services {
+    direction: horizontal
+
+    # Stack userService over orderService, then sit that unit left of payments.
+    @group { direction: vertical; userService; orderService }
+    payments
+  }
+}</code></pre>
+    <p>
+      A <code>@group</code> is always <strong>invisible</strong> (it renders as
+      <code>box: none</code>) and <strong>anonymous</strong> — it has no id and adds no
+      path segment, so a child inside a group keeps its real dotted path and its arrows
+      and anchors are unaffected. Two rules keep the layout tree a refinement of the
+      semantic tree, both enforced by the validator:
+    </p>
+    <ul>
+      <li><strong>Same-parent only</strong> — a group may contain only direct children
+        of the enclosing node (and nested groups thereof).</li>
+      <li><strong>Completeness</strong> — once you arrange a node's children, reference
+        each exactly once: no omissions, duplicates, or foreigners.</li>
+    </ul>
+    <p>
+      The arrangement is <strong>direct-only</strong>: it is authored on the node itself
+      and is never imported through <code>@use</code> or <code>kind</code> (child ids are
+      node-specific). In v1 a group can't be bordered or labelled, and <code>@use</code>
+      is not allowed inside one.
     </p>
 
     <h2>Arrows &amp; anchors</h2>
@@ -200,11 +291,13 @@ fmt.Println(res.SVG)</code></pre>
     </p>
 
     <div class="note">
-      <strong>The layout layer is still growing.</strong> The <code>@layout</code> split
-      (separating presentation from semantics) has landed. Reusable style blocks
-      (<code>@block</code>/<code>@use</code>), a <code>kind</code> that hooks shared
-      layout, and presentational regrouping (<code>@group</code>) are next — all without
-      giving up determinism. Follow along in the
+      <strong>The layered authoring model is complete.</strong> The <code>@layout</code>
+      split (presentation separated from semantics), reusable blocks
+      (<code>@block</code>/<code>@use</code>), a <code>kind</code> that hooks a shared
+      block, and presentational regrouping (<code>@group</code>) have all landed — all
+      without giving up determinism. What's next builds on this machinery: visual
+      styling (fill, stroke, per-node fonts) layered on <code>@layout</code>/<code>kind</code>,
+      arrow labels, and richer routing. Follow along in the
       <a href="https://github.com/kurrik/arkitecture/blob/main/docs/roadmap.md">roadmap</a>.
     </div>
   </main>

@@ -1,0 +1,16 @@
+app {
+  label: "App"
+
+  group1 { web { label: "Web" }   api { label: "API" } }
+  group2 { jobs { label: "Jobs" } cron { label: "Cron" } }
+}
+
+@layout {
+  # A reusable layout bundle. There is no cascade: @use is an explicit, opt-in
+  # import, and a property set directly on a node overrides the imported one.
+  @block row { box: none; direction: horizontal }
+
+  app        { direction: vertical }
+  app.group1 { @use row }                       # imported: box none + horizontal
+  app.group2 { @use row; direction: vertical }  # same block, direction overridden
+}

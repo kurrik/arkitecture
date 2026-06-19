@@ -1,0 +1,18 @@
+services {
+  label: "Services"
+
+  userService  { label: "User Service" }
+  orderService { label: "Order Service" }
+  payments     { label: "Payments" }
+}
+
+@layout {
+  services {
+    direction: horizontal
+
+    # Wrap two children in an anonymous @group so they stack vertically and sit,
+    # as one unit, to the left of payments. A @group is invisible and has no id.
+    @group { direction: vertical; userService; orderService }
+    payments
+  }
+}
