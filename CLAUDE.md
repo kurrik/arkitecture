@@ -27,6 +27,7 @@ This repo uses an ordinary feature-branch workflow — there is no `.claude/work
 - Build WASM: `GOOS=js GOARCH=wasm go build -o arkitecture.wasm ./wasm`
 - Build docs site (render examples + site WASM): `./scripts/build-site.sh`
 - Serve docs site locally (build if needed, then HTTP server): `./scripts/dev-site.sh` (`--port`, `--build`)
+- Preview docs site as screenshots (build + headless capture to `.preview/`): `./scripts/preview-site.sh` (also the `preview-site` skill)
 - Test (all): `go test ./...`
 - Test (one package): `go test ./parser`
 - Test (one test): `go test ./parser -run TestParseArrows`

@@ -8,5 +8,9 @@
 # Coverage
 coverage.out
 
+# Site preview (scripts/preview-site.sh): headless-browser install + output PNGs
+/.preview-tools/
+/.preview/
+
 # OS
 .DS_Store
