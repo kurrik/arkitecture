@@ -119,7 +119,7 @@ func (v *validator) validateLayout(doc *ast.Document) {
 // validateNoConflicts reports a property set by more than one direct rule on the
 // same node. (A property repeated inside a single block is caught by the parser.)
 func (v *validator) validateNoConflicts(selector string, decls []*ast.Declarations) {
-	var direction, size, margin, box, arrangement int
+	var direction, size, margin, box, labelPos, arrangement int
 	anchors := map[string]int{}
 	for _, d := range decls {
 		if d == nil {
@@ -137,6 +137,9 @@ func (v *validator) validateNoConflicts(selector string, decls []*ast.Declaratio
 		if d.Box != nil {
 			box++
 		}
+		if d.LabelPos != nil {
+			labelPos++
+		}
 		if len(d.Arrangement) > 0 {
 			arrangement++
 		}
@@ -147,7 +150,7 @@ func (v *validator) validateNoConflicts(selector string, decls []*ast.Declaratio
 	for _, c := range []struct {
 		name  string
 		count int
-	}{{"direction", direction}, {"size", size}, {"margin", margin}, {"box", box}, {"arrangement", arrangement}} {
+	}{{"direction", direction}, {"size", size}, {"margin", margin}, {"box", box}, {"label", labelPos}, {"arrangement", arrangement}} {
 		if c.count > 1 {
 			v.addError(ast.ErrorReference, fmt.Sprintf("Conflicting layout property '%s' on node '%s'", c.name, selector))
 		}

@@ -18,6 +18,65 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-19 — Labelled parents reserve a band for their label
+**Choice:** A **parent with a label** (bordered *or* `box: none`) now reserves a
+strip — a **label band** — for that label instead of centring it over the
+children (which obscured them). Concretely:
+- **A new `@layout` property `label: top | bottom`** (default `top`) places the
+  band at the top or bottom of the box. It lives on `Declarations` as
+  `LabelPos *LabelPosition`, parses/validates/merges/conflicts like any other
+  scalar layout property, and is a harmless no-op on a node with no label or no
+  children.
+- **The band is sized like a leaf box holding that label** (`max(textHeight +
+  2·border, fontSize·2)`), so a group title reads as a consistent row, and the box
+  **widens** to at least the label's width so the label never clips (and, for a
+  borderless group, so the label can't overflow onto a sibling).
+- **The band reuses each box type's own packing rule.** It is added to the
+  parent's height as a full-width strip; the children lay out in the remaining
+  area. In a **bordered** parent the band's inner edge is a wall — the children's
+  facing margin collapses against it exactly as it would against the border. In a
+  **`box: none`** parent the children pack **flush** below the band, because that
+  is how a transparent group packs them everywhere (it reserves no perimeter; its
+  effective margin still pushes out to the nearest bordered ancestor). A top band
+  shifts the child-layout origin down; a bottom band leaves children at the top and
+  sits under them. The change is `band`/`labelBand` plumbing in `calcDimensions`/
+  `positionNodes` plus a `labelDim` helper that centres the label in the band in
+  `svg.go` — gated only on "has a label and children," not on the box type.
+**Why:** The reported bug was that a labelled group centred its label over its
+children (`simple-container`, `nesting`), making it unreadable. Reserving a strip
+sized like a leaf box (rather than tight to the text) makes a title read as a row
+consistent with sibling leaves and is trivial to document ("as tall as the label
+would be on its own"). **Extending it to `box: none` groups** (revising this ADR's
+first draft, which scoped the band to bordered nodes) is the author's call: a
+borderless group's centred label is *also* obscured by its children — "if no label
+is desired, don't add one; otherwise reserve space for it." The scoping worry was
+that a band contradicts box:none transparency, but it doesn't: making the band
+*flush-packed reserved space* rather than a wall keeps the transparent group
+adding no perimeter of its own (its children's margins still push through on every
+non-band side), so the band is consistent with — not a violation of — the
+box:none model. Bordered parents keep the wall semantics they already had. **Top
+default** matches the conventional title-bar position; **bottom** is offered for
+captions. Reusing the keyword `label` (text in a node body, position in `@layout`)
+mirrors the existing anchor name/position split — same word, two layers.
+**Implications:** Only **labelled parents** change; leaves and unlabelled parents
+are byte-identical, and so is any `box: none` group **without** a label (the
+common case — `@group`s and `kind: invisible` groupings carry none), which is why
+no existing golden moved for the box:none extension. Four goldens
+(`simple-container`, `kind-and-use`, `arrangement`, `complex-layout`) and the
+`nesting`/`contexts` site samples were regenerated for the bordered band (taller
+boxes, labels in their bands; `complex-layout` also widened `backend` to fit
+"Backend Services" and re-routed its arrows); the `group-label` golden carries a
+bordered top, a bordered bottom, and a `box: none` labelled group to lock all
+three in. A `box: none` group whose label is wider than its children left-aligns
+the children under the centred, full-width band (it doesn't stretch children) —
+acceptable, and the width reservation is what stops the label overflowing a
+sibling. The band is added before the `size` override, so on a *horizontal* parent
+`size` scales the band along with the height (the same way `size` already scales a
+parent below its content) — untouched here, and no fixture combines them. Per-side
+margins and visual styling remain open; `label` position is the first `@layout`
+property that is neither geometry nor reuse, a small precedent for the styling
+layer `kind` is meant to hook.
+
 ## 2026-06-18 — box:none uses an effective margin (no perimeter padding)
 **Choice:** Correct the previous implementation of "box:none is transparent to margins." A `box: none` node now reserves **no perimeter padding** of its own — its border box is the tight bounding box of its children (with collapsed inter-sibling gaps) — and instead exposes an **effective margin** = `max(own margin, max child margin)` that its parent reserves around it. Implemented by computing `l.margin` (the effective margin) in `calcDimensions` and dropping the `wall` flag entirely: a node reserves perimeter iff it is itself bordered.
 **Why:** The earlier fix made a walled box:none group reserve perimeter padding *like a bordered box*. That padding is a real gap that does **not** collapse with the group's siblings, so a box:none row stacked above a normal node showed a doubled vertical channel (the row's bottom padding *plus* the row→sibling gap = 16, while every other channel was 8) — reported on the bounded-contexts example. Modelling the group's margin as an effective margin that *collapses* like any other margin makes every channel uniform again, including the one across the transparent group's edge. This supersedes the prior ADR's "a child under a group with a non-zero margin is inset by both" — it is now inset by the *larger* of the two, never the sum.

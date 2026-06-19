@@ -8,10 +8,11 @@ import (
 	"github.com/kurrik/arkitecture/resolve"
 )
 
-func ptr(s string) *string                { return &s }
-func fptr(f float64) *float64             { return &f }
-func dirp(d ast.Direction) *ast.Direction { return &d }
-func boxp(b ast.Box) *ast.Box             { return &b }
+func ptr(s string) *string                        { return &s }
+func fptr(f float64) *float64                     { return &f }
+func dirp(d ast.Direction) *ast.Direction         { return &d }
+func boxp(b ast.Box) *ast.Box                     { return &b }
+func lblp(p ast.LabelPosition) *ast.LabelPosition { return &p }
 
 func rule(selector string, d *ast.Declarations) ast.LayoutRule {
 	return ast.LayoutRule{Selector: selector, Decls: d}
@@ -201,6 +202,112 @@ func TestGenerateBoxNoneDrawsNoRect(t *testing.T) {
 	}
 	if !strings.Contains(svg, ">child</text>") {
 		t.Errorf("child label missing:\n%s", svg)
+	}
+}
+
+func TestGenerateGroupLabelReservesTopBand(t *testing.T) {
+	// A bordered parent with a label and children reserves a top strip for the
+	// label; children lay out below it (not under the label), and the label is
+	// centred in the band rather than in the whole box.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{
+			ID: "p", Label: ptr("Group"),
+			Children: []*ast.ContainerNode{
+				{ID: "a", Label: ptr("A")},
+				{ID: "b", Label: ptr("B")},
+			},
+		}},
+		Layout: []ast.LayoutRule{rule("p", &ast.Declarations{Direction: dirp(ast.Vertical)})},
+	}
+	svg := render(t, doc, Options{}) // 12px: leaf 24, band max(round(14.4)+2,24)=24
+	for _, want := range []string{
+		`width="40" height="96">`,                   // 24 band + 8 + 24 + 8 + 24 + 8
+		`<text x="20" y="12"`,                       // label centred in the top band
+		`<rect x="8" y="32" width="24" height="24"`, // a, an 8px margin below the band wall
+		`<rect x="8" y="64" width="24" height="24"`, // b below a
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("SVG missing %q:\n%s", want, svg)
+		}
+	}
+}
+
+func TestGenerateGroupLabelBottomBand(t *testing.T) {
+	// label: bottom reserves the strip under the children: children sit at the
+	// top, the label is centred in the bottom band.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{
+			ID: "p", Label: ptr("Group"),
+			Children: []*ast.ContainerNode{
+				{ID: "a", Label: ptr("A")},
+				{ID: "b", Label: ptr("B")},
+			},
+		}},
+		Layout: []ast.LayoutRule{rule("p", &ast.Declarations{Direction: dirp(ast.Vertical), LabelPos: lblp(ast.LabelBottom)})},
+	}
+	svg := render(t, doc, Options{})
+	for _, want := range []string{
+		`width="40" height="96">`,
+		`<rect x="8" y="8" width="24" height="24"`,  // a at the top (no top band)
+		`<rect x="8" y="40" width="24" height="24"`, // b below a
+		`<text x="20" y="84"`,                       // label centred in the bottom band (y in [72,96])
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("SVG missing %q:\n%s", want, svg)
+		}
+	}
+}
+
+func TestGenerateGroupLabelWidensBoxToFit(t *testing.T) {
+	// When the label is wider than the children, the box widens to fit it and the
+	// children stretch to the wider cross axis.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{
+			ID: "p", Label: ptr("A Very Wide Group Title"),
+			Children: []*ast.ContainerNode{
+				{ID: "a", Label: ptr("A")},
+			},
+		}},
+		Layout: []ast.LayoutRule{rule("p", &ast.Declarations{Direction: dirp(ast.Vertical)})},
+	}
+	svg := render(t, doc, Options{})
+	// label width = round(23*12*0.6)+2 = 168; child stretches to 168-2*8 = 152.
+	for _, want := range []string{
+		`width="168"`,
+		`<rect x="8" y="32" width="152" height="24"`,
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("SVG missing %q:\n%s", want, svg)
+		}
+	}
+}
+
+func TestGenerateBoxNoneLabelReservesBand(t *testing.T) {
+	// A box:none group with a label also reserves a band — centring the label
+	// over the children would just let them obscure it. The group draws no
+	// border and packs its child flush below the band (no perimeter of its own),
+	// but the band space is still reserved and the label sits in it.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{
+			ID: "p", Label: ptr("G"),
+			Children: []*ast.ContainerNode{
+				{ID: "a", Label: ptr("A")},
+			},
+		}},
+		Layout: []ast.LayoutRule{rule("p", &ast.Declarations{Box: boxp(ast.BoxNone)})},
+	}
+	svg := render(t, doc, Options{})                  // 12px: band 24, child 24
+	if got := strings.Count(svg, "<rect"); got != 1 { // only a; p is box:none
+		t.Errorf("got %d rects, want 1 (only a; p is box:none):\n%s", got, svg)
+	}
+	for _, want := range []string{
+		`width="24" height="48">`,                   // band 24 + child 24
+		`<text x="12" y="12"`,                       // label "G" in the top band
+		`<rect x="0" y="24" width="24" height="24"`, // child flush below the band
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("SVG missing %q:\n%s", want, svg)
+		}
 	}
 }
 

@@ -473,6 +473,8 @@ func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
 			p.parseNumberDecl(&d.Margin, "margin", propTok)
 		case "box":
 			p.parseBoxDecl(d, propTok)
+		case "label":
+			p.parseLabelPosDecl(d, propTok)
 		default:
 			p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown layout property '%s'", name), propTok.Line, propTok.Column)
 			if !p.check(TokenRBrace) && !p.isAtEnd() {
@@ -608,6 +610,36 @@ func (p *parser) parseBoxDecl(d *ast.Declarations, propTok Token) {
 		return
 	}
 	d.Box = &box
+}
+
+// parseLabelPosDecl reads `label: top | bottom`, the position of a parent's
+// reserved label strip. (In a node *body* `label:` is the text; here in @layout
+// it is the strip's placement.)
+func (p *parser) parseLabelPosDecl(d *ast.Declarations, propTok Token) {
+	if !p.check(TokenIdentifier) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected 'top' or 'bottom' for label, got %s", tok.Type), tok.Line, tok.Column)
+		if !p.check(TokenRBrace) {
+			p.advance()
+		}
+		return
+	}
+	tok := p.advance()
+	var pos ast.LabelPosition
+	switch tok.Value {
+	case "top":
+		pos = ast.LabelTop
+	case "bottom":
+		pos = ast.LabelBottom
+	default:
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid label position '%s', expected 'top' or 'bottom'", tok.Value), tok.Line, tok.Column)
+		return
+	}
+	if d.LabelPos != nil {
+		p.addError(ast.ErrorSyntax, "Duplicate layout property 'label'", propTok.Line, propTok.Column)
+		return
+	}
+	d.LabelPos = &pos
 }
 
 // parseAnchorPosition reads `anchor name: [x, y]`.

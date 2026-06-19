@@ -97,6 +97,7 @@ worker {}</code></pre>
         <tr><td><code>size</code></td><td>number <code>0.0</code>–<code>1.0</code></td><td>Override for the node's <em>orthogonal</em> dimension, as a fraction of what the parent would otherwise give it.</td></tr>
         <tr><td><code>margin</code></td><td>number <code>&ge; 0</code></td><td>Uniform blank space reserved around the node's border box. Defaults to <code>8</code>; set <code>0</code> to pack flush against siblings.</td></tr>
         <tr><td><code>box</code></td><td><code>none</code> &middot; <code>default</code></td><td>Whether the node draws its border. <code>none</code> makes it invisible — no rectangle — while keeping its id, label, and anchors. Defaults to <code>default</code>.</td></tr>
+        <tr><td><code>label</code></td><td><code>top</code> &middot; <code>bottom</code></td><td>Which end of a parent reserves the strip for its label, so the label never overlaps the children. In a bordered parent the strip acts as an inner wall; a <code>box: none</code> parent reserves the same strip and packs its children flush below it. Defaults to <code>top</code>.</td></tr>
         <tr><td><code>anchor &lt;name&gt;</code></td><td><code>[x, y]</code></td><td>Positions a declared anchor name, in relative coordinates (see below).</td></tr>
       </tbody>
     </table>
