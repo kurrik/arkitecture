@@ -1,0 +1,24 @@
+platform {
+  label: "Platform"
+
+  # `kind` is a semantic tag — what the node *is*. A custom kind imports the
+  # @block of the same name as a layout baseline, so both tiers lay out the same
+  # way from one rule, with no per-node repetition.
+  edge { kind: tier; cdn { label: "CDN" } lb { label: "Load Balancer" } }
+  core { kind: tier; app { label: "App" } db { label: "Database" } }
+
+  # The built-in `invisible` kind applies box: none, so this node groups its
+  # children for layout only — no border — while keeping its id and path.
+  external {
+    kind: invisible
+    stripe { label: "Stripe" }
+    twilio { label: "Twilio" }
+  }
+}
+
+@layout {
+  @block tier { direction: horizontal }
+
+  platform          { direction: vertical }
+  platform.external { direction: horizontal }
+}
