@@ -67,6 +67,12 @@ row {
 # once per node directly (inline + sheet combined) — but an imported value (from
 # `kind` or `@use`) is freely overridden by a direct one.
 @layout {
+  # A bare `margin:` at the sheet root sets the DOCUMENT DEFAULT margin — the
+  # fallback spacing for every node that sets none, replacing the built-in 8. It
+  # is a single global default, not a cascade: a node still overrides it with its
+  # own `margin` (n2 sets 12 below). One knob to space the whole diagram out.
+  margin: 10
+
   # `@block` defines a reusable, parameterless bundle of layout that you pull in
   # with `@use`. Unlike a CSS class it matches nothing on its own — importing is
   # explicit and opt-in. Blocks may compose (`@use` another block); cycles error.

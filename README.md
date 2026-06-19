@@ -136,6 +136,16 @@ sit inline in a node body or stand alone as a sheet:
 }
 ```
 
+A bare `margin: N` at a sheet root sets the **document default margin** — the
+fallback spacing for every node that sets none, replacing the built-in 8. It's
+the one knob for spacing a whole diagram out (a node still overrides it directly):
+
+```
+@layout {
+  margin: 16          # space every node out; not a cascade — just a new default
+}
+```
+
 ### Reuse — `@block` / `@use` / `kind`
 
 Bundle shared layout into a named `@block` and pull it in with `@use`. A node's
@@ -206,6 +216,11 @@ Layout (in `@layout`):
   `box: none` parents alike)
 - **`anchor <name>: [x, y]`** — position a declared anchor
 - **`@use <block>`** — import a named `@block`
+
+Document-wide (at an `@layout` sheet root, not in a selector):
+
+- **`margin`** — the default margin for every node that sets none (overrides the
+  built-in 8)
 
 ### Coordinate system
 
