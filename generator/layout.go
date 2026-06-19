@@ -34,13 +34,14 @@ type layoutResult struct {
 }
 
 type layoutNode struct {
-	node     *ast.ContainerNode // nil for a synthetic @group wrapper
-	path     string             // full dotted path ("" for a group)
-	decls    *ast.Declarations  // resolved layout for this node (may be nil)
-	dim      dimensions         // the border box: the visible rectangle (content + border)
-	margin   float64            // uniform margin around the border box (the margin box)
-	isGroup  bool               // true for an anonymous @group: invisible, unaddressable
-	children []*layoutNode
+	node      *ast.ContainerNode // nil for a synthetic @group wrapper
+	path      string             // full dotted path ("" for a group)
+	decls     *ast.Declarations  // resolved layout for this node (may be nil)
+	dim       dimensions         // the border box: the visible rectangle (content + border)
+	margin    float64            // uniform margin around the border box (the margin box)
+	labelBand float64            // reserved label-strip height (0 = no reserved strip)
+	isGroup   bool               // true for an anonymous @group: invisible, unaddressable
+	children  []*layoutNode
 }
 
 // computeLayout sizes and positions every node bottom-up then top-down, sizes
@@ -139,10 +140,7 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 		if l.node == nil {
 			return // an empty @group occupies no space
 		}
-		label := ""
-		if l.node.Label != nil {
-			label = *l.node.Label
-		}
+		label, _ := nodeLabel(l)
 		l.dim.width = math.Max(textWidth(label, fontSize)+2*borderWidth, minDim)
 		l.dim.height = math.Max(textHeight(label, fontSize)+2*borderWidth, minDim)
 		return
@@ -156,6 +154,21 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 			l.margin = math.Max(l.margin, c.margin)
 		}
 	}
+
+	// A bordered, labelled parent reserves a strip for its label — a top
+	// (default) or bottom band, sized like a leaf box holding that label. The
+	// band's inner edge acts as a wall: the children lay out in the remaining
+	// area and their facing margin lands against it, so the label never overlaps
+	// them. labelW keeps the box at least as wide as its label. (A box:none group
+	// is transparent and reserves no band; its label, if any, stays centred.)
+	var band, labelW float64
+	if bordered {
+		if label, ok := nodeLabel(l); ok {
+			band = labelBandHeight(label, fontSize)
+			labelW = textWidth(label, fontSize) + 2*borderWidth
+		}
+	}
+	l.labelBand = band
 
 	// Channels between boxes collapse rather than stack: the gap between two
 	// adjacent siblings is the larger of their facing margins (not the sum), so
@@ -181,10 +194,13 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 		if bordered && n > 0 {
 			main += l.children[0].margin + l.children[n-1].margin
 		}
-		l.dim.width, l.dim.height = main, cross
+		// The band is a full-width strip stacked above/below the children area
+		// (cross); the label must also fit across the main (width) axis.
+		l.dim.width = math.Max(main, labelW)
+		l.dim.height = cross + band
 		if bordered {
 			for _, c := range l.children {
-				c.dim.height = l.dim.height - 2*c.margin
+				c.dim.height = cross - 2*c.margin
 			}
 		}
 	} else {
@@ -203,7 +219,10 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 		if bordered && n > 0 {
 			main += l.children[0].margin + l.children[n-1].margin
 		}
-		l.dim.height, l.dim.width = main, cross
+		// The band is a full-width strip stacked above/below the children stack
+		// (main); the label must also fit across the cross (width) axis.
+		l.dim.height = main + band
+		l.dim.width = math.Max(cross, labelW)
 		if bordered {
 			for _, c := range l.children {
 				c.dim.width = l.dim.width - 2*c.margin
@@ -233,6 +252,13 @@ func positionNodes(l *layoutNode, x, y float64) {
 	direction := directionOf(l.decls)
 	bordered := nodeBordered(l)
 
+	// A top label band shifts the child-layout origin down past the reserved
+	// strip; a bottom band leaves children at the top and sits below them.
+	childY := y
+	if l.labelBand > 0 && labelPositionOf(l.decls) != ast.LabelBottom {
+		childY = y + l.labelBand
+	}
+
 	if direction == ast.Horizontal {
 		cursor := x
 		if bordered && len(l.children) > 0 {
@@ -242,15 +268,15 @@ func positionNodes(l *layoutNode, x, y float64) {
 			if i > 0 {
 				cursor += math.Max(l.children[i-1].margin, c.margin)
 			}
-			cy := y
+			cy := childY
 			if bordered {
-				cy = y + c.margin
+				cy = childY + c.margin
 			}
 			positionNodes(c, cursor, cy)
 			cursor += c.dim.width
 		}
 	} else {
-		cursor := y
+		cursor := childY
 		if bordered && len(l.children) > 0 {
 			cursor += l.children[0].margin
 		}
@@ -360,4 +386,28 @@ func sizeOf(d *ast.Declarations) *float64 {
 		return d.Size
 	}
 	return nil
+}
+
+// nodeLabel returns a layout node's non-empty label text, if it has one. A
+// synthetic @group (node == nil) never does.
+func nodeLabel(l *layoutNode) (string, bool) {
+	if l.node != nil && l.node.Label != nil && *l.node.Label != "" {
+		return *l.node.Label, true
+	}
+	return "", false
+}
+
+// labelBandHeight is the strip a bordered, labelled parent reserves for its
+// label. It is sized exactly like a leaf box holding that label, so a group's
+// title reads as a consistent row.
+func labelBandHeight(label string, fontSize float64) float64 {
+	return math.Max(textHeight(label, fontSize)+2*borderWidth, fontSize*2)
+}
+
+// labelPositionOf returns the resolved label-strip position (default top).
+func labelPositionOf(d *ast.Declarations) ast.LabelPosition {
+	if d != nil && d.LabelPos != nil && *d.LabelPos != ast.LabelPositionUnset {
+		return *d.LabelPos
+	}
+	return ast.LabelTop
 }

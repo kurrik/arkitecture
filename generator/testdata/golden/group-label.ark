@@ -1,0 +1,21 @@
+# Group labels reserve a strip so the label never overlaps the children. The
+# strip is at the top by default; `label: bottom` moves it under the children.
+# It acts as an inner wall — the children's facing margin lands against it.
+topLabel {
+  label: "Top Group"
+
+  a { label: "A" }
+  b { label: "B" }
+}
+
+bottomLabel {
+  label: "Bottom Group"
+
+  c { label: "C" }
+  d { label: "D" }
+}
+
+@layout {
+  topLabel    { direction: vertical }
+  bottomLabel { direction: vertical; label: bottom }
+}

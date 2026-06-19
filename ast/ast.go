@@ -46,6 +46,22 @@ const (
 	BoxNone Box = "none"
 )
 
+// LabelPosition controls where a bordered parent's label sits. A parent reserves
+// a strip for its label so it does not overlap the children; this says whether
+// that strip is at the top (default) or the bottom of the box. The empty value
+// means "unset"; consumers default it to LabelTop.
+type LabelPosition string
+
+const (
+	// LabelPositionUnset is the zero value, meaning the author did not specify a
+	// label position. Layout treats it as LabelTop.
+	LabelPositionUnset LabelPosition = ""
+	// LabelTop reserves the label strip at the top of the box.
+	LabelTop LabelPosition = "top"
+	// LabelBottom reserves the label strip at the bottom of the box.
+	LabelBottom LabelPosition = "bottom"
+)
+
 // ContainerNode is the single node type: a component identified by ID, with an
 // optional label, an optional semantic kind, the named anchors it exposes, and
 // nested children. Layout (direction, size, margin, box, anchor positions) is
@@ -64,7 +80,8 @@ type ContainerNode struct {
 // Declarations is a set of layout properties — the body of an `@layout` block.
 // Each scalar is a pointer so "unset" stays distinguishable from a real value
 // (which matters for the resolve stage's duplicate-property conflict check).
-// Anchors maps an anchor name to its relative [x, y] position. Arrangement, when
+// LabelPos places a bordered parent's reserved label strip (top/bottom). Anchors
+// maps an anchor name to its relative [x, y] position. Arrangement, when
 // non-empty, is the node's ordered child layout (with optional `@group`
 // wrappers); empty means "lay children out in semantic order".
 type Declarations struct {
@@ -72,6 +89,7 @@ type Declarations struct {
 	Size        *float64
 	Margin      *float64
 	Box         *Box
+	LabelPos    *LabelPosition
 	Anchors     map[string][2]float64
 	Arrangement []ArrangementItem
 }

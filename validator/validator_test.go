@@ -169,6 +169,20 @@ func TestValidateConflictingProperty(t *testing.T) {
 	}
 }
 
+func TestValidateConflictingLabelPosition(t *testing.T) {
+	top, bottom := ast.LabelTop, ast.LabelBottom
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{ID: "a"}},
+		Layout: []ast.LayoutRule{
+			{Selector: "a", Decls: &ast.Declarations{LabelPos: &top}},
+			{Selector: "a", Decls: &ast.Declarations{LabelPos: &bottom}},
+		},
+	}
+	if !containsMsg(Validate(doc), "Conflicting layout property 'label' on node 'a'") {
+		t.Errorf("expected label conflict error, got %+v", Validate(doc))
+	}
+}
+
 func TestValidateAnchorPositionUndeclared(t *testing.T) {
 	doc := &ast.Document{
 		Nodes:  []*ast.ContainerNode{{ID: "a"}}, // no declared anchors

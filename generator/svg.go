@@ -47,12 +47,26 @@ func collectNodeElements(l *layoutNode, fontSize float64, fontFamily string, els
 	if nodeBordered(l) {
 		*els = append(*els, nodeRect(l.dim))
 	}
-	if l.node != nil && l.node.Label != nil && *l.node.Label != "" {
-		*els = append(*els, nodeText(*l.node.Label, l.dim, fontSize, fontFamily))
+	if label, ok := nodeLabel(l); ok {
+		*els = append(*els, nodeText(label, labelDim(l), fontSize, fontFamily))
 	}
 	for _, c := range l.children {
 		collectNodeElements(c, fontSize, fontFamily, els)
 	}
+}
+
+// labelDim is the rectangle a node's label is centred in: the reserved band (at
+// the top or bottom) for a labelled parent, or the whole border box otherwise (a
+// leaf, or a node with no reserved band).
+func labelDim(l *layoutNode) dimensions {
+	if l.labelBand <= 0 {
+		return l.dim
+	}
+	d := dimensions{x: l.dim.x, y: l.dim.y, width: l.dim.width, height: l.labelBand}
+	if labelPositionOf(l.decls) == ast.LabelBottom {
+		d.y = l.dim.y + l.dim.height - l.labelBand
+	}
+	return d
 }
 
 func nodeRect(d dimensions) string {

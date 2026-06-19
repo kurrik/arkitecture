@@ -84,6 +84,20 @@ func TestParseInlineLayout(t *testing.T) {
 	}
 }
 
+func TestParseLabelPosition(t *testing.T) {
+	doc := parseOK(t, "a { c {} }\n@layout { a { label: top }\n  a { label: bottom } }")
+	// Two rules on 'a'; the parser keeps both (the validator rejects the conflict).
+	var got []ast.LabelPosition
+	for i := range doc.Layout {
+		if doc.Layout[i].Selector == "a" && doc.Layout[i].Decls.LabelPos != nil {
+			got = append(got, *doc.Layout[i].Decls.LabelPos)
+		}
+	}
+	if len(got) != 2 || got[0] != ast.LabelTop || got[1] != ast.LabelBottom {
+		t.Errorf("label positions = %v, want [top bottom]", got)
+	}
+}
+
 func TestParseLayoutSheet(t *testing.T) {
 	doc := parseOK(t, "p { c {} }\n@layout {\n  p { direction: vertical }\n  p.c { size: 0.5 }\n}")
 	if len(doc.Layout) != 2 {
@@ -334,6 +348,8 @@ func TestParseErrors(t *testing.T) {
 		{"non-number size", `a { @layout { size: x } }`, ast.ErrorSyntax, "Expected number value for size"},
 		{"non-number margin", `a { @layout { margin: "x" } }`, ast.ErrorSyntax, "Expected number value for margin"},
 		{"bad box", `a { @layout { box: solid } }`, ast.ErrorSyntax, "Invalid box 'solid'"},
+		{"bad label position", `a { @layout { label: middle } }`, ast.ErrorSyntax, "Invalid label position 'middle'"},
+		{"duplicate label position", `a { @layout { label: top; label: bottom } }`, ast.ErrorSyntax, "Duplicate layout property 'label'"},
 		{"unknown layout property", `a { @layout { foo: 1 } }`, ast.ErrorSyntax, "Unknown layout property 'foo'"},
 		{"duplicate layout property", `a { @layout { size: 0.5; size: 0.6 } }`, ast.ErrorSyntax, "Duplicate layout property 'size'"},
 		{"unknown top-level directive", `@block { }`, ast.ErrorSyntax, "Unknown directive '@block'"},

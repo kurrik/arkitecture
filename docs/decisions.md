@@ -18,6 +18,57 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-19 — Group labels reserve a band that walls off the children
+**Choice:** A **bordered parent with a label** now reserves a strip — a **label
+band** — for that label instead of centring it over the children (which obscured
+them). Concretely:
+- **A new `@layout` property `label: top | bottom`** (default `top`) places the
+  band at the top or bottom of the box. It lives on `Declarations` as
+  `LabelPos *LabelPosition`, parses/validates/merges/conflicts like any other
+  scalar layout property, and is a harmless no-op on a node with no label or no
+  children.
+- **The band is sized like a leaf box holding that label** (`max(textHeight +
+  2·border, fontSize·2)`), so a group title reads as a consistent row, and the box
+  **widens** to at least the label's width so the label never clips.
+- **The band's inner edge is a wall.** It is added to the parent's height as a
+  full-width strip; the children lay out in the remaining area and their facing
+  margin collapses against the band exactly as it would against the border. A top
+  band shifts the child-layout origin down; a bottom band leaves children at the
+  top and sits under them. The change is `band`/`labelBand` plumbing in
+  `calcDimensions`/`positionNodes` plus a `labelDim` helper that centres the label
+  in the band in `svg.go`.
+- **`box: none` groups reserve no band** — their label, if any, stays centred (the
+  old behaviour). Bordered-only is the scope.
+**Why:** The reported bug was that a labelled group centred its label over its
+children (`simple-container`, `nesting`), making it unreadable. Reserving space
+and treating its edge as a wall makes the label own its strip while reusing the
+existing margin-collapse model wholesale — the band is just one more wall, so
+every channel stays uniform and nothing else in the box model had to change.
+Sizing the band like a leaf box (rather than tight to the text) makes a title read
+as a row consistent with sibling leaves and is trivial to document ("as tall as
+the label would be on its own"). **Scoping to bordered nodes** is faithful to the
+request's "act as a wall for margins": a `box: none` node is *defined* as
+transparent (no walls — its children's margins push through to the nearest
+bordered ancestor), so giving it a band would contradict that; labelled groups
+that want a title are the ones that draw a border anyway. **Top default** matches
+the conventional title-bar position; **bottom** is offered for captions. Reusing
+the keyword `label` (text in a node body, position in `@layout`) mirrors the
+existing anchor name/position split — same word, two layers.
+**Implications:** Only **bordered, labelled parents** change; leaves, unlabelled
+parents, and `box: none` groups are byte-identical. Four goldens
+(`simple-container`, `kind-and-use`, `arrangement`, `complex-layout`) and the
+`nesting`/`contexts` site samples were regenerated (taller boxes, labels in their
+bands; `complex-layout` also widened `backend` to fit "Backend Services" and
+re-routed its arrows); a new `group-label` golden locks both positions in.
+`box: none` labelled groups keep the latent overlap — a deliberate non-goal, since
+a transparent wall is a contradiction; revisit only if a titled borderless group
+is ever wanted. The band is added before the `size` override, so on a *horizontal*
+parent `size` scales the band along with the height (the same way `size` already
+scales a parent below its content) — untouched here, and no fixture combines them.
+Per-side margins and visual styling remain open; `label` position is the first
+`@layout` property that is neither geometry nor reuse, a small precedent for the
+styling layer `kind` is meant to hook.
+
 ## 2026-06-18 — box:none uses an effective margin (no perimeter padding)
 **Choice:** Correct the previous implementation of "box:none is transparent to margins." A `box: none` node now reserves **no perimeter padding** of its own — its border box is the tight bounding box of its children (with collapsed inter-sibling gaps) — and instead exposes an **effective margin** = `max(own margin, max child margin)` that its parent reserves around it. Implemented by computing `l.margin` (the effective margin) in `calcDimensions` and dropping the `wall` flag entirely: a node reserves perimeter iff it is itself bordered.
 **Why:** The earlier fix made a walled box:none group reserve perimeter padding *like a bordered box*. That padding is a real gap that does **not** collapse with the group's siblings, so a box:none row stacked above a normal node showed a doubled vertical channel (the row's bottom padding *plus* the row→sibling gap = 16, while every other channel was 8) — reported on the bounded-contexts example. Modelling the group's margin as an effective margin that *collapses* like any other margin makes every channel uniform again, including the one across the transparent group's edge. This supersedes the prior ADR's "a child under a group with a non-zero margin is inset by both" — it is now inset by the *larger* of the two, never the sum.

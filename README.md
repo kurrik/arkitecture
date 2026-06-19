@@ -201,6 +201,8 @@ Layout (in `@layout`):
 - **`size`** — override (0.0–1.0) for the orthogonal dimension
 - **`margin`** — space around the node's border box (default 8; `0` packs flush)
 - **`box`** — `default` (bordered) or `none` (borderless grouping)
+- **`label`** — `top` (default) or `bottom`: which end of a bordered parent
+  reserves the strip for its label, so the label never overlaps the children
 - **`anchor <name>: [x, y]`** — position a declared anchor
 - **`@use <block>`** — import a named `@block`
 

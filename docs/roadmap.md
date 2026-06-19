@@ -6,6 +6,15 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **Group label bands** (2026-06-19): a bordered parent with a label now reserves
+  a strip for it — sized like a leaf box holding the label — instead of centring
+  the label over (and obscuring) its children. A new `@layout` property
+  `label: top | bottom` (default top) places the strip; its inner edge acts as a
+  wall, so the children's facing margin collapses against it, and the box widens
+  to fit the label. `box: none` groups are transparent and reserve no band. A new
+  `group-label` golden locks both positions in; the four labelled-parent goldens
+  and the `nesting`/`contexts` site samples were regenerated. See the ADR in
+  [decisions.md](decisions.md).
 - **M5 — `@layout` regrouping** (2026-06-18): an anonymous `@group { … }` inside a
   node's `@layout` block wraps sibling children into an invisible layout
   sub-container (its own `direction`/`size`/`margin`, no border, no path segment),

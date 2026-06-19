@@ -61,6 +61,26 @@ func TestResolveLastWriteWins(t *testing.T) {
 	}
 }
 
+func TestResolveLabelPosition(t *testing.T) {
+	// label position merges like any other scalar: a block supplies it via @use
+	// (imported tier) and a direct rule overrides the import.
+	bottom, top := ast.LabelBottom, ast.LabelTop
+	doc := &ast.Document{
+		Blocks: []ast.Block{{Name: "titled", Decls: &ast.Declarations{LabelPos: &bottom}}},
+		Layout: []ast.LayoutRule{
+			{Selector: "a", Uses: []ast.Use{{Block: "titled"}}},
+			{Selector: "b", Uses: []ast.Use{{Block: "titled"}}, Decls: &ast.Declarations{LabelPos: &top}},
+		},
+	}
+	got := Resolve(doc)
+	if a := got["a"]; a == nil || a.LabelPos == nil || *a.LabelPos != ast.LabelBottom {
+		t.Errorf("a.LabelPos = %v, want bottom (imported via @use)", a)
+	}
+	if b := got["b"]; b == nil || b.LabelPos == nil || *b.LabelPos != ast.LabelTop {
+		t.Errorf("b.LabelPos = %v, want top (direct overrides import)", b)
+	}
+}
+
 func TestResolveKindBaseline(t *testing.T) {
 	// The built-in `invisible` kind applies box:none with no @block needed.
 	doc := &ast.Document{Nodes: []*ast.ContainerNode{{ID: "g", Kind: "invisible"}}}

@@ -76,6 +76,11 @@ choose controllable.
 - **Box / border box / margin box** — `box: none` makes a node draw no border
   (an ID-bearing twin of the layout-only group); the **border box** is the
   visible rectangle and the **margin box** is the border box plus its margins.
+- **Label band** — the strip a bordered parent reserves for its own label so it
+  does not overlap the children. `label: top | bottom` (a `@layout` property,
+  default top) chooses which end. The band acts as an inner wall for margins; a
+  leaf needs none (its box already fits its label) and a `box: none` group gets
+  none (it is transparent). See *Box model & margins*.
 
 ## The workflow
 
@@ -97,6 +102,13 @@ reference covering every feature.
 Layout is bottom-up and deterministic:
 
 - A leaf node sizes to its label text (measured with a fixed font).
+- A **bordered parent with a label** reserves a strip — its **label band** — for
+  that label, sized like a leaf box holding it, at the top (default) or bottom as
+  set by `label: top | bottom` in `@layout`. The band's inner edge is a **wall**:
+  the children lay out in the remaining area and their facing margin collapses
+  against it, so the label never overlaps them; the box also grows at least as
+  wide as the label. A `box: none` group is transparent and reserves no band (its
+  label, if any, stays centred).
 - A **vertical** parent stacks children top-to-bottom: its width is the widest
   child; children span the full width unless they set `size`.
 - A **horizontal** parent places children left-to-right: its height is the tallest
@@ -155,16 +167,18 @@ draw a border just sets `box: none` in layout — the spiritual twin of CSS
 
 ### What's semantic vs. what's layout
 
-| Semantic (in the `.ark` structure)  | Layout (in `@layout`)            |
-| ----------------------------------- | -------------------------------- |
-| node `id`, `label`                  | `direction`, `size`              |
+| Semantic (in the `.ark` structure)  | Layout (in `@layout`)             |
+| ----------------------------------- | --------------------------------- |
+| node `id`, `label` **text**         | `direction`, `size`, `label` **position** |
 | `kind` (e.g. `database`)            | implicit `@use database` baseline |
-| anchor **names** (`db`, `north`)    | anchor **positions** (`[x, y]`)  |
-| containment (nesting)               | child **arrangement** + regroup  |
-| arrows (`a#db --> b`)               | `box: none`, future styling      |
+| anchor **names** (`db`, `north`)    | anchor **positions** (`[x, y]`)   |
+| containment (nesting)               | child **arrangement** + regroup   |
+| arrows (`a#db --> b`)               | `box: none`, future styling       |
 
 An arrow connects *named* anchors (semantic); where a named anchor sits on the box
-is layout.
+is layout. The same split applies to a node's label: the **text** is semantic (a
+node-body `label: "…"`), while which end of a bordered parent reserves the strip
+for it is layout (an `@layout` `label: top | bottom`).
 
 ### Selectors and resolution — no cascade
 
@@ -303,6 +317,14 @@ Two rules govern how margins consume space:
   there. Only with no bordered ancestor at all — an invisible chain up to the
   document root — do perimeter margins **collapse to zero**, so the canvas (and a
   top-level group) never gains phantom padding.
+
+A **bordered parent with a label** also reserves a **label band** — a top
+(default) or bottom strip (`label: top | bottom`) sized like a leaf box holding
+that label — whose inner edge is an additional wall: the children pack in the
+remaining area and their facing margin collapses against the band just as it
+would against the border, so the label sits in its own space instead of over the
+children. The box widens if needed to fit the label. A `box: none` group is
+transparent and reserves no band.
 
 Anchors and arrows attach to the **border box**; margins are the empty space
 around it — which is also what gives auto-routed arrows room to travel between
