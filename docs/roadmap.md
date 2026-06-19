@@ -6,6 +6,14 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **Document default margin** (2026-06-19): a bare `margin: N` at the root of an
+  `@layout` sheet sets the document-wide default margin — the fallback spacing for
+  every node that declares none, replacing the built-in 8. It's a single global
+  baseline (not a cascade): nodes still override it directly, and there's no
+  inheritance or selector specificity. Stored as `Document.DefaultMargin` and
+  threaded into the generator's `marginOf`. The one knob for "space the whole
+  diagram out" (the `pipeline` site sample now uses it). A `default-margin` golden
+  locks it in. See the ADR in [decisions.md](decisions.md).
 - **Group label bands** (2026-06-19): a parent with a label now reserves a strip
   for it — sized like a leaf box holding the label — instead of centring the label
   over (and obscuring) its children. A new `@layout` property `label: top | bottom`

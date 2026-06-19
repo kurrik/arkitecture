@@ -122,6 +122,19 @@ worker {}</code></pre>
       an <em>anonymous</em> grouping with no id — purely a layout wrapper — use a
       <a href="#group"><code>@group</code></a> in the node's arrangement (below).
     </p>
+    <p>
+      A bare <code>margin: N</code> at the <strong>root</strong> of an <code>@layout</code>
+      sheet (not inside a selector) sets the <strong>default margin</strong> — the fallback
+      spacing for every node that sets none, replacing the built-in <code>8</code>. It's the
+      one knob for spacing a whole diagram out. It is a single global default, not a cascade:
+      a node still overrides it with its own <code>margin</code>, and there is no inheritance
+      or specificity.
+    </p>
+<pre><code>@layout {
+  margin: 16          # every node that sets no margin now reserves 16
+
+  webapp { margin: 0 }  # … but a node still overrides the default directly
+}</code></pre>
 
     <h2 id="reuse">Reusable layout (<code>@block</code> &amp; <code>@use</code>)</h2>
     <p>

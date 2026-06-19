@@ -47,10 +47,17 @@ type layoutNode struct {
 // computeLayout sizes and positions every node bottom-up then top-down, sizes
 // the canvas to fit, and resolves anchor coordinates. It is deterministic.
 func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontSize float64) layoutResult {
+	// The document may override the built-in default margin with a bare `margin:`
+	// at an @layout sheet root; it is the fallback for any node that sets none.
+	defMargin := defaultMargin
+	if doc.DefaultMargin != nil {
+		defMargin = *doc.DefaultMargin
+	}
+
 	roots := make([]*layoutNode, 0, len(doc.Nodes))
 	for _, n := range doc.Nodes {
 		l := buildLayoutTree(n, "", layout)
-		calcDimensions(l, fontSize)
+		calcDimensions(l, fontSize, defMargin)
 		roots = append(roots, l)
 	}
 
@@ -125,12 +132,12 @@ func buildArrangement(items []ast.ArrangementItem, parent *ast.ContainerNode, pa
 // margins show through it, so its effective margin is the larger of its own and
 // its children's. That single effective margin then collapses against neighbours
 // like any other, so a box:none group never doubles a channel.
-func calcDimensions(l *layoutNode, fontSize float64) {
+func calcDimensions(l *layoutNode, fontSize, defMargin float64) {
 	for _, c := range l.children {
-		calcDimensions(c, fontSize)
+		calcDimensions(c, fontSize, defMargin)
 	}
 
-	ownMargin := marginOf(l.decls)
+	ownMargin := marginOf(l.decls, defMargin)
 	direction := directionOf(l.decls)
 	minDim := fontSize * 2
 	bordered := nodeBordered(l)
@@ -366,11 +373,13 @@ func isBordered(d *ast.Declarations) bool {
 	return !(d != nil && d.Box != nil && *d.Box == ast.BoxNone)
 }
 
-func marginOf(d *ast.Declarations) float64 {
+// marginOf returns a node's own margin, falling back to def (the document
+// default, itself defaulting to the built-in defaultMargin) when it sets none.
+func marginOf(d *ast.Declarations, def float64) float64 {
 	if d != nil && d.Margin != nil {
 		return *d.Margin
 	}
-	return defaultMargin
+	return def
 }
 
 func directionOf(d *ast.Declarations) ast.Direction {

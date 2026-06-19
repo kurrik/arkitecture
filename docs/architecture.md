@@ -66,9 +66,11 @@ until a stage genuinely needs sub-packages.
 The AST (`ast` package) is the contract every stage shares, split into a
 semantic layer and a layout layer:
 
-- **`Document`** — `{ Nodes []*ContainerNode; Layout []LayoutRule; Blocks []Block; Arrows []Arrow }`.
+- **`Document`** — `{ Nodes []*ContainerNode; Layout []LayoutRule; Blocks []Block; Arrows []Arrow; DefaultMargin *float64 }`.
   Layout rules, blocks, and arrows are collected into flat lists (top-level
-  statements may appear in any order), not attached to nodes.
+  statements may appear in any order), not attached to nodes. `DefaultMargin` (a
+  bare `margin:` at a sheet root) is the document-wide fallback margin — the
+  generator uses it in place of the built-in 8 for any node that sets none.
 - **`ContainerNode`** — the single node type: `ID`, optional `Label`, `Kind`,
   `Anchors` (declared anchor *names*), and `Children []*ContainerNode`. It carries
   no layout — `GroupNode` is gone; a borderless grouping is a `box: none` node.
@@ -104,8 +106,10 @@ semantic layer and a layout layer:
 - **Parser** (`parser/parser.go`) — recursive-descent build of the `Document`:
   semantic node bodies (`label`/`kind`/anchor names/children), inline and
   standalone `@layout` blocks (the declaration grammar and exact-path selectors),
-  `@block` definitions, `@use` imports, and `@group` child arrangements inside
-  `@layout` (a bare identifier with no `:` is a child reference), and arrows. Nodes,
+  a bare `margin:` at a sheet root (the document default, distinguished from a
+  selector by the `:`), `@block` definitions, `@use` imports, and `@group` child
+  arrangements inside `@layout` (a bare identifier with no `:` is a child
+  reference), and arrows. Nodes,
   `@layout` sheets, and arrows may appear in **any order** at the top level — each
   statement is dispatched by lookahead (an identifier reaching `-->` is an arrow),
   so an arrow can be colocated with the nodes it connects. An inline `@layout` is
@@ -142,8 +146,10 @@ semantic layer and a layout layer:
   real paths), reads each node's resolved declarations, sizes bottom-up applying
   the vertical/horizontal rules, the label band a labelled parent reserves (a
   top/bottom strip — a wall in a bordered parent, flush-packed reserved space in a
-  `box: none` one), and `size` overrides, positions top-down, sizes the canvas, and
-  resolves anchor coordinates (an unpositioned declared anchor defaults to centre);
+  `box: none` one), and `size` overrides — falling back to the document's
+  `DefaultMargin` (else 8) for any node with no margin — positions top-down, sizes
+  the canvas, and resolves anchor coordinates (an unpositioned declared anchor
+  defaults to centre);
   `svg.go` walks the tree to emit `<rect>` + `<text>` per visible node (the label
   is centred in its reserved band when a parent has one; a `box: none` node and a
   `@group` render no rect) and `<line>` + arrowhead `<marker>` per arrow. Output is

@@ -311,6 +311,45 @@ func TestGenerateBoxNoneLabelReservesBand(t *testing.T) {
 	}
 }
 
+func TestGenerateDocumentDefaultMargin(t *testing.T) {
+	// A document default margin replaces the built-in 8 as the fallback channel,
+	// so top-level siblings spread out by it instead of by 8.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{
+			{ID: "a", Label: ptr("A")},
+			{ID: "b", Label: ptr("B")},
+		},
+		DefaultMargin: fptr(20),
+	}
+	svg := render(t, doc, Options{}) // leaves 24x24; top-level horizontal pack
+	for _, want := range []string{
+		`width="68" height="24">`,                   // 24 + 20 channel + 24
+		`<rect x="0" y="0" width="24" height="24"`,  // a
+		`<rect x="44" y="0" width="24" height="24"`, // b, a 20px channel after a
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("SVG missing %q:\n%s", want, svg)
+		}
+	}
+}
+
+func TestGenerateDocumentDefaultMarginNodeOverride(t *testing.T) {
+	// A node's own margin still overrides the document default: inside a bordered
+	// parent (default 20), a child that sets margin: 4 is inset by 4, not 20.
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{
+			ID:       "p",
+			Children: []*ast.ContainerNode{{ID: "c", Label: ptr("C")}},
+		}},
+		Layout:        []ast.LayoutRule{rule("p.c", &ast.Declarations{Margin: fptr(4)})},
+		DefaultMargin: fptr(20),
+	}
+	svg := render(t, doc, Options{})
+	if want := `<rect x="4" y="4" width="24" height="24"`; !strings.Contains(svg, want) {
+		t.Errorf("child should be inset by its own margin 4, not the default 20 %q:\n%s", want, svg)
+	}
+}
+
 func TestArrowCardinalVertical(t *testing.T) {
 	// Two leaves stacked vertically (default margin 8): the arrow leaves a's
 	// south edge and enters b's north edge, not centre-to-centre.

@@ -85,8 +85,13 @@ func (v *validator) validateIDUniqueness(nodes []*ast.ContainerNode, parentPath 
 
 // validateLayout checks the layout rules: dangling selectors, duplicate direct
 // properties on a node, out-of-range values, and anchor positions that name an
-// anchor the node never declared.
+// anchor the node never declared. It also range-checks the document default
+// margin.
 func (v *validator) validateLayout(doc *ast.Document) {
+	if doc.DefaultMargin != nil && *doc.DefaultMargin < 0.0 {
+		v.addError(ast.ErrorConstraint, fmt.Sprintf("Document default margin %s is out of range, expected >= 0.0", formatNum(*doc.DefaultMargin)))
+	}
+
 	// Group rules by selector to detect duplicate direct properties on a node.
 	bySelector := make(map[string][]*ast.Declarations)
 	var order []string

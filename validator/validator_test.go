@@ -138,6 +138,15 @@ func TestValidateLayoutConstraints(t *testing.T) {
 	}
 }
 
+func TestValidateDocumentDefaultMarginRange(t *testing.T) {
+	neg := -1.0
+	doc := &ast.Document{Nodes: []*ast.ContainerNode{{ID: "a"}}, DefaultMargin: &neg}
+	errs := Validate(doc)
+	if !containsMsg(errs, "Document default margin -1 is out of range, expected >= 0.0") {
+		t.Errorf("expected document default margin range error, got %+v", errs)
+	}
+}
+
 func TestValidateDanglingSelector(t *testing.T) {
 	doc := &ast.Document{
 		Nodes:  []*ast.ContainerNode{{ID: "a"}},

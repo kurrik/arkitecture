@@ -156,11 +156,18 @@ type Arrow struct {
 // layout sheet rules, the named layout blocks (`@block`), and the arrows between
 // nodes. Layout, blocks, and arrows are parsed in phases, so they live in flat
 // lists rather than on the nodes.
+//
+// DefaultMargin, when set, is a document-wide default margin authored as a bare
+// `margin:` at the root of an `@layout` sheet. It replaces the built-in default
+// (8) as the fallback for any node that sets no margin of its own; it is a single
+// global baseline, not a cascade (no per-node selector wins it, and nodes still
+// override it directly). nil means "use the built-in default".
 type Document struct {
-	Nodes  []*ContainerNode
-	Layout []LayoutRule
-	Blocks []Block
-	Arrows []Arrow
+	Nodes         []*ContainerNode
+	Layout        []LayoutRule
+	Blocks        []Block
+	Arrows        []Arrow
+	DefaultMargin *float64
 }
 
 // BuiltinBlocks are the layout blocks every document gets for free, keyed by

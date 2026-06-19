@@ -10,3 +10,9 @@ database {
 
 webapp --> api
 api --> database
+
+# A document-wide default margin (set at the @layout root) spaces every node
+# out, so the boxes and their connecting arrows aren't crunched together.
+@layout {
+  margin: 16
+}

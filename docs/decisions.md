@@ -18,6 +18,45 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-19 — A document-wide default margin (root `@layout { margin: N }`)
+**Choice:** Let an author override the built-in default margin (8) for a whole
+diagram by writing a bare **`margin: N` at the root of an `@layout` sheet** —
+i.e. directly inside `@layout { … }`, not in a selector block. It is parsed into
+`Document.DefaultMargin *float64` (the parser distinguishes it from a selector by
+the `:` after the name, the same `:`-vs-`{` test the declaration grammar already
+uses), range-checked by the validator (`>= 0`), and consumed by the generator's
+`marginOf`, which now falls back to `DefaultMargin` (else the constant 8) for any
+node that sets no margin of its own. v1 accepts only `margin` at the root; any
+other property there is a syntax error ("only 'margin' may be set at the @layout
+root"). A duplicate is rejected like a duplicate declaration.
+**Why:** Reported via the "simple pipeline" demo reading too crunched: every node
+defaults to margin 8, so the only way to space a whole diagram out was to set
+`margin:` on every node — tedious and noisy. A single global knob is the natural
+fix, and it changes *nothing* about the model: the default margin was already a
+hardcoded global constant (8); this just makes that constant authorable. Crucially
+it is **not a cascade** — the thing `design.md` forbids. There is no parent→child
+inheritance and no selector specificity: a node's margin is still either its own
+explicit value or *the one* default, exactly as before. So it sits alongside the
+other global defaults (font, `direction: vertical`) rather than introducing
+action-at-a-distance. **Syntax:** a bare `margin: N` at the sheet root matches the
+author's mental model ("a root-level property in `@layout`") with no new keyword,
+and the position (root, not a selector) plus the `:` make it unambiguous even
+against a node literally named `margin` (`margin { … }` is still that node's
+selector). **Scope (margin only):** it is the one property that's both a sensible
+document-wide default *and* was the request; `direction` is the only other
+plausible one and is a trivial future addition, so the grammar rejects the rest
+with a clear, extensible error rather than guessing.
+**Implications:** Purely additive — no existing golden moved (no fixture set a
+document default). New `default-margin` golden; the `pipeline` site sample now
+sets `margin: 16` to fix the reported crunch. The default lives on `Document`
+(parsed from the `.ark`), **not** in generator `Options` (`FontSize`/`FontFamily`),
+because it is authored content, not a CLI/runtime knob — so there is no
+Option-vs-sheet precedence question to answer (a `--margin` flag, if ever wanted,
+is a separate decision). Range errors report at line 1, column 1 like the other
+validator range checks (the value carries no AST position; the parser catches the
+duplicate with position). Per-side margins remain open; this is orthogonal to that
+and to the label-band work landed the same day.
+
 ## 2026-06-19 — Labelled parents reserve a band for their label
 **Choice:** A **parent with a label** (bordered *or* `box: none`) now reserves a
 strip — a **label band** — for that label instead of centring it over the

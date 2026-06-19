@@ -1,0 +1,14 @@
+# A bare `margin:` at an @layout sheet root sets a document-wide default — the
+# fallback spacing for every node that sets none. Here it spreads the three
+# top-level nodes (and so their connecting arrows) further apart than the
+# built-in default of 8 would.
+webapp   { label: "Web App" }
+api      { label: "API" }
+database { label: "Database" }
+
+webapp --> api
+api --> database
+
+@layout {
+  margin: 20
+}

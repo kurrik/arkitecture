@@ -98,6 +98,17 @@ func TestParseLabelPosition(t *testing.T) {
 	}
 }
 
+func TestParseDocumentDefaultMargin(t *testing.T) {
+	doc := parseOK(t, "a {}\n@layout {\n  margin: 20\n  a { margin: 4 }\n}")
+	if doc.DefaultMargin == nil || *doc.DefaultMargin != 20 {
+		t.Errorf("DefaultMargin = %v, want 20", doc.DefaultMargin)
+	}
+	// A selector with a `margin:` is still a per-node margin, not a default.
+	if r := ruleFor(doc, "a"); r == nil || r.Decls.Margin == nil || *r.Decls.Margin != 4 {
+		t.Errorf("a rule = %+v, want margin 4", r)
+	}
+}
+
 func TestParseLayoutSheet(t *testing.T) {
 	doc := parseOK(t, "p { c {} }\n@layout {\n  p { direction: vertical }\n  p.c { size: 0.5 }\n}")
 	if len(doc.Layout) != 2 {
@@ -350,6 +361,9 @@ func TestParseErrors(t *testing.T) {
 		{"bad box", `a { @layout { box: solid } }`, ast.ErrorSyntax, "Invalid box 'solid'"},
 		{"bad label position", `a { @layout { label: middle } }`, ast.ErrorSyntax, "Invalid label position 'middle'"},
 		{"duplicate label position", `a { @layout { label: top; label: bottom } }`, ast.ErrorSyntax, "Duplicate layout property 'label'"},
+		{"unknown document default", `@layout { size: 0.5 }`, ast.ErrorSyntax, "Unknown document default 'size'"},
+		{"non-number document default", `@layout { margin: wide }`, ast.ErrorSyntax, "Expected number value for margin"},
+		{"duplicate document default", `@layout { margin: 8; margin: 9 }`, ast.ErrorSyntax, "Duplicate layout property 'margin'"},
 		{"unknown layout property", `a { @layout { foo: 1 } }`, ast.ErrorSyntax, "Unknown layout property 'foo'"},
 		{"duplicate layout property", `a { @layout { size: 0.5; size: 0.6 } }`, ast.ErrorSyntax, "Duplicate layout property 'size'"},
 		{"unknown top-level directive", `@block { }`, ast.ErrorSyntax, "Unknown directive '@block'"},

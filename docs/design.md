@@ -71,8 +71,15 @@ choose controllable.
   into a node (or another block). Imports are explicit and opt-in — no cascade.
 - **Margin** — layout space reserved around a node's border box (uniform,
   default 8; `margin: 0` packs flush). Counts inside a bordered parent (like
-  padding) but collapses against an invisible (`box: none`) parent. See *Box
-  model & margins*.
+  padding) but collapses against an invisible (`box: none`) parent. The default 8
+  is overridable per document: a bare `margin: N` at an `@layout` sheet root sets
+  the **default margin** for every node that declares none. See *Box model &
+  margins*.
+- **Default margin** — the document-wide fallback margin, set by `margin: N` at
+  the root of an `@layout` sheet (not inside a selector). It replaces the built-in
+  8 for any node that sets no margin of its own; nodes still override it directly.
+  It is a single global baseline, *not* a cascade — there is no parent→child
+  inheritance and no selector contest.
 - **Box / border box / margin box** — `box: none` makes a node draw no border
   (an ID-bearing twin of the layout-only group); the **border box** is the
   visible rectangle and the **margin box** is the border box plus its margins.
@@ -117,11 +124,17 @@ Layout is bottom-up and deterministic:
   child; children span the full height unless they set `size`.
 - `size: f` scales only the orthogonal dimension to a fraction `f` of the parent;
   it does not affect the parent's own size.
-- Each node reserves a uniform **`margin`** (default 8) around its border box.
-  Margins **collapse** rather than stack: the channel between two adjacent
-  siblings is the *larger* of their facing margins (not the sum), and a child's
-  gap to its parent's wall is its own margin — so every channel is one uniform
-  margin wide. `margin: 0` restores flush packing.
+- Each node reserves a uniform **`margin`** (default 8, or the document's
+  **default margin** if set — see below) around its border box. Margins
+  **collapse** rather than stack: the channel between two adjacent siblings is the
+  *larger* of their facing margins (not the sum), and a child's gap to its
+  parent's wall is its own margin — so every channel is one uniform margin wide.
+  `margin: 0` restores flush packing.
+- A bare **`margin: N`** at an `@layout` sheet root sets the document's **default
+  margin** — the fallback for every node that declares none, replacing the
+  built-in 8. It is a global baseline (not a cascade): a node still overrides it
+  with its own `margin`, and there is no inheritance or selector specificity. It
+  is the one knob for "space the whole diagram out".
 - A **box: none** group is *transparent*: it draws no border and adds no wall of
   its own, but it is not a barrier to margins. Its children's perimeter margins
   push straight through it to the nearest **bordered** ancestor (where they
@@ -385,8 +398,9 @@ no-JavaScript fallback.
 ## Open questions
 
 - Per-side margins (`margin-top` …), or keep the v1 uniform-only margin? (The
-  default is 8, and adjacent siblings *collapse* to the larger facing margin —
-  decided in [decisions.md](decisions.md).)
+  default is 8 — now overridable document-wide via a root `@layout { margin: N }`
+  — and adjacent siblings *collapse* to the larger facing margin — decided in
+  [decisions.md](decisions.md).)
 - Auto-cardinal routing ships with 4 sides (N/E/S/W); is 8 directions (incl.
   corners) ever worth the extra ambiguity? (4 is the v1 decision.)
 - Should an unpositioned *named* anchor be an error rather than defaulting to

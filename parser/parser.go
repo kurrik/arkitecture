@@ -42,16 +42,17 @@ func Parse(dslContent string) ast.ParseResult {
 }
 
 type parser struct {
-	tokens  []Token
-	current int
-	errors  []ast.Error
-	rules   []ast.LayoutRule // collected inline + standalone layout rules
-	blocks  []ast.Block      // collected @block definitions
+	tokens        []Token
+	current       int
+	errors        []ast.Error
+	rules         []ast.LayoutRule // collected inline + standalone layout rules
+	blocks        []ast.Block      // collected @block definitions
+	defaultMargin *float64         // document-wide default margin (bare `margin:` at a sheet root)
 }
 
 func (p *parser) parseDocument() ast.ParseResult {
 	nodes, arrows := p.parseTopLevel()
-	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Blocks: p.blocks, Arrows: arrows}
+	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Blocks: p.blocks, Arrows: arrows, DefaultMargin: p.defaultMargin}
 	if len(p.errors) > 0 {
 		return ast.ParseResult{Success: false, Document: doc, Errors: p.errors}
 	}
@@ -336,6 +337,14 @@ func (p *parser) parseLayoutSheet() {
 			p.parseBlockDef()
 			continue
 		}
+		// A bare `property: value` at the sheet root is a document-wide default,
+		// distinguished from a selector (`path { … }`) by the ':' after the name.
+		if p.check(TokenIdentifier) {
+			if nx := p.peekNext(); nx != nil && nx.Type == TokenColon {
+				p.parseDocumentDefault()
+				continue
+			}
+		}
 		if rule, ok := p.parseSelectorBlock(); ok {
 			p.rules = append(p.rules, rule)
 		}
@@ -347,6 +356,25 @@ func (p *parser) parseLayoutSheet() {
 		return
 	}
 	p.advance() // consume '}'
+}
+
+// parseDocumentDefault parses a bare `property: value` at the root of an @layout
+// sheet — a document-wide default for nodes that set none. v1 supports only
+// `margin` (the fallback spacing); the cursor is on the property identifier.
+func (p *parser) parseDocumentDefault() {
+	propTok := p.advance() // the property identifier
+	name := propTok.Value
+	p.advance() // consume ':' (the caller confirmed it via lookahead)
+
+	switch name {
+	case "margin":
+		p.parseNumberDecl(&p.defaultMargin, "margin", propTok)
+	default:
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown document default '%s'; only 'margin' may be set at the @layout root", name), propTok.Line, propTok.Column)
+		if !p.check(TokenRBrace) && !p.isAtEnd() {
+			p.advance()
+		}
+	}
 }
 
 // parseBlockDef parses `@block <name> { decls }` inside an @layout sheet,
