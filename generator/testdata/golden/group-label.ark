@@ -1,6 +1,8 @@
 # Group labels reserve a strip so the label never overlaps the children. The
 # strip is at the top by default; `label: bottom` moves it under the children.
-# It acts as an inner wall — the children's facing margin lands against it.
+# In a bordered group it acts as an inner wall (the children's facing margin
+# lands against it); a box:none group reserves the same strip but packs its
+# children flush below it (it draws no border and adds no perimeter).
 topLabel {
   label: "Top Group"
 
@@ -15,7 +17,15 @@ bottomLabel {
   d { label: "D" }
 }
 
+borderless {
+  label: "Borderless"
+
+  e { label: "E" }
+  f { label: "F" }
+}
+
 @layout {
   topLabel    { direction: vertical }
   bottomLabel { direction: vertical; label: bottom }
+  borderless  { direction: vertical; box: none }
 }

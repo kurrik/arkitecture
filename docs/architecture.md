@@ -140,13 +140,14 @@ semantic layer and a layout layer:
   `Arrangement` when present, otherwise semantic child order — a `@group` becomes a
   synthetic invisible node that adds no path segment, so its children keep their
   real paths), reads each node's resolved declarations, sizes bottom-up applying
-  the vertical/horizontal rules, the label band a bordered labelled parent
-  reserves (a top/bottom strip that walls off its children), and `size` overrides,
-  positions top-down, sizes the canvas, and resolves anchor coordinates (an
-  unpositioned declared anchor defaults to centre); `svg.go` walks the tree to emit
-  `<rect>` + `<text>` per visible node (the label is centred in its reserved band
-  when a parent has one; a `box: none` node and a `@group` render no rect) and
-  `<line>` + arrowhead `<marker>` per arrow. Output is byte-for-byte stable.
+  the vertical/horizontal rules, the label band a labelled parent reserves (a
+  top/bottom strip — a wall in a bordered parent, flush-packed reserved space in a
+  `box: none` one), and `size` overrides, positions top-down, sizes the canvas, and
+  resolves anchor coordinates (an unpositioned declared anchor defaults to centre);
+  `svg.go` walks the tree to emit `<rect>` + `<text>` per visible node (the label
+  is centred in its reserved band when a parent has one; a `box: none` node and a
+  `@group` render no rect) and `<line>` + arrowhead `<marker>` per arrow. Output is
+  byte-for-byte stable.
 
 ## Public API
 

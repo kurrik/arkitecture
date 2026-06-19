@@ -282,10 +282,11 @@ func TestGenerateGroupLabelWidensBoxToFit(t *testing.T) {
 	}
 }
 
-func TestGenerateBoxNoneLabelReservesNoBand(t *testing.T) {
-	// A box:none group is transparent and reserves no band: its label stays
-	// centred over the children (unchanged behaviour), and the child is not
-	// pushed down.
+func TestGenerateBoxNoneLabelReservesBand(t *testing.T) {
+	// A box:none group with a label also reserves a band — centring the label
+	// over the children would just let them obscure it. The group draws no
+	// border and packs its child flush below the band (no perimeter of its own),
+	// but the band space is still reserved and the label sits in it.
 	doc := &ast.Document{
 		Nodes: []*ast.ContainerNode{{
 			ID: "p", Label: ptr("G"),
@@ -295,14 +296,18 @@ func TestGenerateBoxNoneLabelReservesNoBand(t *testing.T) {
 		}},
 		Layout: []ast.LayoutRule{rule("p", &ast.Declarations{Box: boxp(ast.BoxNone)})},
 	}
-	svg := render(t, doc, Options{})
-	if want := `<rect x="0" y="0" width="24" height="24"`; !strings.Contains(svg, want) {
-		t.Errorf("box:none child should sit at the origin (no reserved band) %q:\n%s", want, svg)
-	}
-	// One rect only (the child; p is box:none) — p reserved no band that would
-	// have grown the canvas.
-	if got := strings.Count(svg, "<rect"); got != 1 {
+	svg := render(t, doc, Options{})                  // 12px: band 24, child 24
+	if got := strings.Count(svg, "<rect"); got != 1 { // only a; p is box:none
 		t.Errorf("got %d rects, want 1 (only a; p is box:none):\n%s", got, svg)
+	}
+	for _, want := range []string{
+		`width="24" height="48">`,                   // band 24 + child 24
+		`<text x="12" y="12"`,                       // label "G" in the top band
+		`<rect x="0" y="24" width="24" height="24"`, // child flush below the band
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("SVG missing %q:\n%s", want, svg)
+		}
 	}
 }
 

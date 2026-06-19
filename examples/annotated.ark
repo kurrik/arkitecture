@@ -72,9 +72,10 @@ row {
   # explicit and opt-in. Blocks may compose (`@use` another block); cycles error.
   @block emphasis { size: 0.75 }
 
-  # `direction` is "vertical" (default) or "horizontal". A labelled, bordered
-  # parent (like c1) reserves a strip for its label so it never overlaps the
-  # children; `label` places that strip at the "top" (default) or "bottom".
+  # `direction` is "vertical" (default) or "horizontal". A labelled parent (like
+  # c1) reserves a strip for its label so it never overlaps the children; `label`
+  # places that strip at the "top" (default) or "bottom". This applies to box:none
+  # groups too — they reserve the strip and pack children flush below it.
   c1 { direction: vertical; label: top }
 
   # grp's borderless box comes from `kind: invisible` (in its body above); here

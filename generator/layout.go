@@ -155,18 +155,17 @@ func calcDimensions(l *layoutNode, fontSize float64) {
 		}
 	}
 
-	// A bordered, labelled parent reserves a strip for its label — a top
-	// (default) or bottom band, sized like a leaf box holding that label. The
-	// band's inner edge acts as a wall: the children lay out in the remaining
-	// area and their facing margin lands against it, so the label never overlaps
-	// them. labelW keeps the box at least as wide as its label. (A box:none group
-	// is transparent and reserves no band; its label, if any, stays centred.)
+	// A labelled parent reserves a strip for its label — a top (default) or
+	// bottom band, sized like a leaf box holding that label — so the label is
+	// never obscured by the children, which lay out in the remaining area. In a
+	// bordered parent the band's inner edge is a wall the children's facing margin
+	// lands against; a box:none parent packs its children flush below the band,
+	// just as it packs them flush everywhere (it adds no perimeter of its own).
+	// labelW keeps the box at least as wide as its label.
 	var band, labelW float64
-	if bordered {
-		if label, ok := nodeLabel(l); ok {
-			band = labelBandHeight(label, fontSize)
-			labelW = textWidth(label, fontSize) + 2*borderWidth
-		}
+	if label, ok := nodeLabel(l); ok {
+		band = labelBandHeight(label, fontSize)
+		labelW = textWidth(label, fontSize) + 2*borderWidth
 	}
 	l.labelBand = band
 

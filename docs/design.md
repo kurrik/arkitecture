@@ -76,11 +76,12 @@ choose controllable.
 - **Box / border box / margin box** — `box: none` makes a node draw no border
   (an ID-bearing twin of the layout-only group); the **border box** is the
   visible rectangle and the **margin box** is the border box plus its margins.
-- **Label band** — the strip a bordered parent reserves for its own label so it
-  does not overlap the children. `label: top | bottom` (a `@layout` property,
-  default top) chooses which end. The band acts as an inner wall for margins; a
-  leaf needs none (its box already fits its label) and a `box: none` group gets
-  none (it is transparent). See *Box model & margins*.
+- **Label band** — the strip a parent reserves for its own label so it does not
+  overlap the children. `label: top | bottom` (a `@layout` property, default top)
+  chooses which end. In a bordered parent the band acts as an inner wall for
+  margins; a `box: none` parent reserves the same strip but packs its children
+  flush below it (it draws no border and adds no perimeter). A leaf needs no band
+  (its box already fits its label). See *Box model & margins*.
 
 ## The workflow
 
@@ -102,13 +103,14 @@ reference covering every feature.
 Layout is bottom-up and deterministic:
 
 - A leaf node sizes to its label text (measured with a fixed font).
-- A **bordered parent with a label** reserves a strip — its **label band** — for
-  that label, sized like a leaf box holding it, at the top (default) or bottom as
-  set by `label: top | bottom` in `@layout`. The band's inner edge is a **wall**:
-  the children lay out in the remaining area and their facing margin collapses
-  against it, so the label never overlaps them; the box also grows at least as
-  wide as the label. A `box: none` group is transparent and reserves no band (its
-  label, if any, stays centred).
+- A **parent with a label** reserves a strip — its **label band** — for that
+  label, sized like a leaf box holding it, at the top (default) or bottom as set
+  by `label: top | bottom` in `@layout`. The children lay out in the remaining
+  area and the box grows at least as wide as the label, so the label is never
+  obscured by the children. In a **bordered** parent the band's inner edge is a
+  **wall** the children's facing margin collapses against; a **`box: none`**
+  parent reserves the same strip but packs its children flush below it (it adds no
+  perimeter of its own, consistent with how it packs them flush everywhere else).
 - A **vertical** parent stacks children top-to-bottom: its width is the widest
   child; children span the full width unless they set `size`.
 - A **horizontal** parent places children left-to-right: its height is the tallest
@@ -177,8 +179,8 @@ draw a border just sets `box: none` in layout — the spiritual twin of CSS
 
 An arrow connects *named* anchors (semantic); where a named anchor sits on the box
 is layout. The same split applies to a node's label: the **text** is semantic (a
-node-body `label: "…"`), while which end of a bordered parent reserves the strip
-for it is layout (an `@layout` `label: top | bottom`).
+node-body `label: "…"`), while which end of a parent reserves the strip for it is
+layout (an `@layout` `label: top | bottom`).
 
 ### Selectors and resolution — no cascade
 
@@ -318,13 +320,14 @@ Two rules govern how margins consume space:
   document root — do perimeter margins **collapse to zero**, so the canvas (and a
   top-level group) never gains phantom padding.
 
-A **bordered parent with a label** also reserves a **label band** — a top
-(default) or bottom strip (`label: top | bottom`) sized like a leaf box holding
-that label — whose inner edge is an additional wall: the children pack in the
-remaining area and their facing margin collapses against the band just as it
-would against the border, so the label sits in its own space instead of over the
-children. The box widens if needed to fit the label. A `box: none` group is
-transparent and reserves no band.
+A **parent with a label** also reserves a **label band** — a top (default) or
+bottom strip (`label: top | bottom`) sized like a leaf box holding that label — so
+the label sits in its own space instead of over the children, and the box widens
+if needed to fit it. In a **bordered** parent the band's inner edge is an
+additional wall: the children pack in the remaining area and their facing margin
+collapses against the band just as it would against the border. A **`box: none`**
+parent reserves the same strip but, being transparent (no border, no perimeter),
+packs its children flush below it — the band is reserved space, not a wall.
 
 Anchors and arrows attach to the **border box**; margins are the empty space
 around it — which is also what gives auto-routed arrows room to travel between
