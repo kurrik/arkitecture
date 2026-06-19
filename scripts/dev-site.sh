@@ -43,22 +43,6 @@ fi
 
 echo "==> Serving site/ at http://localhost:${port}/  (Ctrl-C to stop)"
 
-# Python's http.server doesn't map .wasm by default; register it so the
-# playground's WebAssembly.instantiateStreaming gets application/wasm.
-exec python3 - "$port" <<'PY'
-import functools
-import http.server
-import socketserver
-import sys
-
-port = int(sys.argv[1])
-handler = http.server.SimpleHTTPRequestHandler
-handler.extensions_map[".wasm"] = "application/wasm"
-
-socketserver.TCPServer.allow_reuse_address = True
-with socketserver.TCPServer(("", port), functools.partial(handler, directory="site")) as httpd:
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\n==> Stopped")
-PY
+# serve-site.py serves site/ with a correct application/wasm MIME type, which
+# the playground's WebAssembly.instantiateStreaming needs.
+exec python3 scripts/serve-site.py "$port" site
