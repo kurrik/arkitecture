@@ -18,6 +18,159 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-20 — Auto edge routing: break out to the container channel
+**Choice:** When an arrow endpoint is nested inside a container, route the
+orthogonal gap-crossing between the endpoints' **breakout boxes** — the outermost
+container that holds one endpoint but not the other — rather than between the leaf
+boxes. The exit side and border point are taken on the breakout box (facing the
+other's breakout box), with a tail connecting the tip out to that border;
+`breakoutBox(self, other)` is the self-side child of the two paths' lowest common
+container (the leaf itself when both share a parent).
+**Why:** Reported: a nested anchor's line ran *along the container's border*
+instead of through the gap (the Orders→Inventory arrow's vertical fell exactly on
+Ordering's right edge). The elbow placed its bend at the midpoint of the two
+**leaf** edges, and for a nested source that midpoint coincided with the container
+border. Crossing between the **container** edges instead puts the bend at the
+midpoint of the real gap — the channel between the containers. It reduces to the
+prior behaviour for same-parent arrows (breakout box = leaf), so **no existing
+golden moved**, and M2 straight mode is untouched: the tip still uses the
+leaf-to-leaf cardinal selection, and only the orthogonal edge/side consult the
+breakout box.
+**Implications:** This is the channel-placement half of the designed "break-out"
+slice — an arrow between different containers now crosses the inter-container
+channel. Routing *around* obstacle boxes (the channel graph + few-bend A*) and
+channel widening still remain; a blocked route still falls back to the straight
+line. A new `orthogonal-breakout` golden locks the in-channel run, and
+`TestBreakoutBox` covers the lowest-common-container child computation. Residual
+aesthetic: an anchor on a box's far edge still traces that *leaf's* edge to exit
+toward the target — distinct from the container-border issue fixed here, and
+governed by where the author places the anchor.
+
+## 2026-06-20 — Auto edge routing: orthogonal routing for positioned anchors
+**Choice:** Extend orthogonal mode to route arrows that attach to an explicit
+anchor, **superseding slice 1's "explicit-anchor arrows stay straight."** Every
+positioned anchor is handled by one rule: the **exit side faces the other node's
+box centre** (the same choice a bare reference makes), the orthogonal path meets
+the box **border on that side aligned with the anchor**, and a final **tail
+segment** runs between that border point and the anchor. The tail is zero-length
+when the anchor already lies on the facing side (an edge anchor), and **crosses
+the interior — entering the node — for an interior anchor** (e.g. `#center`). A
+bare reference is the special case where the anchor *is* the border point (tip ==
+edge), so the anchorless output is unchanged. The obstacle test and the
+straight-line fallback are unchanged.
+**Why:** The author asked for `route: orthogonal` to work for *all* positioned
+anchors, not just edge ones, "entering the node for non-edge positions." Choosing
+the exit side by facing the other box (rather than by which border the anchor sits
+on) is what makes edge and interior anchors fall out of a single rule — an edge
+anchor's tail collapses to nothing, an interior anchor's tail is the entry segment
+— and makes the bare-reference case the same code with tip == edge. It reuses M2's
+cardinal side selection and leaves the `elbow` primitive and the obstacle/fallback
+machinery untouched, so the change is localized to endpoint resolution and path
+assembly.
+**Implications:** `endpoint` now carries `{tip, edge, side}`; `arrowPath`
+assembles tip → border → elbow across the gap → border → tip and simplifies
+(collinear tails merge; bare-to-bare reduces exactly to the M2 elbow, so the
+`orthogonal-arrows` golden is byte-identical — confirmed). In orthogonal mode an
+explicit `#anchor` (including `#center`) now routes orthogonally instead of
+drawing straight. A new `orthogonal-anchors` golden locks the edge-anchor and
+interior-anchor (enter-the-node) cases. **Aesthetic note:** an edge anchor that is
+*not* on the side facing the target routes along its own border to exit toward the
+target (a bottom-centre anchor with the target to the east runs along the bottom,
+then turns up) — correct and orthogonal, though it traces the box edge; anchor
+placement is the author's control. Still deferred on this track: routing *around*
+obstacles (the channel graph + A*), channel widening, and break-out.
+
+## 2026-06-20 — Single canonical example source (inject `.ark` into the site HTML)
+**Choice:** Generate the docs site's shown example source from the canonical
+`site/examples/*.ark` files at build time instead of hand-copying it into the
+HTML. Each example's `<pre><code>` block is marked `data-ark="examples/NAME.ark"`;
+a new `internal/sitegen` build tool (run by `scripts/build-site.sh`, right after
+the SVG render) replaces that block's body with the file's contents — trailing
+newline trimmed, only `&`/`<`/`>` escaped to match the page's hand-written style.
+It is **idempotent** (no `.ark` change → no rewrite) and the injected HTML is
+**committed**, exactly like the rendered example SVGs.
+**Why:** The displayed source was a second, hand-maintained copy of each `.ark`,
+and it drifted: after #19 set the pipeline example's `@layout { margin: 20 }` in
+the `.ark` (and the render), the *shown* source still lacked it, and the
+`contexts` example's `.ark` comment was likewise missing from the page. Reported
+by the author ("I don't want to keep multiple source documents in sync"). Making
+the `.ark` the one source removes both the manual-copy chore and the whole class
+of drift. **Build-time injection over a client-side fetch** keeps the no-JS
+contract: the committed HTML still carries the source for non-JS viewers and is
+what Pages serves. **Committing the injected HTML over filling empty placeholders
+at publish** matches how the example SVGs already work (generated, committed,
+refreshed at publish) and avoids working-tree churn, since re-running is
+idempotent. **A Go tool over a shell/Python one** keeps the publish path Go-only
+(no new language in `build-site.sh` or CI) and is unit-tested (`inject` takes a
+reader, so it tests without the filesystem).
+**Implications:** To add or edit an example, change only its `.ark`; the same
+build that refreshes the SVG now also refreshes the shown source (and
+`dev-site`/`preview-site`/`pages` all run it). `internal/sitegen` is a
+`package main` build helper under `internal/` — built by `go build ./...`, but
+not part of the shipped CLI and not installable. The `data-ark` attribute is the
+marker, so unmarked `<code>` blocks (the Quick-start shell/Go snippets) are left
+alone. There is no separate CI drift-check — consistent with the committed SVGs,
+where the publish always corrects — and the drift window is tiny since any local
+preview rebuilds. The `panel-label` filename stays literal (cosmetic, low-drift);
+generating it too is a possible later tidy-up.
+
+## 2026-06-20 — Auto edge routing: `route` setting + orthogonal emission (slice 1)
+**Choice:** Begin implementing the sized-channel design (the ADR below) in
+reviewable slices. This first slice lands the surface and the emission path,
+deferring the channel-graph router:
+- **`route` is a document-level setting**, not a per-node property: a bare
+  `route: straight | orthogonal` at an `@layout` sheet root, parsed into
+  `Document.Route *ast.RouteMode` exactly the way `margin: N` becomes
+  `DefaultMargin` (same `:`-after-name dispatch in `parseDocumentDefault`).
+  Default (nil / `straight`) is today's M2 line; `orthogonal` opts the whole
+  document in. A per-arrow override stays deferred (design ADR / roadmap).
+- **Orthogonal mode emits a `<polyline>` only for genuinely bent paths; a
+  two-point path still emits the existing `<line>`.** So straight mode — and any
+  orthogonal arrow that stays straight (aligned or adjacent boxes) — is
+  byte-for-byte unchanged, and only a real bend introduces the new element. The
+  arrowhead `<marker>` is reused unchanged (it orients on the final segment).
+- **This slice routes the clear case only.** Both ends keep their M2 cardinal
+  point; the two points are joined by a deterministic `elbow()` (one corner for
+  perpendicular exit sides, a Z through the gap mid-line for parallel ones,
+  collapsing to a straight segment when collinear). The elbow is used **only when
+  it is clear of the arrow's obstacles**; otherwise the arrow falls back to the
+  straight M2 line — so orthogonal mode never renders a *worse* result than
+  straight mode. Routing *around* obstacles (the channel graph + few-bend A*),
+  channel widening, and cross-container break-out are the next slices.
+- **The arrow-relative obstacle set is path-prefix lineage.** An arrow's
+  obstacles are every box whose dotted path does **not** share a root-to-node
+  lineage with the source or the target — i.e. excluding each endpoint's
+  ancestors, descendants, and itself (`related(a,b)` = equal or one a `.`-prefix
+  of the other). This is the design's "obstacles are every box except the
+  ancestors of source and target" as cheap string matching, and it is what lets a
+  route legitimately cross its *own* containers' borders (the seed of break-out)
+  while still treating sibling/foreign boxes as walls.
+- **Explicit-anchor arrows stay straight in orthogonal mode** (a pinned anchor has
+  no cardinal side to extend orthogonally); orthogonalising them is deferred.
+**Why:** Slicing keeps each change reviewable and golden-stable. Putting `route`
+at the sheet root mirrors the only other document-wide knob (`margin`), needs no
+new keyword, and reuses the existing duplicate/dispatch machinery. Emitting
+`<line>` for two-point paths is what makes the slice land with **no existing
+golden moved** — orthogonal output diverges from straight output only where a bend
+actually exists. The clear-case-with-straight-fallback rule means the feature is
+safe to ship incrementally: turning it on can only improve diagonal arrows (into
+Z/elbows) and never degrades a blocked one below today's behaviour. Realising the
+obstacle rule as prefix matching avoids threading the layout tree into routing and
+falls straight out of the dotted paths the boxes are already keyed by.
+**Implications:** Endpoint resolution moved from `svg.go` into a new
+`generator/route.go` (`arrowPath`/`resolveOrthoEndpoint`/`cardinalEndpoint`),
+which `renderArrows` now calls for both modes; the old `resolveEndpoint`/
+`cardinalPoint` are gone (straight mode routes through the same code, two-point
+result). `elbow()` is a complete connector for *any* two cardinal sides — its
+perpendicular branch is not yet reachable from two-box cardinal routing (both ends
+pick the same dominant axis, so sides are always parallel → a Z) but is unit-tested
+and will be exercised once routes turn through perimeter rails. A new
+`orthogonal-arrows` golden locks the Z and the straight cases in. Determinism holds:
+elbow geometry is a fixed function of the endpoints, the obstacle test is an
+order-independent boolean, and no map iteration order reaches the output. Still to
+come on this track: the channel graph + A* (route around obstacles), channel
+widening (lanes push boxes apart), and break-out across nesting levels.
+
 ## 2026-06-20 — Auto edge routing via sized channels (design)
 **Choice:** Add an opt-in **auto-routing mode** that draws arrows as **orthogonal
 paths routed around boxes** instead of straight lines, built on three commitments:

@@ -109,6 +109,35 @@ func TestParseDocumentDefaultMargin(t *testing.T) {
 	}
 }
 
+func TestParseDocumentRoute(t *testing.T) {
+	for _, tt := range []struct {
+		src  string
+		want ast.RouteMode
+	}{
+		{"a {}\n@layout {\n  route: orthogonal\n}", ast.RouteOrthogonal},
+		{"a {}\n@layout {\n  route: straight\n}", ast.RouteStraight},
+	} {
+		doc := parseOK(t, tt.src)
+		if doc.Route == nil || *doc.Route != tt.want {
+			t.Errorf("Route = %v, want %v", doc.Route, tt.want)
+		}
+	}
+
+	// Unset by default.
+	if doc := parseOK(t, "a {}"); doc.Route != nil {
+		t.Errorf("Route = %v, want nil when unset", doc.Route)
+	}
+
+	// A node literally named `route` is still a selector, not the document setting.
+	doc := parseOK(t, "route {}\n@layout {\n  route { direction: horizontal }\n}")
+	if doc.Route != nil {
+		t.Errorf("Route = %v, want nil for a `route` selector", doc.Route)
+	}
+	if r := ruleFor(doc, "route"); r == nil || r.Decls.Direction == nil || *r.Decls.Direction != ast.Horizontal {
+		t.Errorf("route rule = %+v, want direction horizontal", r)
+	}
+}
+
 func TestParseLayoutSheet(t *testing.T) {
 	doc := parseOK(t, "p { c {} }\n@layout {\n  p { direction: vertical }\n  p.c { size: 0.5 }\n}")
 	if len(doc.Layout) != 2 {
@@ -364,6 +393,9 @@ func TestParseErrors(t *testing.T) {
 		{"unknown document default", `@layout { size: 0.5 }`, ast.ErrorSyntax, "Unknown document default 'size'"},
 		{"non-number document default", `@layout { margin: wide }`, ast.ErrorSyntax, "Expected number value for margin"},
 		{"duplicate document default", `@layout { margin: 8; margin: 9 }`, ast.ErrorSyntax, "Duplicate layout property 'margin'"},
+		{"bad route", `@layout { route: curved }`, ast.ErrorSyntax, "Invalid route 'curved'"},
+		{"non-identifier route", `@layout { route: 3 }`, ast.ErrorSyntax, "Expected 'straight' or 'orthogonal' for route"},
+		{"duplicate route", `@layout { route: orthogonal; route: straight }`, ast.ErrorSyntax, "Duplicate document property 'route'"},
 		{"unknown layout property", `a { @layout { foo: 1 } }`, ast.ErrorSyntax, "Unknown layout property 'foo'"},
 		{"duplicate layout property", `a { @layout { size: 0.5; size: 0.6 } }`, ast.ErrorSyntax, "Duplicate layout property 'size'"},
 		{"unknown top-level directive", `@block { }`, ast.ErrorSyntax, "Unknown directive '@block'"},

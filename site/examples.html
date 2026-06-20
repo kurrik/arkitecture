@@ -37,11 +37,11 @@
 
     <article class="example">
       <h2>A simple pipeline</h2>
-      <p>Three top-level nodes laid out left to right, joined by arrows. With no anchors given, each arrow auto-routes to the nearest facing edges.</p>
+      <p>Three top-level nodes laid out left to right, joined by arrows. With no anchors given, each arrow auto-routes to the nearest facing edges. A bare <code>margin: 20</code> at the <code>@layout</code> root is the document-wide default margin — one knob to space the whole diagram out.</p>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">pipeline.ark</div>
-<pre><code>webapp {
+<pre><code data-ark="examples/pipeline.ark">webapp {
   label: "Web App"
 }
 api {
@@ -52,7 +52,11 @@ database {
 }
 
 webapp --&gt; api
-api --&gt; database</code></pre>
+api --&gt; database
+
+@layout {
+  margin: 20
+}</code></pre>
         </div>
         <div class="panel render">
           <div class="panel-label">rendered output</div>
@@ -65,12 +69,47 @@ api --&gt; database</code></pre>
     </article>
 
     <article class="example">
+      <h2>Orthogonal routing (<code>route: orthogonal</code>)</h2>
+      <p>Set <code>route: orthogonal</code> once at the <code>@layout</code> root and every arrow is drawn as an axis-aligned path between its facing edges instead of a straight diagonal. Here the <em>CDN</em> sits high on the left and the <em>Database</em> low on the right, so their connector turns through the gap as a clean Z. (The default, <code>route: straight</code>, is the auto-cardinal line above.)</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">routing.ark</div>
+<pre><code data-ark="examples/routing.ark">edge {
+  label: "Edge"
+  cdn { label: "CDN" }
+}
+origin {
+  label: "Origin"
+  api      { label: "API Server" }
+  database { label: "Database" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  edge   { direction: vertical }
+  origin { direction: vertical }
+}
+
+edge.cdn --&gt; origin.database</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/routing.svg" alt="An Edge box holding CDN beside an Origin box holding API Server and Database, with a right-angled Z arrow from CDN down to Database." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/routing.ark">routing.ark</a></p>
+    </article>
+
+    <article class="example">
       <h2>Nesting &amp; direction</h2>
       <p>Nodes nest to any depth, and a separate <code>@layout</code> block arranges each parent's children with a <code>direction</code>. Here a vertical <em>Platform</em> stacks a gateway above a horizontal row of services.</p>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">nesting.ark</div>
-<pre><code>platform {
+<pre><code data-ark="examples/nesting.ark">platform {
   label: "Platform"
 
   gateway {
@@ -107,7 +146,7 @@ api --&gt; database</code></pre>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">contexts.ark</div>
-<pre><code>ordering {
+<pre><code data-ark="examples/contexts.ark">ordering {
   label: "Ordering Context"
 
   row {
@@ -152,7 +191,7 @@ ordering.orders#db --&gt; inventory#api</code></pre>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">reuse.ark</div>
-<pre><code>app {
+<pre><code data-ark="examples/reuse.ark">app {
   label: "App"
 
   group1 { web { label: "Web" }   api { label: "API" } }
@@ -185,7 +224,7 @@ ordering.orders#db --&gt; inventory#api</code></pre>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">kinds.ark</div>
-<pre><code>platform {
+<pre><code data-ark="examples/kinds.ark">platform {
   label: "Platform"
 
   # `kind` is a semantic tag — what the node *is*. A custom kind imports the
@@ -226,7 +265,7 @@ ordering.orders#db --&gt; inventory#api</code></pre>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">arrangement.ark</div>
-<pre><code>services {
+<pre><code data-ark="examples/arrangement.ark">services {
   label: "Services"
 
   userService  { label: "User Service" }

@@ -1,0 +1,25 @@
+# route: orthogonal routes arrows attached to explicit anchors, too. An anchor on
+# a border leaves/enters perpendicular to the side facing the other node; an
+# interior anchor is reached by routing to that border and then entering the node.
+source {
+  label: "Source"
+  anchors: [out]
+}
+service {
+  label: "Service"
+  api { label: "API" }
+  db  { label: "DB" }
+  anchors: [core]
+}
+
+@layout {
+  route: orthogonal
+  margin: 24
+  source  { anchor out: [0.5, 1.0] }   # bottom-centre of Source: an edge anchor
+  service {
+    direction: vertical
+    anchor core: [0.5, 0.5]            # interior centre of Service: the line enters it
+  }
+}
+
+source#out --> service#core

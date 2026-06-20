@@ -1,0 +1,23 @@
+# A nested anchor breaks out of its container: the orthogonal run crosses the
+# channel *between* the two containers, not along a container's border. Here `item`
+# sits low inside `box`, so its arrow to `peer` (higher, on the right) turns in the
+# gap between box and peer rather than tracing box's right edge.
+box {
+  label: "Container"
+  top  { label: "Top" }
+  item { label: "Item" anchors: [tap] }
+}
+peer {
+  label: "Peer"
+  anchors: [slot]
+}
+
+@layout {
+  route: orthogonal
+  margin: 24
+  box      { direction: vertical }
+  box.item { anchor tap: [1.0, 0.5] }   # right edge of item, deep inside box
+  peer     { anchor slot: [0.0, 0.5] }  # left edge of peer
+}
+
+box.item#tap --> peer#slot

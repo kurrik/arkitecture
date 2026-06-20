@@ -46,6 +46,24 @@ const (
 	BoxNone Box = "none"
 )
 
+// RouteMode selects how arrows are drawn across the whole document. It is a
+// document-level setting (a bare `route:` at an `@layout` sheet root), not a
+// per-node layout property. The empty value means "unset"; consumers default it
+// to RouteStraight.
+type RouteMode string
+
+const (
+	// RouteUnset is the zero value, meaning the author did not specify a route
+	// mode. Rendering treats it as RouteStraight.
+	RouteUnset RouteMode = ""
+	// RouteStraight draws each arrow as a single straight line between its
+	// resolved endpoints — the default, M2 auto-cardinal routing.
+	RouteStraight RouteMode = "straight"
+	// RouteOrthogonal routes each arrow as an orthogonal path around the boxes
+	// that lie between its endpoints, reserving sized channels for the lines.
+	RouteOrthogonal RouteMode = "orthogonal"
+)
+
 // LabelPosition controls where a bordered parent's label sits. A parent reserves
 // a strip for its label so it does not overlap the children; this says whether
 // that strip is at the top (default) or the bottom of the box. The empty value
@@ -162,12 +180,18 @@ type Arrow struct {
 // (8) as the fallback for any node that sets no margin of its own; it is a single
 // global baseline, not a cascade (no per-node selector wins it, and nodes still
 // override it directly). nil means "use the built-in default".
+//
+// Route, when set, is the document-wide arrow routing mode authored as a bare
+// `route:` at the root of an `@layout` sheet (mirroring DefaultMargin). nil or
+// RouteStraight draws straight cardinal lines; RouteOrthogonal routes arrows as
+// orthogonal paths around intervening boxes.
 type Document struct {
 	Nodes         []*ContainerNode
 	Layout        []LayoutRule
 	Blocks        []Block
 	Arrows        []Arrow
 	DefaultMargin *float64
+	Route         *RouteMode
 }
 
 // BuiltinBlocks are the layout blocks every document gets for free, keyed by

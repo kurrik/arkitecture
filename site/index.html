@@ -45,7 +45,7 @@
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">pipeline.ark</div>
-<pre><code>webapp {
+<pre><code data-ark="examples/pipeline.ark">webapp {
   label: "Web App"
 }
 api {
@@ -56,7 +56,11 @@ database {
 }
 
 webapp --&gt; api
-api --&gt; database</code></pre>
+api --&gt; database
+
+@layout {
+  margin: 20
+}</code></pre>
         </div>
         <div class="panel render">
           <div class="panel-label">rendered output</div>

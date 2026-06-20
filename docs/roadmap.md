@@ -102,9 +102,42 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## In progress
 
-- (none) — `main` is Go and the full layered-authoring arc has shipped: M1 box
-  model, M2 cardinal routing, M3 `@layout` split, M4 reuse + `kind`, and M5
-  regrouping. The next work is from the lower-priority tracks below.
+- **Auto edge routing — sized channels** (started 2026-06-20). Implementing the
+  designed orthogonal routing in reviewable slices (see the design and the ADRs in
+  [decisions.md](decisions.md)):
+  - ✅ **Surface** — `route: straight | orthogonal` as a document-level setting at
+    the `@layout` sheet root (mirrors `margin: N`), stored on `Document.Route`.
+  - ✅ **Orthogonal emission (clear case)** — in `route: orthogonal` mode an arrow
+    is drawn as an axis-aligned elbow/Z between its M2 cardinal endpoints (a
+    `<polyline>`; a straight two-point path still emits `<line>`), used only when
+    clear of the arrow's obstacles and otherwise falling back to the straight
+    line. An `orthogonal-arrows` golden locks it in.
+  - ✅ **Positioned anchors** — orthogonal routing also applies to arrows attached
+    to explicit anchors: the path meets the box border on the facing side and a
+    tail enters the node to reach an interior anchor (an edge anchor's tail is
+    zero-length). An `orthogonal-anchors` golden locks the edge and interior cases.
+  - ✅ **Break out to the container channel** — when an endpoint is nested, the
+    orthogonal gap-crossing runs between the endpoints' breakout containers (the
+    outermost box holding one but not the other), so the run lands in the channel
+    *between* containers instead of along a container border. An
+    `orthogonal-breakout` golden locks it. (Routing *around* obstacles within that
+    breakout is still below.)
+  - ⏳ **Edge-normal exits & channel-following** — the elbow router connects the
+    two endpoints point-to-point and has no model of the *intermediate* corridors,
+    so a bottom-edge anchor exits along its own edge toward the target rather than
+    dropping straight down. Target behavior (author's expectation): an edge anchor
+    leaves **perpendicular to its edge**, the run then **follows the channel** it
+    lands in (e.g. the strip below a row) and hops corridor→corridor before
+    breaking out — which is what the channel graph below provides. Deferred with
+    the rest of the channel-graph work.
+  - ⏳ **Route around obstacles** — the channel graph derived from the arrangement
+    tree + few-bend A*, so a blocked arrow detours instead of falling back, using
+    the arrow-relative obstacle set (already in place) plus a per-container
+    perimeter ring. The corridor model (perimeter ring + inter-sibling gaps) is
+    also what makes edge-normal exits and channel-following (above) fall out.
+  - ⏳ **Channel widening** — lane counts per channel push boxes apart (the
+    `margin + lanes × laneSpacing` rule), consumed once in `calcDimensions`/
+    `positionNodes`; no routing↔layout feedback loop.
 
 ## Planned
 
@@ -114,18 +147,12 @@ tracks below; each is independently shippable. The *model* lives in
 
 ### Auto edge routing — sized channels
 
-Designed (see [design.md](design.md) and the ADR in [decisions.md](decisions.md));
-not yet built. An opt-in mode that routes arrows as orthogonal paths *around* boxes
-rather than straight through them, extending M2 cardinal endpoints. Key model
-decisions are settled: **channels are first-class sized layout objects** that push
-boxes apart to carry lanes (margins stay aesthetic spacing); routing runs on a
-**channel graph derived from the arrangement tree before pixel layout**, so channel
-demand is pure topology and there is no routing↔position feedback loop;
-**break-out/in is an arrow-relative obstacle rule** (a border is passable only to
-arrows it must contain) plus a per-container perimeter ring. Still open: the
-lane-spacing formula, and whether the mode is document-wide (`route: orthogonal`),
-per-arrow, or both. This is the agreed reversal of the v1 "no orthogonal/auto
-routing" scope line — *routing* only; auto-placement stays out.
+**Now in progress** (see *In progress* above for the slice breakdown). The surface
+(`route: orthogonal`) and clear-case orthogonal emission have landed; the channel
+graph + A*, channel widening, and break-out remain. Still open within the track:
+the lane-spacing formula, and a per-arrow override (the document-wide knob shipped
+first). This is the agreed reversal of the v1 "no orthogonal/auto routing" scope
+line — *routing* only; auto-placement stays out.
 
 ### Other tracks (lower priority)
 

@@ -44,14 +44,17 @@ github.com/kurrik/arkitecture        (module)
                      selectors/conflicts/ranges, anchor names)
   resolve/           Document → map[path]*Declarations (merge layout onto tree)
   generator/         Document + resolved layout → SVG string (text measurement,
-                     layout, emit)
+                     layout, arrow routing, emit)
+    route.go         arrow endpoint resolution + straight/orthogonal routing
     testdata/golden/ .ark fixtures + .svg/.error references for the golden test
   cmd/arkitecture/   package main — the CLI (flags, file I/O, watch); imports the library
   wasm/              package main — js,wasm shim exposing ToSVG to JS (+ host stub)
+  internal/sitegen/  package main — build tool: inject each example's .ark source
+                     into its <code data-ark> block in the site HTML (not shipped)
 examples/            sample .ark inputs
 site/                static docs site (GitHub Pages); examples.html is enhanced
                      into a live WASM editor by playground.js
-scripts/build-site.sh  generation step: render site examples + build the site WASM
+scripts/build-site.sh  generation step: render site examples + inject sources + build WASM
 ```
 
 Dependency direction is one-way: `cmd`/`wasm` → `arkitecture` → `{parser,
@@ -150,10 +153,18 @@ semantic layer and a layout layer:
   `DefaultMargin` (else 8) for any node with no margin — positions top-down, sizes
   the canvas, and resolves anchor coordinates (an unpositioned declared anchor
   defaults to centre);
+  `route.go` resolves each arrow's endpoints (the M2 cardinal edge, or an explicit
+  anchor) and turns them into the ordered points its line passes through: two
+  points (the straight default) or, under a document-level `route: orthogonal`, an
+  axis-aligned elbow/Z when that path is clear of the arrow's obstacles (every box
+  not on the source's or target's lineage) — otherwise the straight fallback. A
+  positioned anchor is met at the box border on the facing side, with a tail
+  segment entering the node to reach an interior anchor (zero-length for an edge
+  anchor);
   `svg.go` walks the tree to emit `<rect>` + `<text>` per visible node (the label
   is centred in its reserved band when a parent has one; a `box: none` node and a
-  `@group` render no rect) and `<line>` + arrowhead `<marker>` per arrow. Output is
-  byte-for-byte stable.
+  `@group` render no rect) and, per arrow, a `<line>` (two points) or `<polyline>`
+  (a bent route) with the arrowhead `<marker>`. Output is byte-for-byte stable.
 
 ## Public API
 
@@ -209,13 +220,20 @@ GitHub Pages by `.github/workflows/pages.yml`. Publishing is a **generation
 step**, not a verbatim copy: the workflow runs `scripts/build-site.sh`, which
 
 1. re-renders every `site/examples/*.ark` to `.svg` via the CLI (the committed
-   SVGs are a refreshed-at-publish snapshot and the no-JS fallback), and
-2. builds `site/arkitecture.wasm` (`-ldflags="-s -w"`) and copies Go's
+   SVGs are a refreshed-at-publish snapshot and the no-JS fallback),
+2. injects each example's `.ark` source into the page HTML via
+   `internal/sitegen` — replacing the body of every `<code data-ark="…">` block
+   with the file's escaped contents — so the **shown source has one canonical
+   home (the `.ark`)** and can never drift from the diagram it renders, and
+3. builds `site/arkitecture.wasm` (`-ldflags="-s -w"`) and copies Go's
    `wasm_exec.js` beside it,
 
-then uploads `site/`. Both build artifacts are git-ignored. The same script runs
-locally to preview the site as it ships. Pages triggers on changes to `site/**`,
-the script, the workflow, or any Go source (the site embeds the library).
+then uploads `site/`. The SVGs and the injected HTML are committed (and
+idempotently refreshed here); the `.wasm`/`wasm_exec.js` are git-ignored. The
+same script runs locally to preview the site as it ships. Pages triggers on
+changes to `site/**`, the script, the workflow, or any Go source (the site embeds
+the library). To add or edit an example, change only its `.ark`: the SVG and the
+shown source both regenerate from it.
 
 The Examples page is **progressively enhanced** by `site/playground.js`: it loads
 the WASM (the same `arkitectureToSVG` the JS/TS interop uses), replaces each

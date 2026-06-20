@@ -80,6 +80,11 @@ choose controllable.
   8 for any node that sets no margin of its own; nodes still override it directly.
   It is a single global baseline, *not* a cascade — there is no parent→child
   inheritance and no selector contest.
+- **Route mode** — the document-wide arrow routing style, set by a bare
+  `route: straight | orthogonal` at the root of an `@layout` sheet (mirroring the
+  **default margin**). `straight` (the default) draws each arrow as the M2
+  auto-cardinal line; `orthogonal` routes arrows as axis-aligned paths around the
+  boxes between their endpoints. See *Auto edge routing — sized channels*.
 - **Box / border box / margin box** — `box: none` makes a node draw no border
   (an ID-bearing twin of the layout-only group); the **border box** is the
   visible rectangle and the **margin box** is the border box plus its margins.
@@ -368,18 +373,27 @@ to centre. This routing depends on margins for room — without a gap, edge
 attachment between touching boxes degenerates to a zero-length arrow — but is
 otherwise independent of the rest of the `@layout` model.
 
-### Auto edge routing — sized channels *(planned)*
+### Auto edge routing — sized channels *(in progress)*
 
-> 🚧 **Designed, not yet built.** The model below is the agreed direction (see the
-> ADR in [decisions.md](decisions.md)); it extends M2 cardinal routing from
-> "which edge does the line attach to" to "what path does the line take around the
-> boxes in between". It is the deliberate, ADR-backed reversal of the v1
-> "no orthogonal/auto routing" scope line — and only of *routing*: auto-*placement*
-> (moving the author's arrangement) stays out.
+> 🚧 **Being built in slices** (see the ADRs in [decisions.md](decisions.md) and
+> the slice list in [roadmap.md](roadmap.md)). The opt-in mode is enabled with a
+> document-level **`route: orthogonal`** at an `@layout` sheet root (default
+> `straight` is today's M2 line). The **surface** and **clear-case orthogonal
+> emission** have landed: an arrow whose straight route is unobstructed is drawn as
+> an axis-aligned elbow/Z between its endpoints (otherwise it falls back to the
+> straight line). This covers both bare (M2 cardinal) ends and **explicit
+> anchors** — a positioned anchor is met at the box border on the facing side, with
+> the line *entering the node* to reach an interior anchor. Still to come: routing
+> *around* obstacles (the channel graph + A*), channel widening, and break-out
+> across nesting levels. It
+> extends M2 cardinal routing from "which edge does the line attach to" to "what
+> path does the line take around the boxes in between" — the deliberate, ADR-backed
+> reversal of the v1 "no orthogonal/auto routing" scope line, and only of
+> *routing*: auto-*placement* (moving the author's arrangement) stays out.
 
-An opt-in routing mode draws each arrow as an **orthogonal path routed around the
-boxes between its endpoints**, instead of a straight line that may cut through
-them. Two ideas carry the model:
+The mode draws each arrow as an **orthogonal path routed around the boxes between
+its endpoints**, instead of a straight line that may cut through them. Two ideas
+carry the model:
 
 - **Channel vs. margin.** A **channel** is a routing corridor between adjacent
   blocks that reserves *its own* width and **pushes the boxes apart** to hold the
@@ -453,9 +467,9 @@ no-JavaScript fallback.
 - Auto-cardinal routing ships with 4 sides (N/E/S/W); is 8 directions (incl.
   corners) ever worth the extra ambiguity? (4 is the v1 decision.)
 - For auto edge routing (sized channels, above): what is the lane-spacing formula —
-  a fixed multiple of `margin`, or font-scaled? And is the mode a document-wide
-  `route: orthogonal` knob, a per-arrow override, or both? (Per-arrow would give
-  arrows their first foothold in the `@layout` layer.)
+  a fixed multiple of `margin`, or font-scaled? (The mode is settled as a
+  document-wide `route: orthogonal` knob, now implemented; a per-arrow override —
+  arrows' first foothold in the `@layout` layer — remains a possible follow-up.)
 - Should an unpositioned *named* anchor be an error rather than defaulting to
   centre?
 - Should a node be allowed *multiple* kinds later, and if so how do their blocks

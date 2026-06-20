@@ -2,7 +2,6 @@ package generator
 
 import (
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
@@ -27,7 +26,7 @@ func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFam
 	if nodes := renderNodes(doc, layout, fontSize, fontFamily); nodes != "" {
 		parts = append(parts, "", "  <!-- Node rectangles and labels -->", nodes)
 	}
-	if arrows := renderArrows(doc.Arrows, layout); arrows != "" {
+	if arrows := renderArrows(doc.Arrows, layout, routeMode(doc)); arrows != "" {
 		parts = append(parts, "", "  <!-- Arrows -->", arrows)
 	}
 	parts = append(parts, "</svg>")
@@ -105,60 +104,32 @@ func nodeText(label string, d dimensions, fontSize float64, fontFamily string) s
 // point is a resolved coordinate where an arrow attaches.
 type point struct{ x, y float64 }
 
-func renderArrows(arrows []ast.Arrow, layout layoutResult) string {
+func renderArrows(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) string {
 	var els []string
 	for _, a := range arrows {
-		src := resolveEndpoint(a.Source, a.Target, layout)
-		tgt := resolveEndpoint(a.Target, a.Source, layout)
-		if src == nil || tgt == nil {
+		pts, ok := arrowPath(a, layout, mode)
+		if !ok {
 			continue // missing nodes/anchors are reported by the validator
 		}
-		els = append(els, fmt.Sprintf(`  <line x1="%s" y1="%s" x2="%s" y2="%s" stroke="black" stroke-width="1" marker-end="url(#arrowhead)" />`,
-			num(src.x), num(src.y), num(tgt.x), num(tgt.y)))
+		els = append(els, arrowElement(pts))
 	}
 	return strings.Join(els, "\n")
 }
 
-// resolveEndpoint finds where an arrow attaches to self. An explicit #anchor
-// (named, or #center) uses that anchor's fixed position. A bare reference
-// auto-routes: it attaches to the cardinal edge (N/E/S/W) of self's border box
-// facing the other node's centre.
-func resolveEndpoint(self, other string, layout layoutResult) *point {
-	path, anchor, explicit := splitRef(self)
-	if explicit {
-		ap := findAnchor(layout.anchorPositions, path, anchor)
-		if ap == nil {
-			return nil
-		}
-		return &point{ap.x, ap.y}
+// arrowElement renders an arrow's resolved polyline. A two-point path emits the
+// same <line> straight mode always has (keeping that output byte-stable); a path
+// with a bend emits a <polyline>. The arrowhead marker sits at the final point.
+func arrowElement(pts []point) string {
+	if len(pts) == 2 {
+		return fmt.Sprintf(`  <line x1="%s" y1="%s" x2="%s" y2="%s" stroke="black" stroke-width="1" marker-end="url(#arrowhead)" />`,
+			num(pts[0].x), num(pts[0].y), num(pts[1].x), num(pts[1].y))
 	}
-	selfBox, ok := layout.nodeBoxes[path]
-	if !ok {
-		return nil
+	coords := make([]string, len(pts))
+	for i, p := range pts {
+		coords[i] = num(p.x) + "," + num(p.y)
 	}
-	otherBox, ok := layout.nodeBoxes[nodePathOf(other)]
-	if !ok {
-		return nil
-	}
-	return cardinalPoint(selfBox, centerOf(otherBox))
-}
-
-// cardinalPoint returns the midpoint of box's edge facing aim, chosen by the
-// dominant axis of the centre-to-aim vector. Exact diagonals (|dx| == |dy|)
-// favour the horizontal (E/W) side.
-func cardinalPoint(box dimensions, aim point) *point {
-	c := centerOf(box)
-	dx, dy := aim.x-c.x, aim.y-c.y
-	if math.Abs(dx) >= math.Abs(dy) {
-		if dx >= 0 {
-			return &point{box.x + box.width, c.y} // east
-		}
-		return &point{box.x, c.y} // west
-	}
-	if dy >= 0 {
-		return &point{c.x, box.y + box.height} // south
-	}
-	return &point{c.x, box.y} // north
+	return fmt.Sprintf(`  <polyline points="%s" fill="none" stroke="black" stroke-width="1" marker-end="url(#arrowhead)" />`,
+		strings.Join(coords, " "))
 }
 
 func centerOf(d dimensions) point {

@@ -48,11 +48,12 @@ type parser struct {
 	rules         []ast.LayoutRule // collected inline + standalone layout rules
 	blocks        []ast.Block      // collected @block definitions
 	defaultMargin *float64         // document-wide default margin (bare `margin:` at a sheet root)
+	route         *ast.RouteMode   // document-wide routing mode (bare `route:` at a sheet root)
 }
 
 func (p *parser) parseDocument() ast.ParseResult {
 	nodes, arrows := p.parseTopLevel()
-	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Blocks: p.blocks, Arrows: arrows, DefaultMargin: p.defaultMargin}
+	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Blocks: p.blocks, Arrows: arrows, DefaultMargin: p.defaultMargin, Route: p.route}
 	if len(p.errors) > 0 {
 		return ast.ParseResult{Success: false, Document: doc, Errors: p.errors}
 	}
@@ -359,8 +360,9 @@ func (p *parser) parseLayoutSheet() {
 }
 
 // parseDocumentDefault parses a bare `property: value` at the root of an @layout
-// sheet — a document-wide default for nodes that set none. v1 supports only
-// `margin` (the fallback spacing); the cursor is on the property identifier.
+// sheet — a document-wide setting that is not a per-node layout property. v1
+// supports `margin` (the fallback spacing) and `route` (the arrow routing mode);
+// the cursor is on the property identifier.
 func (p *parser) parseDocumentDefault() {
 	propTok := p.advance() // the property identifier
 	name := propTok.Value
@@ -369,12 +371,43 @@ func (p *parser) parseDocumentDefault() {
 	switch name {
 	case "margin":
 		p.parseNumberDecl(&p.defaultMargin, "margin", propTok)
+	case "route":
+		p.parseRouteDecl(propTok)
 	default:
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown document default '%s'; only 'margin' may be set at the @layout root", name), propTok.Line, propTok.Column)
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown document default '%s'; only 'margin' and 'route' may be set at the @layout root", name), propTok.Line, propTok.Column)
 		if !p.check(TokenRBrace) && !p.isAtEnd() {
 			p.advance()
 		}
 	}
+}
+
+// parseRouteDecl reads `route: straight | orthogonal`, the document-wide arrow
+// routing mode. The cursor is past the ':'.
+func (p *parser) parseRouteDecl(propTok Token) {
+	if !p.check(TokenIdentifier) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected 'straight' or 'orthogonal' for route, got %s", tok.Type), tok.Line, tok.Column)
+		if !p.check(TokenRBrace) {
+			p.advance()
+		}
+		return
+	}
+	tok := p.advance()
+	var mode ast.RouteMode
+	switch tok.Value {
+	case "straight":
+		mode = ast.RouteStraight
+	case "orthogonal":
+		mode = ast.RouteOrthogonal
+	default:
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid route '%s', expected 'straight' or 'orthogonal'", tok.Value), tok.Line, tok.Column)
+		return
+	}
+	if p.route != nil {
+		p.addError(ast.ErrorSyntax, "Duplicate document property 'route'", propTok.Line, propTok.Column)
+		return
+	}
+	p.route = &mode
 }
 
 // parseBlockDef parses `@block <name> { decls }` inside an @layout sheet,
