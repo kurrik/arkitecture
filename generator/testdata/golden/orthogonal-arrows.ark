@@ -1,0 +1,27 @@
+# `route: orthogonal` (a document-wide setting at the @layout root) draws arrows
+# as axis-aligned paths between their M2 cardinal endpoints instead of straight
+# lines. Two diagonally offset boxes get a Z routed through the gap between them;
+# two boxes already aligned on the shared axis stay a straight line. This first
+# slice routes the clear case — routing *around* intervening boxes is the next
+# step — so an explicit anchor still pins a straight segment.
+left {
+  a { label: "Aaaaaaaa" }
+}
+right {
+  spacer { label: "Spacer" }
+  b      { label: "Bbbbbbbb" }
+}
+near1 { label: "Near1" }
+near2 { label: "Near2" }
+
+@layout {
+  route: orthogonal
+  margin: 16
+  left  { direction: vertical }
+  right { direction: vertical }
+}
+
+# Diagonally offset -> an orthogonal Z through the gap.
+left.a --> right.b
+# Already aligned on the row -> a straight line.
+near1 --> near2

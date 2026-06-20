@@ -1,8 +1,6 @@
 ordering {
   label: "Ordering Context"
 
-  # A borderless node groups Cart and Checkout for layout only — the modern
-  # replacement for the old `group` keyword.
   row {
     cart     { label: "Cart" }
     checkout { label: "Checkout" }

@@ -1,0 +1,18 @@
+edge {
+  label: "Edge"
+  cdn { label: "CDN" }
+}
+origin {
+  label: "Origin"
+  api      { label: "API Server" }
+  database { label: "Database" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  edge   { direction: vertical }
+  origin { direction: vertical }
+}
+
+edge.cdn --> origin.database
