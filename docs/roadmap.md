@@ -112,6 +112,21 @@ The layered authoring model (M1–M5) is complete. What remains are the broader
 tracks below; each is independently shippable. The *model* lives in
 [design.md](design.md) and the *rationale* in [decisions.md](decisions.md).
 
+### Auto edge routing — sized channels
+
+Designed (see [design.md](design.md) and the ADR in [decisions.md](decisions.md));
+not yet built. An opt-in mode that routes arrows as orthogonal paths *around* boxes
+rather than straight through them, extending M2 cardinal endpoints. Key model
+decisions are settled: **channels are first-class sized layout objects** that push
+boxes apart to carry lanes (margins stay aesthetic spacing); routing runs on a
+**channel graph derived from the arrangement tree before pixel layout**, so channel
+demand is pure topology and there is no routing↔position feedback loop;
+**break-out/in is an arrow-relative obstacle rule** (a border is passable only to
+arrows it must contain) plus a per-container perimeter ring. Still open: the
+lane-spacing formula, and whether the mode is document-wide (`route: orthogonal`),
+per-arrow, or both. This is the agreed reversal of the v1 "no orthogonal/auto
+routing" scope line — *routing* only; auto-placement stays out.
+
 ### Other tracks (lower priority)
 
 - **Distribution:** portable binary release builds (per-OS/arch); a usable JS/TS

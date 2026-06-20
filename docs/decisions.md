@@ -18,6 +18,73 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-20 — Auto edge routing via sized channels (design)
+**Choice:** Add an opt-in **auto-routing mode** that draws arrows as **orthogonal
+paths routed around boxes** instead of straight lines, built on three commitments:
+- **Channels are first-class, sized layout objects — not the margins.** A
+  **channel** is a routing corridor between adjacent blocks that reserves its own
+  width and **pushes the boxes apart** to make room for the lines it carries.
+  **Margin** stays what it is — aesthetic breathing room that spaces a line nicely
+  from the box it runs alongside. So routing does *not* thread lines through the
+  margin gap; it inserts a sized lane-bundle, with margin still framing it on
+  either side. A channel's width is `margin + lanes × laneSpacing`, where *lanes*
+  is the number of arrows running **longitudinally** through that channel (a line
+  merely crossing it perpendicularly needs only a point, not a lane).
+- **Route on a channel graph derived from the arrangement tree, before pixel
+  layout — so there is no layout↔routing feedback loop.** The graph's nodes are
+  channel slots (between every pair of adjacent siblings, plus a **perimeter ring**
+  inside each container) and its edges are topological adjacency, all known from
+  the fixed arrangement tree *before* any coordinates exist. Pathfinding (A* with a
+  bend penalty for few-turn routes) assigns each arrow a sequence of slots; channel
+  **demand** (the lane count per slot) then falls out as pure topology. Only then
+  does layout run once, consuming each channel's computed width exactly where
+  `calcDimensions`/`positionNodes` today compute the collapsed inter-sibling gap.
+  One pass, no fixpoint iteration.
+- **Breakout/break-in is an arrow-relative obstacle rule.** For an arrow
+  `a.b.c --> x.y`, obstacles are every node box **except** the ancestors of the
+  source and of the target (and the endpoints themselves). A container border is
+  passable only to an arrow it must legitimately leave or enter; the perimeter ring
+  gives such an arrow a lane to travel before it punches through. Each arrow is thus
+  its own pathfinding problem with its own obstacle set — fine at this tool's scale
+  (dozens of boxes).
+
+This **reverses the v1 out-of-scope line on orthogonal/auto routing** (`design.md`),
+deliberately and with an ADR, while leaving **auto-*placement*** (moving the
+author's arrangement) firmly out. It extends M2 cardinal routing: with no obstacles
+between two boxes the route collapses to today's straight cardinal line.
+**Why:** The author wants routing that *makes space* for lines rather than cutting
+into space meant to stay empty — margins should keep spacing lines nicely, so the
+corridor must be its own reserved width that displaces boxes. That "push boxes
+apart" requirement is exactly what makes the **channel graph beat a pixel-level
+visibility/Hanan grid**: routing on geometry would make channel width depend on
+positions and positions depend on width — a fixpoint that iteration (and golden
+byte-stability) can't tolerate. Deriving the graph from the arrangement tree
+decouples demand from pixels and collapses the whole thing to a single
+deterministic pass. The arrow-relative obstacle set is what turns "break out of a
+parent container" from bespoke nesting logic into one prefix-matching rule. Routing
+that pushes boxes apart but **preserves the arrangement** stays inside "manual,
+deterministic layout": the displacement is a visible consequence of a local rule
+("N arrows route here, so this gap is N lanes wide"), the same way a longer label
+already grows a box and nudges its neighbours — arrows are content, and channel
+width is content-driven sizing, not auto-placement.
+**Implications:** This is a **layout-layer** feature, not a generator post-pass:
+routing must run before sizing, and the layout tree gains channel slots as real
+objects with width (a localized change to the inter-sibling gap math at
+`layout.go` `calcDimensions`/`positionNodes`, plus the perimeter ring). The
+generator emits a `<polyline>`/`<path>` per arrow instead of `<line>` (arrowhead
+marker unchanged); A* tie-breaking must be totally deterministic (cost = length +
+bend penalty, ties broken by a fixed geometric preference, never by map order) or
+the golden tests churn. Cardinal endpoint selection (M2) is reused to pick each
+arrow's start/end side, so the feature degrades gracefully to current output where
+nothing is in the way. **Open knobs deferred to implementation:** the lane-spacing
+formula (a fixed multiple of margin vs. font-scaled) and how the mode is expressed
+(a document-wide `route: orthogonal` knob first — mirroring the root `margin: N`
+default — with a per-arrow override as a follow-up, which finally gives arrows a
+presence in the `@layout` layer, per the roadmap parking-lot item). Lane
+*separation* for many parallel arrows sharing a slot beyond a simple count, and any
+curved (non-orthogonal) routing, stay out. Not yet built — this ADR records the
+model before code is written against it.
+
 ## 2026-06-19 — A document-wide default margin (root `@layout { margin: N }`)
 **Choice:** Let an author override the built-in default margin (8) for a whole
 diagram by writing a bare **`margin: N` at the root of an `@layout` sheet** —

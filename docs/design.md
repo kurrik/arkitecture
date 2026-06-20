@@ -368,6 +368,51 @@ to centre. This routing depends on margins for room — without a gap, edge
 attachment between touching boxes degenerates to a zero-length arrow — but is
 otherwise independent of the rest of the `@layout` model.
 
+### Auto edge routing — sized channels *(planned)*
+
+> 🚧 **Designed, not yet built.** The model below is the agreed direction (see the
+> ADR in [decisions.md](decisions.md)); it extends M2 cardinal routing from
+> "which edge does the line attach to" to "what path does the line take around the
+> boxes in between". It is the deliberate, ADR-backed reversal of the v1
+> "no orthogonal/auto routing" scope line — and only of *routing*: auto-*placement*
+> (moving the author's arrangement) stays out.
+
+An opt-in routing mode draws each arrow as an **orthogonal path routed around the
+boxes between its endpoints**, instead of a straight line that may cut through
+them. Two ideas carry the model:
+
+- **Channel vs. margin.** A **channel** is a routing corridor between adjacent
+  blocks that reserves *its own* width and **pushes the boxes apart** to hold the
+  lines it carries. A **margin** stays aesthetic breathing room — the space that
+  keeps a line from crowding the box it runs alongside. Routing therefore does not
+  thread lines through the margin; it inserts a sized lane-bundle, with margin
+  still framing it. A channel's width is `margin + lanes × laneSpacing`, where
+  *lanes* counts the arrows running **along** that channel (a line merely crossing
+  it perpendicularly needs a point, not a lane).
+- **A channel graph, not a pixel grid.** Routing runs on a graph derived from the
+  **arrangement tree** — its nodes are channel slots (between every pair of adjacent
+  siblings, plus a **perimeter ring** inside each container), its edges topological
+  adjacency — *before* any coordinates exist. Pathfinding (few-bend A*) assigns each
+  arrow a sequence of slots; each slot's lane count is then known as pure topology,
+  so layout runs **once** with the channels sized, with no routing↔position
+  feedback loop. This is why channels (not a geometric visibility grid) are the
+  substrate: they let "make room for lines" decouple from pixel positions.
+
+**Breaking out of a container** is a single rule: for an arrow `a.b.c --> x.y`, the
+obstacles are every box *except* the ancestors of the source and of the target. A
+container's border blocks arrows passing by, but is passable to one that must
+legitimately leave or enter it; the perimeter ring gives that arrow a lane to run
+in before it crosses the border. Each arrow is its own routing problem with its own
+obstacle set.
+
+This stays inside *manual, deterministic layout*: widening a channel shifts
+absolute positions but never the **arrangement** — exactly as a longer label
+already grows a box and nudges its neighbours. The displacement is a visible
+consequence of a local rule ("N arrows route here → this gap is N lanes wide"), not
+hidden auto-placement. Open knobs (tracked below): the lane-spacing formula, and
+whether the mode is a document-wide `route:` knob, per-arrow, or both — the latter
+giving arrows their first presence in the `@layout` layer.
+
 ## Distribution
 
 Arkitecture ships as a single self-contained binary (no runtime to install) and,
@@ -380,8 +425,11 @@ no-JavaScript fallback.
 
 ## Out of scope (v1)
 
-- **Automatic layout / routing** — the entire point is manual control; no
-  force-directed or hierarchical auto-placement.
+- **Automatic *placement*** — the entire point is manual control; no
+  force-directed or hierarchical auto-placement that moves the author's
+  arrangement. (Auto *routing* — choosing arrow paths without disturbing the
+  arrangement — is in scope: M2 cardinal endpoints today, sized-channel orthogonal
+  routing designed above.)
 - **CSS-style cascade** — selectors are exact-path; no wildcards, specificity, or
   inheritance. A deliberate non-feature (see *Semantic vs. layout*).
 - **Parameterized layout blocks** — `@block`/`@use` is parameterless; no mixin
@@ -391,8 +439,9 @@ no-JavaScript fallback.
   `@layout` layer is structural (size, direction, anchors, box). `kind` is the
   intended hook for a future styling layer.
 - **Interactivity** — static SVG only; no links, tooltips, or animation.
-- **Curved / orthogonal arrow routing** — arrows are straight lines between
-  anchors.
+- **Curved arrow routing** — arrows are straight or orthogonal segments, never
+  splines. (Orthogonal sized-channel routing is *planned*, designed above; curved
+  paths stay out.)
 - **Output formats other than SVG** — no PNG/PDF; convert downstream if needed.
 
 ## Open questions
@@ -403,6 +452,10 @@ no-JavaScript fallback.
   [decisions.md](decisions.md).)
 - Auto-cardinal routing ships with 4 sides (N/E/S/W); is 8 directions (incl.
   corners) ever worth the extra ambiguity? (4 is the v1 decision.)
+- For auto edge routing (sized channels, above): what is the lane-spacing formula —
+  a fixed multiple of `margin`, or font-scaled? And is the mode a document-wide
+  `route: orthogonal` knob, a per-arrow override, or both? (Per-arrow would give
+  arrows their first foothold in the `@layout` layer.)
 - Should an unpositioned *named* anchor be an error rather than defaulting to
   centre?
 - Should a node be allowed *multiple* kinds later, and if so how do their blocks
