@@ -10,18 +10,18 @@ import (
 // route.go turns each arrow into the sequence of points its line passes through.
 // In the default straight mode that is just the two resolved endpoints (the M2
 // auto-cardinal line). In orthogonal mode (`route: orthogonal` at the @layout
-// root) the endpoints are joined by an axis-aligned path — an elbow or Z that
-// respects each end's exit side — provided that path is clear of the boxes
-// between the endpoints; otherwise it falls back to the straight line so
-// orthogonal mode never renders a worse result than straight mode. A positioned
-// anchor is handled the same way: the path meets the box border on the facing
-// side and a tail segment runs in to the anchor, so an interior anchor is reached
-// by entering the node.
+// root) the endpoints are joined by an axis-aligned path: first the direct elbow
+// or Z respecting each end's exit side, and when that would cut through a box, a
+// detour routed *around* the obstacles on the channel graph (channel.go);
+// failing both it falls back to the straight line, so orthogonal mode never
+// renders a worse result than straight mode. A positioned anchor pinned to a box
+// edge leaves/enters perpendicular to *that* edge; an interior anchor is met at
+// the facing border and a tail runs in, so the line enters the node.
 //
-// This is an early slice of the sized-channel router (docs/design.md): it
-// establishes the polyline emission and the per-arrow obstacle set, reusing M2's
-// cardinal endpoint choice. Routing *around* obstacles (the channel graph + A*)
-// and channel widening build on these primitives.
+// This realises the sized-channel router (docs/design.md) up to channel
+// widening: the polyline emission, the per-arrow obstacle set, the cardinal
+// endpoint choice, and routing around obstacles are all here; lane counts pushing
+// boxes apart (widening) is the remaining slice.
 
 // routeMode reports the document's resolved routing mode (default straight).
 func routeMode(doc *ast.Document) ast.RouteMode {
@@ -47,15 +47,22 @@ func (s side) horizontal() bool { return s == east || s == west }
 
 // endpoint is one resolved arrow end. tip is the actual attachment point — a
 // positioned anchor, or the cardinal edge midpoint for a bare reference. edge is
-// where the orthogonal path meets the box border on its exit side: equal to tip
-// for a bare reference (or an anchor already on that side), otherwise the border
-// point aligned with the anchor — the tip then sits inside the box and a final
-// tail segment runs between them, so the line enters the node to reach an
-// interior anchor. side is the exit normal.
+// where the orthogonal path begins outside the tip, and side is the exit normal.
+// Three cases set them:
+//   - bare reference / anchor on the facing side: edge is the breakout box's
+//     border on the facing side (equal to tip for a bare reference);
+//   - interior anchor: edge is that border too, and the tip sits inside, so a
+//     tail segment runs in — the line enters the node;
+//   - anchor pinned to one of its box's own edges (not the facing side): edge is
+//     a stub one inset outside that edge, and side is the edge's normal, so the
+//     line departs perpendicular to the edge into the box's channel. edgeExit is
+//     set, so arrowPath walls off that box and the route detours around it rather
+//     than turning back through it.
 type endpoint struct {
-	tip  point
-	edge point
-	side side
+	tip      point
+	edge     point
+	side     side
+	edgeExit bool
 }
 
 // cardinalEndpoint returns the midpoint of box's edge facing aim and that edge's
@@ -103,17 +110,78 @@ func resolveOrthoEndpoint(self, other string, layout layoutResult) (endpoint, bo
 	entryBox := breakoutBox(otherPath, path, layout.nodeBoxes)
 	_, s := cardinalEndpoint(exitBox, centerOf(entryBox))
 
-	var tip point
-	if explicit {
-		ap := findAnchor(layout.anchorPositions, path, anchor)
-		if ap == nil {
-			return endpoint{}, false
-		}
-		tip = point{ap.x, ap.y}
-	} else {
-		tip, _ = cardinalEndpoint(selfBox, centerOf(otherBox))
+	if !explicit {
+		tip, _ := cardinalEndpoint(selfBox, centerOf(otherBox))
+		return endpoint{tip: tip, edge: edgePointOnSide(exitBox, s, tip), side: s}, true
 	}
-	return endpoint{tip: tip, edge: edgePointOnSide(exitBox, s, tip), side: s}, true
+
+	ap := findAnchor(layout.anchorPositions, path, anchor)
+	if ap == nil {
+		return endpoint{}, false
+	}
+	tip := point{ap.x, ap.y}
+	inset := layout.defMargin / 2
+	es, isEdge := anchorEdge(selfBox, tip)
+	switch {
+	case isEdge && es != s:
+		// An anchor pinned to one of its box's edges that is **not** the facing side
+		// leaves **perpendicular to that edge**, into the leaf's adjacent channel —
+		// honouring where the author placed it rather than running the line along the
+		// edge toward the facing side. The exit point is a stub one inset outside the
+		// leaf edge; the channel router follows corridors (and breaks out of
+		// containers) from there. edgeExit walls off the leaf so the route detours
+		// around it instead of turning straight back through it.
+		return endpoint{tip: tip, edge: offsetPoint(tip, es, inset), side: es, edgeExit: true}, true
+	case isEdge:
+		// An anchor already on the facing side is met one inset past the breakout-box
+		// border, out in the channel, so the router approaches it **along the facing
+		// normal** instead of sliding up the border when the rest of the route arrives
+		// askew. (At the breakout-box border this still crosses in the channel between
+		// containers, so the break-out case is unchanged.)
+		return endpoint{tip: tip, edge: offsetPoint(edgePointOnSide(exitBox, s, tip), s, inset), side: s}, true
+	default:
+		// A bare reference or an interior/corner anchor meets the breakout-box border
+		// on the facing side, with the tail entering the node for an interior anchor.
+		return endpoint{tip: tip, edge: edgePointOnSide(exitBox, s, tip), side: s}, true
+	}
+}
+
+// anchorEdge reports the single box edge an anchor sits on (and true), or false
+// when the anchor is interior or on a corner (two edges at once).
+func anchorEdge(box dimensions, tip point) (side, bool) {
+	on := func(a, b float64) bool { return math.Abs(a-b) < epsilon }
+	count := 0
+	var s side
+	if on(tip.x, box.x) {
+		count, s = count+1, west
+	}
+	if on(tip.x, box.x+box.width) {
+		count, s = count+1, east
+	}
+	if on(tip.y, box.y) {
+		count, s = count+1, north
+	}
+	if on(tip.y, box.y+box.height) {
+		count, s = count+1, south
+	}
+	if count == 1 {
+		return s, true
+	}
+	return 0, false
+}
+
+// offsetPoint moves p by d along side s's outward normal.
+func offsetPoint(p point, s side, d float64) point {
+	switch s {
+	case east:
+		return point{p.x + d, p.y}
+	case west:
+		return point{p.x - d, p.y}
+	case south:
+		return point{p.x, p.y + d}
+	default: // north
+		return point{p.x, p.y - d}
+	}
 }
 
 // breakoutBox returns the outermost box that contains self but not other — the
@@ -158,13 +226,14 @@ func edgePointOnSide(box dimensions, s side, tip point) point {
 
 // arrowPath returns the ordered points an arrow's line passes through, or ok =
 // false when an endpoint is unresolved. In straight mode it is the two attachment
-// points. In orthogonal mode it is tip → border → elbow across the gap → border →
-// tip: each end leaves (or enters) its box on the side facing the other, joined by
-// an axis-aligned elbow. Collinear tails merge into the adjacent run, and a tip
-// already on its border (a bare reference or an edge anchor) collapses its tail to
-// nothing, so a bare-to-bare arrow is exactly the M2 elbow. The orthogonal path is
-// used only when clear of the arrow's obstacles; otherwise it falls back to the
-// straight tip-to-tip line.
+// points. In orthogonal mode it is tip → border → path across the gap → border →
+// tip: each end leaves (or enters) its box on the side facing the other. The
+// gap-crossing path is, in order of preference: the clear-case elbow (one corner
+// or a Z); failing that, a channel-graph detour routed *around* the obstacles;
+// and failing that, the straight tip-to-tip line — so orthogonal mode never
+// renders worse than straight mode. Collinear tails merge into the adjacent run,
+// and a tip already on its border (a bare reference or an edge anchor) collapses
+// its tail to nothing, so a clear bare-to-bare arrow is exactly the M2 elbow.
 func arrowPath(a ast.Arrow, layout layoutResult, mode ast.RouteMode) ([]point, bool) {
 	src, ok := resolveOrthoEndpoint(a.Source, a.Target, layout)
 	if !ok {
@@ -177,13 +246,37 @@ func arrowPath(a ast.Arrow, layout layoutResult, mode ast.RouteMode) ([]point, b
 	if mode != ast.RouteOrthogonal {
 		return []point{src.tip, tgt.tip}, true
 	}
-	pts := append([]point{src.tip}, elbow(src.edge, src.side, tgt.edge, tgt.side)...)
-	pts = simplify(append(pts, tgt.tip))
 	obstacles := arrowObstacles(nodePathOf(a.Source), nodePathOf(a.Target), layout.nodeBoxes)
-	if pathClear(pts, obstacles) {
+	// An endpoint that exits perpendicular to a non-facing edge walls off its own
+	// box, so the route detours around it instead of cutting back through it.
+	if src.edgeExit {
+		obstacles = append(obstacles, layout.nodeBoxes[nodePathOf(a.Source)])
+	}
+	if tgt.edgeExit {
+		obstacles = append(obstacles, layout.nodeBoxes[nodePathOf(a.Target)])
+	}
+
+	// Fast path: the direct elbow between the breakout-box border points. When it
+	// is clear this is byte-identical to the pre-router output.
+	if pts := assembleRoute(src, elbow(src.edge, src.side, tgt.edge, tgt.side), tgt); pathClear(pts, obstacles) {
 		return pts, true
 	}
+	// The elbow cuts through a box: route around the obstacles on the channel grid.
+	if mid := routeAround(src.edge, tgt.edge, obstacles, layout.defMargin/2); mid != nil {
+		if pts := assembleRoute(src, mid, tgt); pathClear(pts, obstacles) {
+			return pts, true
+		}
+	}
+	// No clear orthogonal path exists: fall back to the straight line.
 	return []point{src.tip, tgt.tip}, true
+}
+
+// assembleRoute frames a gap-crossing path (from src.edge to tgt.edge) with each
+// end's tip→edge tail and simplifies: tip → edge → … → edge → tip, with collinear
+// points and zero-length tails (a bare reference, or an edge anchor) collapsed.
+func assembleRoute(src endpoint, mid []point, tgt endpoint) []point {
+	pts := append([]point{src.tip}, mid...)
+	return simplify(append(pts, tgt.tip))
 }
 
 // elbow joins two cardinal endpoints with an axis-aligned path that leaves a

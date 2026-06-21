@@ -122,22 +122,27 @@ for "where is this project at?". Move items between sections as work progresses:
     *between* containers instead of along a container border. An
     `orthogonal-breakout` golden locks it. (Routing *around* obstacles within that
     breakout is still below.)
-  - ⏳ **Edge-normal exits & channel-following** — the elbow router connects the
-    two endpoints point-to-point and has no model of the *intermediate* corridors,
-    so a bottom-edge anchor exits along its own edge toward the target rather than
-    dropping straight down. Target behavior (author's expectation): an edge anchor
-    leaves **perpendicular to its edge**, the run then **follows the channel** it
-    lands in (e.g. the strip below a row) and hops corridor→corridor before
-    breaking out — which is what the channel graph below provides. Deferred with
-    the rest of the channel-graph work.
-  - ⏳ **Route around obstacles** — the channel graph derived from the arrangement
-    tree + few-bend A*, so a blocked arrow detours instead of falling back, using
-    the arrow-relative obstacle set (already in place) plus a per-container
-    perimeter ring. The corridor model (perimeter ring + inter-sibling gaps) is
-    also what makes edge-normal exits and channel-following (above) fall out.
+  - ✅ **Edge-normal exits & channel-following** — an explicit anchor pinned to one
+    of its box's own edges now leaves/enters **perpendicular to that edge** (a
+    bottom anchor drops straight down), and the channel router follows the corridor
+    it lands in and hops out. A non-facing edge anchor exits via a stub in the leaf
+    channel with its own box walled off (so the route detours around it, not back
+    through it); a facing-side edge anchor is met in-channel so it's approached
+    along the normal. Only `orthogonal-anchors` moved (`source#out` now drops
+    down). Residual: a *bare-reference* target can still be approached askew (pin
+    it to an edge for the clean normal entry).
+  - ✅ **Route around obstacles** — the channel-graph router (`generator/channel.go`,
+    `routeAround`): a sparse per-arrow grid whose lanes sit one inset outside each
+    obstacle edge (channel centrelines in the uniform case), navigated by
+    deterministic few-bend A* over the arrow-relative obstacle set. A blocked elbow
+    now detours instead of falling back; the elbow stays the fast path, so no
+    existing golden moved. An `orthogonal-around` golden locks the up-and-over
+    route. (Routing runs on the computed layout — sound until widening moves boxes.)
   - ⏳ **Channel widening** — lane counts per channel push boxes apart (the
     `margin + lanes × laneSpacing` rule), consumed once in `calcDimensions`/
-    `positionNodes`; no routing↔layout feedback loop.
+    `positionNodes`; no routing↔layout feedback loop. This is the slice that hoists
+    route assignment ahead of sizing, deriving per-channel lane demand as topology
+    (today's router assigns routes but reserves no width, so co-routed lines overlap).
 
 ## Planned
 
@@ -148,11 +153,13 @@ tracks below; each is independently shippable. The *model* lives in
 ### Auto edge routing — sized channels
 
 **Now in progress** (see *In progress* above for the slice breakdown). The surface
-(`route: orthogonal`) and clear-case orthogonal emission have landed; the channel
-graph + A*, channel widening, and break-out remain. Still open within the track:
-the lane-spacing formula, and a per-arrow override (the document-wide knob shipped
-first). This is the agreed reversal of the v1 "no orthogonal/auto routing" scope
-line — *routing* only; auto-placement stays out.
+(`route: orthogonal`), clear-case orthogonal emission, positioned anchors,
+break-out, the **channel-graph router** (route around obstacles, few-bend A*), and
+**edge-normal exits** (anchors leave/enter perpendicular to their pinned edge) have
+landed; **channel widening** is the last slice. Still open within the track: the
+lane-spacing formula (the input to widening), and a per-arrow override (the
+document-wide knob shipped first). This is the agreed reversal of the v1 "no
+orthogonal/auto routing" scope line — *routing* only; auto-placement stays out.
 
 ### Other tracks (lower priority)
 

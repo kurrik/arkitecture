@@ -1,0 +1,18 @@
+# route: orthogonal routes an arrow *around* a box that blocks the direct path.
+# `left` and `right` sit at opposite ends of a row with `wall` between them, so
+# their straight cardinal line would cut through `wall`. Instead of falling back
+# to that straight line, the channel-graph router detours the arrow up through
+# the row's perimeter (the padding above the boxes) and over `wall`.
+row {
+  left  { label: "Left" }
+  wall  { label: "Wall" }
+  right { label: "Right" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 24
+  row { direction: horizontal }
+}
+
+row.left --> row.right

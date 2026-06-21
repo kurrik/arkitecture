@@ -46,6 +46,7 @@ github.com/kurrik/arkitecture        (module)
   generator/         Document + resolved layout → SVG string (text measurement,
                      layout, arrow routing, emit)
     route.go         arrow endpoint resolution + straight/orthogonal routing
+    channel.go       channel-graph router: few-bend A* around an arrow's obstacles
     testdata/golden/ .ark fixtures + .svg/.error references for the golden test
   cmd/arkitecture/   package main — the CLI (flags, file I/O, watch); imports the library
   wasm/              package main — js,wasm shim exposing ToSVG to JS (+ host stub)
@@ -156,11 +157,14 @@ semantic layer and a layout layer:
   `route.go` resolves each arrow's endpoints (the M2 cardinal edge, or an explicit
   anchor) and turns them into the ordered points its line passes through: two
   points (the straight default) or, under a document-level `route: orthogonal`, an
-  axis-aligned elbow/Z when that path is clear of the arrow's obstacles (every box
-  not on the source's or target's lineage) — otherwise the straight fallback. A
-  positioned anchor is met at the box border on the facing side, with a tail
-  segment entering the node to reach an interior anchor (zero-length for an edge
-  anchor);
+  axis-aligned path between them. That path is the clear-case elbow/Z when it is
+  clear of the arrow's obstacles (every box not on the source's or target's
+  lineage); when the elbow is blocked, `channel.go`'s `routeAround` detours it on a
+  per-arrow channel grid (lanes one inset outside each obstacle edge, navigated by
+  deterministic few-bend A*); only if no orthogonal path exists does it fall back to
+  the straight line. A positioned anchor is met at the box border on the facing
+  side, with a tail segment entering the node to reach an interior anchor
+  (zero-length for an edge anchor);
   `svg.go` walks the tree to emit `<rect>` + `<text>` per visible node (the label
   is centred in its reserved band when a parent has one; a `box: none` node and a
   `@group` render no rect) and, per arrow, a `<line>` (two points) or `<polyline>`

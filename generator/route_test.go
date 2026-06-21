@@ -119,6 +119,60 @@ func TestBreakoutBox(t *testing.T) {
 	}
 }
 
+func TestAnchorEdge(t *testing.T) {
+	box := dimensions{x: 10, y: 10, width: 20, height: 20} // 10,10 .. 30,30
+	for _, tt := range []struct {
+		name string
+		tip  point
+		want side
+		ok   bool
+	}{
+		{"south", point{20, 30}, south, true},
+		{"north", point{20, 10}, north, true},
+		{"west", point{10, 20}, west, true},
+		{"east", point{30, 20}, east, true},
+		{"interior is not an edge", point{20, 20}, 0, false},
+		{"corner is two edges, not one", point{30, 30}, 0, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := anchorEdge(box, tt.tip)
+			if ok != tt.ok || (ok && got != tt.want) {
+				t.Errorf("anchorEdge(%v) = (%d,%v), want (%d,%v)", tt.tip, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
+// TestArrowPathEdgeAnchorExitsPerpendicular checks that an anchor on a box edge
+// that is not the side facing the target leaves *perpendicular to its own edge*
+// (here straight down from a bottom anchor) and detours around its own box rather
+// than cutting back through it.
+func TestArrowPathEdgeAnchorExitsPerpendicular(t *testing.T) {
+	layout := layoutResult{
+		nodeBoxes: map[string]dimensions{
+			"a": {x: 0, y: 0, width: 24, height: 24},
+			"b": {x: 40, y: 0, width: 24, height: 24}, // to the east
+		},
+		anchorPositions: []anchorPosition{
+			{x: 12, y: 24, nodeID: "a", anchorID: "out"}, // bottom-centre: a south edge
+		},
+		defMargin: 16,
+	}
+	pts, ok := arrowPath(ast.Arrow{Source: "a#out", Target: "b"}, layout, ast.RouteOrthogonal)
+	if !ok {
+		t.Fatal("arrowPath ok=false")
+	}
+	if !samePoint(pts[0], point{12, 24}) {
+		t.Fatalf("path starts at %v, want the anchor (12,24)", pts[0])
+	}
+	if pts[1].x != pts[0].x || pts[1].y <= pts[0].y {
+		t.Errorf("first segment %v->%v is not a downward (south) exit perpendicular to the edge", pts[0], pts[1])
+	}
+	if !pathClear(pts, []dimensions{layout.nodeBoxes["a"]}) {
+		t.Errorf("path %v cuts back through its own source box a", pts)
+	}
+}
+
 func TestElbow(t *testing.T) {
 	for _, tt := range []struct {
 		name string

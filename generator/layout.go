@@ -31,6 +31,7 @@ type layoutResult struct {
 	anchorPositions []anchorPosition
 	canvasWidth     float64
 	canvasHeight    float64
+	defMargin       float64 // the document's effective default margin (channel width)
 }
 
 type layoutNode struct {
@@ -81,7 +82,7 @@ func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontS
 		anchors = append(anchors, collectAnchors(l)...)
 	}
 
-	return layoutResult{roots: roots, nodeBoxes: boxes, anchorPositions: anchors, canvasWidth: cw, canvasHeight: ch}
+	return layoutResult{roots: roots, nodeBoxes: boxes, anchorPositions: anchors, canvasWidth: cw, canvasHeight: ch, defMargin: defMargin}
 }
 
 func buildLayoutTree(node *ast.ContainerNode, parentPath string, layout map[string]*ast.Declarations) *layoutNode {
