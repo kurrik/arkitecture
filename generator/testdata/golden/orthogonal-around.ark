@@ -2,7 +2,8 @@
 # `left` and `right` sit at opposite ends of a row with `wall` between them, so
 # their straight cardinal line would cut through `wall`. Instead of falling back
 # to that straight line, the channel-graph router detours the arrow up through
-# the row's perimeter (the padding above the boxes) and over `wall`.
+# the row's top perimeter and over `wall` — and that perimeter widens (a
+# cross-axis rail) to give the run its own lane above the boxes.
 row {
   left  { label: "Left" }
   wall  { label: "Wall" }
