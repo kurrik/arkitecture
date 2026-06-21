@@ -18,6 +18,46 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-21 — Auto edge routing: channel-following for bare refs + full-margin lanes
+**Choice:** Two routing-quality fixes from author feedback on the rendered output:
+- **Bare references leave/enter through the channel, not along the box edge.** A
+  bare endpoint's routing point is now met **one inset past the breakout-box
+  border** (`offsetPoint(edgePointOnSide(...), s, inset)`), the same treatment a
+  facing-side edge anchor already got — so when an arrow must detour around an
+  obstacle its vertical/horizontal runs sit in the **gap centres** instead of
+  hugging the source/target edges. In the clear (elbow) case this point is
+  collinear with the exit and is absorbed by `simplify`, so a clear arrow's
+  geometry is unchanged by *this* part.
+- **A lane clears the boxes by a full margin, not half.** A channel carrying N
+  arrows now reserves `(N+1)·base/2` of extra width (total `2·base + (N−1)·base/2`)
+  instead of `N·base/2`, so each lane sits a **full margin** from the nearest box
+  with **half a margin between lanes**. The lane-offset formula
+  (`centre + (k − (N−1)/2)·base/2`) is unchanged — only the channel is wider, so
+  the same offsets now land a full margin clear.
+**Why:** Reported: (1) on the `detour` example a bare arrow exited Client *up its
+right edge* and dropped *down Database's left edge* instead of going east into the
+gap, up the channel, over Cache, down the next channel, and east into Database;
+(2) adding `route: orthogonal` to `contexts` left the line "squished" — it widened
+the channel but only by half a margin, so the line sat ~0.75 margin from the boxes,
+*inside* the node margin rather than in its own channel. Both trace to the lane
+sitting too close to the boxes. Fix (1) is the bare-ref analogue of the edge-normal
+exit already done for anchors — the cardinal point faces the box, so the line
+should leave perpendicular into the channel; realising it as the +inset point keeps
+clear arrows byte-stable because `simplify` drops the collinear stub. Fix (2)
+restores the author's original "lines act as walls; margins stay consistent" intent
+(2026-06-20): the box keeps a **full** margin to the line — the line is a wall in
+its **own** channel — while the earlier "half a margin per lane" choice survives as
+the **inter-lane** spacing. This **supersedes the lane-spacing detail** of the
+widening/multi-lane ADRs below (it was `N·base/2`, line at 0.75 margin).
+**Implications:** All five orthogonal *widening* goldens rebaselined (wider
+channels; `orthogonal-around`'s bare arrow now follows the gaps like `detour`);
+the clear non-widened cases are unchanged. The three orthogonal site examples
+(`routing`/`detour`/`lanes`) regenerated. The lane-offset unit test is unaffected
+(offsets unchanged; only widths grew). Determinism and the single-pass property
+hold. The lane-spacing knob is now effectively two: full-margin **framing**
+(fixed) and half-margin **inter-lane** spacing (the prior choice) — a per-arrow or
+configurable spacing remains a parked follow-up.
+
 ## 2026-06-21 — Auto edge routing: multi-lane distribution (widening track complete)
 **Choice:** When several arrows run along the **same** channel, give each a
 **distinct lane** instead of snapping them all to the centre. `channelDemand` now

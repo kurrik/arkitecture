@@ -144,15 +144,16 @@ _Nothing in progress._
   - ✅ **Channel widening (gaps, rails, multi-lane)** — an arrow running along a
     channel reserves a lane there: a two-pass layout routes once, attributes each
     run to its container channel (clipping by container → exact lane counts), widens
-    by `lanes × margin/2`, lays out again, and snaps runs to their lanes so lines
-    sit in breathing room, not the margin. Covers **main-axis gaps**, **cross-axis
+    it, lays out again, and snaps runs to their lanes. Each lane sits a **full
+    margin** clear of the boxes (a wall in its own channel, not inside the node
+    margin), half a margin between lanes. Covers **main-axis gaps**, **cross-axis
     rails** (a run *along* a perimeter), and **multi-lane** distribution (co-routed
-    arrows spread to distinct lanes around the centre, so they never overlap).
-    Threaded into `calcDimensions`/`positionNodes` (`gapExtra`/`railExtra`),
-    deterministic, default-zero (un-widened docs byte-identical). `orthogonal-arrows`/
-    `-breakout`/`-around` rebaselined; `orthogonal-widening`/`-multilane` goldens
-    lock the showcase. Parked refinements: crossing-minimised lane ordering, and a
-    per-arrow `route:` override.
+    arrows spread to distinct lanes, so they never overlap); bare references
+    leave/enter through the channel (not along the box edge), so a detour follows
+    the gaps. Threaded into `calcDimensions`/`positionNodes` (`gapExtra`/`railExtra`),
+    deterministic, default-zero (un-widened docs byte-identical). The five
+    orthogonal widening goldens lock it in. Parked refinements: crossing-minimised
+    lane ordering, and a per-arrow `route:` override (or configurable lane spacing).
 
 ## Planned
 
