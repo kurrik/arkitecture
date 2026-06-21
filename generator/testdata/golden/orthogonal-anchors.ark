@@ -1,6 +1,8 @@
 # route: orthogonal routes arrows attached to explicit anchors, too. An anchor on
-# a border leaves/enters perpendicular to the side facing the other node; an
-# interior anchor is reached by routing to that border and then entering the node.
+# a box edge leaves/enters perpendicular to *that* edge: Source's out anchor is on
+# the bottom, so the line drops straight down before turning toward the target. An
+# interior anchor (Service's core) is reached by routing to the facing border and
+# then entering the node.
 source {
   label: "Source"
   anchors: [out]

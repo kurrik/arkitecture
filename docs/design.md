@@ -378,14 +378,16 @@ otherwise independent of the rest of the `@layout` model.
 > 🚧 **Being built in slices** (see the ADRs in [decisions.md](decisions.md) and
 > the slice list in [roadmap.md](roadmap.md)). The opt-in mode is enabled with a
 > document-level **`route: orthogonal`** at an `@layout` sheet root (default
-> `straight` is today's M2 line). The **surface** and **clear-case orthogonal
-> emission** have landed: an arrow whose straight route is unobstructed is drawn as
-> an axis-aligned elbow/Z between its endpoints (otherwise it falls back to the
-> straight line). This covers both bare (M2 cardinal) ends and **explicit
-> anchors** — a positioned anchor is met at the box border on the facing side, with
-> the line *entering the node* to reach an interior anchor. Still to come: routing
-> *around* obstacles (the channel graph + A*), channel widening, and break-out
-> across nesting levels. It
+> `straight` is today's M2 line). Landed: the **surface**, **clear-case orthogonal
+> emission** (an unobstructed arrow draws as an axis-aligned elbow/Z), **explicit
+> anchors** (met at the box border on the facing side, the line *entering the node*
+> for an interior anchor), **break-out** across nesting levels, and the
+> **channel-graph router** — a blocked arrow now detours *around* the boxes in its
+> way (few-bend A* over a per-arrow channel grid) instead of falling back to the
+> straight line — and **edge-normal exits**: an anchor pinned to a box edge
+> leaves/enters perpendicular to *that* edge (a bottom anchor drops straight down),
+> the router then following the corridor it lands in. Still to come: **channel
+> widening** (lane counts pushing boxes apart). It
 > extends M2 cardinal routing from "which edge does the line attach to" to "what
 > path does the line take around the boxes in between" — the deliberate, ADR-backed
 > reversal of the v1 "no orthogonal/auto routing" scope line, and only of

@@ -18,6 +18,109 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-20 — Auto edge routing: edge-normal exits for pinned anchors
+**Choice:** An explicit anchor pinned to one of its box's **own edges** now leaves
+(or is entered) **perpendicular to that edge**, instead of running along the edge
+toward the side facing the other node. Resolution splits explicit anchors three
+ways (`resolveOrthoEndpoint`):
+- **Edge anchor not on the facing side** (e.g. a bottom-centre anchor with the
+  target to the east): the exit side is the anchor's own edge normal, and the
+  routing start is a stub one inset outside the **leaf** edge — the line departs
+  perpendicular into the leaf's channel and the channel router follows corridors
+  out. The endpoint is flagged `edgeExit`, and `arrowPath` adds that leaf box to
+  the arrow's obstacle set so the route **detours around its own box** instead of
+  turning straight back through it.
+- **Edge anchor on the facing side**: met one inset **past** the breakout-box
+  border (out in the channel), so the router approaches it along the facing normal
+  rather than sliding up the border when the route arrives askew. At the
+  breakout-box border this is the same crossing the break-out slice already made,
+  so `orthogonal-breakout` is byte-identical.
+- **Interior / corner anchor, or a bare reference**: unchanged — met at the
+  breakout-box border on the facing side (entering the node for an interior
+  anchor).
+**Why:** Reported on the `contexts` diagram: `ordering.orders#db` is pinned to
+Orders' **bottom** edge (`[0.5, 1.0]`), but the arrow ran east *along* that bottom
+edge and up the container's outside, ignoring that the author put the anchor on
+the bottom. The author's expectation — leave perpendicular to the pinned edge,
+drop into the channel below Orders, then route around — is the "edge-normal exits"
+slice. Choosing the exit side from **the edge the anchor sits on** (not the facing
+side) is the whole change; the existing channel router then supplies the
+corridor-following and break-out for free. Walling off the leaf box is what stops
+the perpendicular exit from immediately turning back through the source (a clear,
+unobstructed bottom-anchor-to-eastern-target otherwise elbowed straight up through
+its own box — caught by a render before this shipped). Keeping the **facing-side**
+anchor at the breakout-box border (plus an inset so the approach is normal) is
+what holds `orthogonal-breakout` stable while still fixing the *target*-side
+approach (the `contexts` arrow now enters `inventory#api`, a west-edge anchor,
+horizontally from the west rather than running up its border).
+**Implications:** Only `orthogonal-anchors` moved among goldens — `source#out`
+(a bottom anchor) now drops straight down before turning into Service, which the
+fixture comment and a regenerated golden capture; `orthogonal-breakout`,
+`orthogonal-arrows`, and `orthogonal-around` are byte-identical. `endpoint` gained
+`edgeExit`; `anchorEdge` classifies an anchor's single edge (corner/interior →
+none); `TestAnchorEdge` and `TestArrowPathEdgeAnchorExitsPerpendicular` lock the
+classification and the down-and-around behaviour. **Residual:** a **bare-reference
+target** can still be approached askew (it gets no facing-side stub — adding one
+would move the bare-ref goldens), so a bottom-anchor→bare arrow enters the target
+from whichever side the detour arrives; pinning the target to an edge gives the
+clean normal approach. This supersedes the positioned-anchors ADR's "an edge
+anchor not on the facing side routes along its own border" aesthetic note — that
+case is now the perpendicular exit. Still deferred: channel **widening**, and a
+fully topological (pre-layout) route assignment.
+
+## 2026-06-20 — Auto edge routing: the channel-graph router (route around obstacles)
+**Choice:** When an arrow's direct elbow would cut through a box between its
+endpoints, route the arrow *around* the obstacles on a **channel graph** with
+**few-bend A\***, instead of falling back to the straight line. The router
+(`generator/channel.go`, `routeAround`) builds, per arrow, a sparse grid whose
+travel lanes sit one **inset** (`defMargin/2`) outside every obstacle edge — so a
+line runs in the gap *beside* a box, and in the common uniform-margin layout the
+two lanes flanking a channel coincide on its centreline. Grid vertices are lane
+crossings (plus the lines through the two endpoints); a grid edge joins adjacent
+crossings whose connecting segment grazes no obstacle interior (reusing
+`segIntersectsRect`). A\* search state is `(vertex, incoming-direction)` so a
+**bend penalty** (12) is charged on each turn; cost is segment length + bend
+penalty, the heuristic is Manhattan distance (admissible), and the frontier has a
+**total order** (f, then g, then a state id encoding vertex-then-direction) so
+ties resolve to the smaller-coordinate (north/west) route — fully deterministic.
+`arrowPath` now tries, in order: the clear-case elbow, then `routeAround`, then
+the straight fallback. The elbow stays the fast path, so a clear arrow is
+byte-identical to before.
+**Why:** This is the heart of the sized-channel design (the 2026-06-20 design
+ADR): the substrate is the **gaps between boxes**, not a pixel grid. Realising
+those gaps as obstacle-edge-offset lanes makes the grid sparse (a handful of
+lines per arrow — "fine at this tool's scale, dozens of boxes") and puts lines on
+channel centrelines in the uniform case for free. **Routing on the
+already-computed layout** (rather than before sizing) is correct *for this slice*
+because the deferred piece — channel **widening** — is the only thing that would
+move boxes; with no widening yet, no box moves, so there is no routing↔layout
+feedback loop to resolve, and the design's "route before pixels" requirement only
+bites once widening lands. Keeping the **elbow as a fast path** is what holds
+every existing orthogonal golden byte-for-byte stable: the router fires *only*
+when the elbow is blocked, i.e. exactly the arrows that previously fell back to a
+straight line through a box. The few-bend A\* with a deterministic total order
+satisfies the design's "A\* tie-breaking must be totally deterministic or the
+goldens churn."
+**Implications:** Orthogonal arrows blocked by an intervening box now detour
+cleanly (an `orthogonal-around` golden — a `Left`/`Wall`/`Right` row — locks the
+up-and-over route through the row's perimeter padding; `channel_test.go` covers
+the detour, the no-path→nil case, determinism, the fewer-bends preference, the
+grid construction, and the end-to-end `arrowPath`). No existing golden moved.
+**Deferred, unchanged from before:** (1) **Edge-normal exits & channel-following**
+— A\* connects the breakout-box border points directly, so a route may approach an
+endpoint from a side other than its facing edge (the `orthogonal-around`
+arrowhead enters the target's west edge from the north, since the 2-bend route
+beats the 3-bend edge-normal one under the bend penalty); forcing the first/last
+segment along the side normal is its own slice. (2) **Channel widening** — the
+lane *demand* per channel still isn't fed back into `calcDimensions`/
+`positionNodes` to push boxes apart; this slice assigns routes but reserves no
+width for them, so two arrows sharing a lane overlap. (3) A per-arrow `route:`
+override. The router is geometric (post-layout) rather than a topological
+slot-assignment ahead of sizing; widening will be the point at which route
+assignment must hoist before layout, deriving lane counts as topology — this ADR
+records that the current realisation routes on geometry and why that is sound
+until then.
+
 ## 2026-06-20 — Auto edge routing: break out to the container channel
 **Choice:** When an arrow endpoint is nested inside a container, route the
 orthogonal gap-crossing between the endpoints' **breakout boxes** — the outermost
