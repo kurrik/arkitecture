@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="190" height="64">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+            refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <polygon points="0 0, 10 3.5, 0 7" fill="black" />
+    </marker>
+    <marker id="arrowhead-2563eb" markerWidth="10" markerHeight="7" 
+            refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb" />
+    </marker>
+  </defs>
+
+  <!-- Node rectangles and labels -->
+  <rect x="0" y="0" width="72" height="64" fill="#f8fafc" stroke="#2563eb" stroke-width="2" shape-rendering="crispEdges" />
+  <text x="36" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Web Tier</text>
+  <rect x="8" y="32" width="24" height="24" fill="#f8fafc" stroke="#334155" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="20" y="44" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">UI</text>
+  <rect x="40" y="32" width="24" height="24" fill="#f8fafc" stroke="#334155" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="52" y="44" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">API</text>
+  <rect x="80" y="0" width="38" height="24" fill="#fef9c3" stroke="#334155" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="99" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Cache</text>
+  <rect x="126" y="0" width="64" height="24" fill="#f8fafc" stroke="#16a34a" stroke-width="3" shape-rendering="crispEdges" />
+  <text x="158" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Database</text>
+
+  <!-- Arrows -->
+  <line x1="64" y1="44" x2="80" y2="12" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowhead-2563eb)" />
+  <line x1="64" y1="44" x2="126" y2="12" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowhead-2563eb)" />
+</svg>

@@ -1,0 +1,27 @@
+web {
+  label: "Web Tier"
+  ui  { label: "UI" }
+  api { label: "API" }
+}
+cache { label: "Cache" }
+db    { label: "Database" }
+
+web.api --> cache
+web.api --> db
+
+@layout {
+  # A bare style property at the sheet root is the DOCUMENT-WIDE default — the
+  # fallback for every node and arrow that sets none. Colours are hex.
+  borderColor: #334155
+  backgroundColor: #f8fafc
+
+  # Bundle a look into a @block and pull it in with @use, like any other layout.
+  @block accent { borderColor: #2563eb; borderWidth: 2 }
+  web { direction: horizontal; @use accent }   # blue 2px border, imported
+
+  # pathColor / pathWidth style the arrows that START at this node.
+  web.api { pathColor: #2563eb; pathWidth: 2 }
+
+  cache { backgroundColor: #fef9c3 }   # per-node fill override of the default
+  db    { borderColor: #16a34a; borderWidth: 3 }
+}

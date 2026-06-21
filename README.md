@@ -124,9 +124,9 @@ a path segment.
 
 ### Layout layer — `@layout`
 
-Presentation — `direction`, `size`, `margin`, `box`, and anchor **positions** —
-lives in `@layout` blocks that target nodes by **exact dotted path**. A block can
-sit inline in a node body or stand alone as a sheet:
+Presentation — `direction`, `size`, `margin`, `box`, styling (colour/width), and
+anchor **positions** — lives in `@layout` blocks that target nodes by **exact
+dotted path**. A block can sit inline in a node body or stand alone as a sheet:
 
 ```
 @layout {
@@ -197,6 +197,32 @@ api#south --> services#north                # explicit anchors
 services.userService#db --> database#north  # nested paths
 ```
 
+### Styling — colour & width
+
+Hex colours and stroke widths are `@layout` properties like any other:
+`borderWidth`/`borderColor`/`backgroundColor` style a node's box, and
+`pathWidth`/`pathColor` style the arrows that **start** at the node (a coloured
+arrow gets a matching arrowhead). They obey the same no-cascade resolution — set
+them per node, in a `@block`, or document-wide as a bare property at a sheet root:
+
+```
+@layout {
+  borderColor: #334155          # document-wide default for every box…
+  backgroundColor: #f8fafc
+
+  @block accent { borderColor: #2563eb; borderWidth: 2 }
+  services { @use accent }      # …overridden by the imported accent border
+
+  services.api { pathColor: #2563eb; pathWidth: 2 }   # styles arrows leaving api
+  database     { borderColor: #16a34a; borderWidth: 3 }
+}
+```
+
+Colours are `#rgb` / `#rgba` / `#rrggbb` / `#rrggbbaa`; widths are `>= 0`.
+Everything defaults to the plain look (white fill, 1px black border, 1px black
+arrows), so an unstyled diagram is unchanged. A full theme system — cascade,
+palettes, fonts — stays out of scope; `@block`/`kind` are how you share a look.
+
 ### Properties
 
 Semantic (in the node body):
@@ -215,12 +241,20 @@ Layout (in `@layout`):
   strip for its label, so the label never overlaps the children (bordered and
   `box: none` parents alike)
 - **`anchor <name>: [x, y]`** — position a declared anchor
+- **`borderWidth`** — border stroke width (default 1; `>= 0`)
+- **`borderColor`** — border colour, hex (default black)
+- **`backgroundColor`** — box fill colour, hex (default white)
+- **`pathWidth`** — stroke width of arrows starting at this node (default 1)
+- **`pathColor`** — colour of arrows starting at this node, hex (default black)
 - **`@use <block>`** — import a named `@block`
 
 Document-wide (at an `@layout` sheet root, not in a selector):
 
 - **`margin`** — the default margin for every node that sets none (overrides the
   built-in 8)
+- **`route`** — arrow routing mode: `straight` (default) or `orthogonal`
+- **`borderWidth` / `borderColor` / `backgroundColor` / `pathWidth` / `pathColor`**
+  — document-wide style defaults, the fallback for every node/arrow that sets none
 
 ### Coordinate system
 
