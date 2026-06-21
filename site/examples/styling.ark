@@ -3,11 +3,14 @@ web {
   ui  { label: "UI" }
   api { label: "API" }
 }
-cache { label: "Cache" }
-db    { label: "Database" }
+data {
+  label: "Data"
+  cache { label: "Cache" }
+  store { label: "Store" }
+}
 
-web.api --> cache
-web.api --> db
+web.ui  --> data.cache
+web.api --> data.store
 
 @layout {
   # A bare style property at the sheet root is the DOCUMENT-WIDE default — the
@@ -17,11 +20,12 @@ web.api --> db
 
   # Bundle a look into a @block and pull it in with @use, like any other layout.
   @block accent { borderColor: #2563eb; borderWidth: 2 }
-  web { direction: horizontal; @use accent }   # blue 2px border, imported
+  web { @use accent }                  # blue 2px border, imported
 
-  # pathColor / pathWidth style the arrows that START at this node.
+  # pathColor / pathWidth style only the arrows that START at this node — so the
+  # arrow from api turns blue and thick, while the one from ui keeps the default.
   web.api { pathColor: #2563eb; pathWidth: 2 }
 
-  cache { backgroundColor: #fef9c3 }   # per-node fill override of the default
-  db    { borderColor: #16a34a; borderWidth: 3 }
+  data.cache { backgroundColor: #fef9c3 }      # per-node fill override
+  data.store { borderColor: #16a34a; borderWidth: 3 }
 }
