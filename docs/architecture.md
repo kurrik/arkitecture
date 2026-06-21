@@ -47,6 +47,7 @@ github.com/kurrik/arkitecture        (module)
                      layout, arrow routing, emit)
     route.go         arrow endpoint resolution + straight/orthogonal routing
     channel.go       channel-graph router: few-bend A* around an arrow's obstacles
+    widen.go         channel widening: attribute runs to gaps, widen, snap to lanes
     testdata/golden/ .ark fixtures + .svg/.error references for the golden test
   cmd/arkitecture/   package main — the CLI (flags, file I/O, watch); imports the library
   wasm/              package main — js,wasm shim exposing ToSVG to JS (+ host stub)
@@ -164,7 +165,11 @@ semantic layer and a layout layer:
   deterministic few-bend A*); only if no orthogonal path exists does it fall back to
   the straight line. A positioned anchor is met at the box border on the facing
   side, with a tail segment entering the node to reach an interior anchor
-  (zero-length for an edge anchor);
+  (zero-length for an edge anchor). In orthogonal mode `GenerateSVG` lays out
+  **twice**: `widen.go` attributes each routed run to the container gap it follows
+  and reserves `lanes × margin/2` there, then a second `computeLayout` spreads the
+  boxes and the runs snap to their lane centres, so a line gets its own lane instead
+  of sitting in a box's margin;
   `svg.go` walks the tree to emit `<rect>` + `<text>` per visible node (the label
   is centred in its reserved band when a parent has one; a `box: none` node and a
   `@group` render no rect) and, per arrow, a `<line>` (two points) or `<polyline>`

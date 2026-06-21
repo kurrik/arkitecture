@@ -79,7 +79,7 @@ worker {}</code></pre>
   anchors: [db, api]
 }</code></pre>
 
-    <h2>Layout (<code>@layout</code>)</h2>
+    <h2 id="layout">Layout (<code>@layout</code>)</h2>
     <p>
       Presentation lives in <code>@layout</code> blocks, separate from the semantics —
       modelled on HTML/CSS, but deliberately <strong>without the cascade</strong>. A
@@ -134,6 +134,20 @@ worker {}</code></pre>
   margin: 16          # every node that sets no margin now reserves 16
 
   webapp { margin: 0 }  # … but a node still overrides the default directly
+}</code></pre>
+    <p>
+      A bare <code>route: straight</code> &middot; <code>orthogonal</code> at the sheet
+      <strong>root</strong> (like the default margin) sets the document's
+      <strong>arrow routing mode</strong>. <code>straight</code> (the default) draws each
+      arrow as a single cardinal line. <code>orthogonal</code> draws axis-aligned paths
+      that route <em>around</em> the boxes in the way instead of through them — an anchor
+      pinned to an edge leaves perpendicular to that edge — and gives each arrow its own
+      <strong>lane</strong>: where a line runs along a channel, that channel widens to hold
+      it, so the line sits in breathing room rather than inside a box's margin. See
+      <a href="examples.html">Orthogonal routing</a> on the Examples page.
+    </p>
+<pre><code>@layout {
+  route: orthogonal   # every arrow becomes an axis-aligned, obstacle-avoiding path
 }</code></pre>
 
     <h2 id="reuse">Reusable layout (<code>@block</code> &amp; <code>@use</code>)</h2>
@@ -230,6 +244,12 @@ worker {}</code></pre>
       cardinal edge (N/E/S/W) of its box facing the other node's centre, giving a clean
       edge-to-edge line. Naming an anchor — including the implicit <code>#center</code> —
       pins the end to a fixed point instead, and always wins.
+    </p>
+    <p>
+      By default each arrow is a straight line. Set
+      <a href="#layout"><code>route: orthogonal</code></a> at the <code>@layout</code> root
+      (above) to draw every arrow as an axis-aligned path that routes around intervening
+      boxes and travels in its own widened lane.
     </p>
 <pre><code># Auto-routes to the nearest edges
 api --&gt; database

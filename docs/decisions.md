@@ -18,6 +18,51 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-20 — Auto edge routing: channel widening (first cut — main-axis gaps)
+**Choice:** Make an orthogonal arrow that runs *along* a channel reserve its own
+**lane** there, so the channel widens and the boxes spread, instead of the line
+sitting inside a node's margin (the design's channel-vs-margin rule). Realised as
+a **two-pass** layout rather than the full topological slot router:
+1. Lay out un-widened and route every arrow (the existing geometric router).
+2. **Attribute** each routed run to the container gap it runs along
+   (`findChannel`): descend by the run's midpoint into the deepest box, and take
+   the gap in the container that holds the midpoint in free space — clipping by
+   container is what stops a single run from smearing across channels, so lane
+   counts come out **exact**. A run *along* a container's main axis (a cross-axis
+   perimeter rail) is deferred.
+3. **Widen**: each gap reserves `lanes × margin/2` extra (`laneSpacing` = half a
+   margin, the author's pick), threaded into `calcDimensions`/`positionNodes`
+   (`gapExtra`/`railExtra`) and the root gap loop. Default zero ⇒ a document with
+   no orthogonal lanes is byte-identical.
+4. Lay out **again** with the widened channels, and **snap** each interior run to
+   its gap centre (`snapToLanes`) so the line sits in its lane (tip tails are left
+   anchored to the box).
+**Why:** The author reported that routed lines travel *inside* the margin gap
+(e.g. the contexts arrow ran 4px under Orders, in its 8px padding), contradicting
+"channels reserve their own width and push boxes apart; margins stay breathing
+room." Widening is the design's answer. The design specified a from-scratch
+**topological slot router** to keep lane counts pure-topology and avoid a
+position↔width fixpoint — but the fixpoint only bites *channel widths*, and
+**clipping runs to containers** recovers exact per-gap lane counts from the
+*geometric* router at far less risk, so this ships the channel-vs-margin outcome
+without the full rewrite. Two passes are deterministic (no map order reaches the
+SVG) and single-shot (no iteration): widening preserves the arrangement, so the
+re-routed paths are topologically the same, only spread. `margin/2` per lane is
+the author's "half a margin per lane" (a tighter look than a full margin each
+side).
+**Implications:** `computeLayout` gained a `*widenDemand` (nil = pass 1);
+`GenerateSVG` runs the two passes in orthogonal mode; `generator/widen.go` holds
+attribution + demand + snapping. `orthogonal-arrows` and `orthogonal-breakout`
+rebaselined (gaps widened, runs centred); an `orthogonal-widening` golden locks
+the showcase; `orthogonal-anchors`/`orthogonal-around` are unchanged (their runs
+are tip tails or rails). **Deferred (next slices):** **cross-axis rails** — a run
+along a container's main-axis perimeter (e.g. `orthogonal-around` over the wall)
+isn't widened yet, so it still travels in the perimeter margin; **multi-lane
+distribution** — two arrows sharing one gap both snap to its centre and overlap
+(the gap widens by the count, but the lanes aren't spread to distinct offsets);
+and the **midpoint** attribution is an approximation of true per-container
+clipping (fine when a run's midpoint lands in the channel it mostly occupies).
+
 ## 2026-06-20 — Auto edge routing: edge-normal exits for pinned anchors
 **Choice:** An explicit anchor pinned to one of its box's **own edges** now leaves
 (or is entered) **perpendicular to that edge**, instead of running along the edge

@@ -70,7 +70,7 @@ api --&gt; database
 
     <article class="example">
       <h2>Orthogonal routing (<code>route: orthogonal</code>)</h2>
-      <p>Set <code>route: orthogonal</code> once at the <code>@layout</code> root and every arrow is drawn as an axis-aligned path between its facing edges instead of a straight diagonal. Here the <em>CDN</em> sits high on the left and the <em>Database</em> low on the right, so their connector turns through the gap as a clean Z. (The default, <code>route: straight</code>, is the auto-cardinal line above.)</p>
+      <p>Set <code>route: orthogonal</code> once at the <code>@layout</code> root and every arrow is drawn as an axis-aligned path between its facing edges instead of a straight diagonal. Here the <em>CDN</em> sits high on the left and the <em>Database</em> low on the right, so their connector turns through the gap as a clean Z — and it travels in its own <strong>lane</strong>: the gap between the two contexts widens to hold the line, so it sits in breathing room instead of crowding either box. (The default, <code>route: straight</code>, is the auto-cardinal line above.)</p>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">routing.ark</div>
@@ -101,6 +101,40 @@ edge.cdn --&gt; origin.database</code></pre>
         </div>
       </div>
       <p class="dl"><a href="examples/routing.ark">routing.ark</a></p>
+    </article>
+
+    <article class="example">
+      <h2>Routing around obstacles</h2>
+      <p>In <code>route: orthogonal</code> mode an arrow routes <em>around</em> the boxes that lie between its endpoints rather than cutting through them. The link from <em>Client</em> to the <em>Database</em> would run straight through <em>Cache</em>, so it detours up and over it as an axis-aligned path. Anchors pinned to an edge leave perpendicular to that edge, so you stay in control of where a line departs.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">detour.ark</div>
+<pre><code data-ark="examples/detour.ark"># With route: orthogonal an arrow routes *around* the boxes between its endpoints
+# instead of cutting through them. The link from Client to the Database would run
+# straight through Cache, so it detours up and over it as an axis-aligned path.
+tier {
+  label: "Request path"
+  client   { label: "Client" }
+  cache    { label: "Cache" }
+  database { label: "Database" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  tier { direction: horizontal }
+}
+
+tier.client --&gt; tier.database</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/detour.svg" alt="A horizontal row of Client, Cache and Database; an arrow from Client routes up over Cache and back down into Database instead of passing through it." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/detour.ark">detour.ark</a></p>
     </article>
 
     <article class="example">

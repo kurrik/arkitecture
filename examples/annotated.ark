@@ -73,6 +73,16 @@ row {
   # own `margin` (n2 sets 12 below). One knob to space the whole diagram out.
   margin: 10
 
+  # A bare `route:` at the sheet root sets the document's arrow ROUTING mode,
+  # exactly like the default margin above. `straight` (the default) draws each
+  # arrow as a single cardinal line. `orthogonal` draws axis-aligned paths that
+  # route AROUND the boxes in the way (an anchor pinned to an edge leaves
+  # perpendicular to that edge), and gives each arrow its own lane: where a line
+  # runs along a channel, that channel widens so the line sits in breathing room
+  # instead of in a box's margin. Left at the default here so the arrows stay
+  # straight; uncomment to route every arrow orthogonally.
+  # route: orthogonal
+
   # `@block` defines a reusable, parameterless bundle of layout that you pull in
   # with `@use`. Unlike a CSS class it matches nothing on its own — importing is
   # explicit and opt-in. Blocks may compose (`@use` another block); cycles error.

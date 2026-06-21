@@ -111,6 +111,9 @@ func renderArrows(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) s
 		if !ok {
 			continue // missing nodes/anchors are reported by the validator
 		}
+		if mode == ast.RouteOrthogonal {
+			pts = snapToLanes(pts, layout) // centre each run in its widened channel
+		}
 		els = append(els, arrowElement(pts))
 	}
 	return strings.Join(els, "\n")

@@ -1,0 +1,17 @@
+# With route: orthogonal an arrow routes *around* the boxes between its endpoints
+# instead of cutting through them. The link from Client to the Database would run
+# straight through Cache, so it detours up and over it as an axis-aligned path.
+tier {
+  label: "Request path"
+  client   { label: "Client" }
+  cache    { label: "Cache" }
+  database { label: "Database" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  tier { direction: horizontal }
+}
+
+tier.client --> tier.database
