@@ -32,6 +32,8 @@ type layoutResult struct {
 	anchorPositions []anchorPosition
 	canvasWidth     float64
 	canvasHeight    float64
+	viewMinX        float64 // viewBox origin: content shifted so perimeter strokes aren't clipped
+	viewMinY        float64
 	defMargin       float64 // the document's effective default margin (channel width)
 }
 
@@ -125,7 +127,18 @@ func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontS
 		currentX += l.dim.width
 	}
 
+	// The canvas fits the content, but a border stroke is *centred* on its box
+	// edge — half of it sits outside the box. On the outermost edges that half
+	// would fall outside the SVG viewport and be clipped (rendering perimeter
+	// borders at half width), so grow the view bounds to include every stroke's
+	// outer half. Emitted as a viewBox offset, leaving element coordinates intact.
 	cw, ch := canvasSize(roots)
+	minX, minY, maxX, maxY := 0.0, 0.0, cw, ch
+	if sMinX, sMinY, sMaxX, sMaxY, ok := strokeBounds(roots); ok {
+		minX, minY = math.Min(minX, sMinX), math.Min(minY, sMinY)
+		maxX, maxY = math.Max(maxX, sMaxX), math.Max(maxY, sMaxY)
+	}
+
 	boxes := make(map[string]dimensions)
 	var anchors []anchorPosition
 	for _, l := range roots {
@@ -133,7 +146,7 @@ func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontS
 		anchors = append(anchors, collectAnchors(l)...)
 	}
 
-	return layoutResult{roots: roots, nodeBoxes: boxes, anchorPositions: anchors, canvasWidth: cw, canvasHeight: ch, defMargin: defMargin}
+	return layoutResult{roots: roots, nodeBoxes: boxes, anchorPositions: anchors, canvasWidth: maxX - minX, canvasHeight: maxY - minY, viewMinX: minX, viewMinY: minY, defMargin: defMargin}
 }
 
 func buildLayoutTree(node *ast.ContainerNode, parentPath string, layout map[string]*ast.Declarations) *layoutNode {
@@ -372,6 +385,34 @@ func canvasSize(roots []*layoutNode) (w, h float64) {
 		h = math.Max(h, l.dim.y+l.dim.height)
 	}
 	return w, h
+}
+
+// strokeBounds returns the bounding box of every bordered node's drawn stroke —
+// each border box grown by half its border width on all sides, since the stroke
+// is centred on the edge. ok is false when nothing is bordered (a box:none-only
+// diagram), in which case the caller keeps the plain content bounds.
+func strokeBounds(roots []*layoutNode) (minX, minY, maxX, maxY float64, ok bool) {
+	var visit func(l *layoutNode)
+	visit = func(l *layoutNode) {
+		if nodeBordered(l) {
+			h := l.borderW / 2
+			x0, y0 := l.dim.x-h, l.dim.y-h
+			x1, y1 := l.dim.x+l.dim.width+h, l.dim.y+l.dim.height+h
+			if !ok {
+				minX, minY, maxX, maxY, ok = x0, y0, x1, y1, true
+			} else {
+				minX, minY = math.Min(minX, x0), math.Min(minY, y0)
+				maxX, maxY = math.Max(maxX, x1), math.Max(maxY, y1)
+			}
+		}
+		for _, c := range l.children {
+			visit(c)
+		}
+	}
+	for _, l := range roots {
+		visit(l)
+	}
+	return minX, minY, maxX, maxY, ok
 }
 
 // collectAnchors yields the resolved anchor positions for l and its descendants:

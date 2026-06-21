@@ -164,8 +164,10 @@ semantic layer and a layout layer:
   top/bottom strip — a wall in a bordered parent, flush-packed reserved space in a
   `box: none` one), and `size` overrides — falling back to the document's
   `DefaultMargin` (else 8) for any node with no margin — positions top-down, sizes
-  the canvas, and resolves anchor coordinates (an unpositioned declared anchor
-  defaults to centre);
+  the canvas (the content bounds grown to include each border's *stroke* — half a
+  border width sits outside its box, emitted as a `viewBox` offset so a perimeter
+  border isn't clipped to half), and resolves anchor coordinates (an unpositioned
+  declared anchor defaults to centre);
   `route.go` resolves each arrow's endpoints (the M2 cardinal edge, or an explicit
   anchor) and turns them into the ordered points its line passes through: two
   points (the straight default) or, under a document-level `route: orthogonal`, an
@@ -191,8 +193,10 @@ semantic layer and a layout layer:
   `<marker>` per distinct path colour (the black `arrowhead` plus `arrowhead-<hex>`
   per colour). Axis-aligned strokes (every rect, orthogonal polylines, and
   horizontal/vertical lines) carry `shape-rendering="crispEdges"` for a consistent
-  1px; a diagonal line omits it. Output is byte-for-byte stable, and identical to
-  the pre-styling output for an unstyled document.
+  1px; a diagonal line omits it. The `<svg>` carries a `viewBox` offset by the
+  border-stroke overflow (above) so perimeter borders render full-width. Output is
+  byte-for-byte stable, and identical to the pre-styling output for an unstyled
+  document except for that `viewBox`.
 
 ## Public API
 
