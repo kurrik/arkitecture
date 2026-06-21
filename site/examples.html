@@ -373,7 +373,7 @@ ordering.orders#db --&gt; inventory#api</code></pre>
 
     <article class="example">
       <h2>Styling (colour &amp; stroke width)</h2>
-      <p>Hex colours and stroke widths live in <code>@layout</code> like any other property: <code>borderWidth</code>/<code>borderColor</code>/<code>backgroundColor</code> style a node's box, and <code>pathWidth</code>/<code>pathColor</code> style the arrows that <em>start</em> at it. Each is settable per node, document-wide (a bare property at the sheet root — the fallback here paints every box), or bundled in a <code>@block</code> (the blue border on <em>Web Tier</em> is one <code>@use accent</code>). There is no cascade: a direct value wins, and a child never inherits a parent's colour.</p>
+      <p>Hex colours and stroke widths live in <code>@layout</code> like any other property: <code>borderWidth</code>/<code>borderColor</code>/<code>backgroundColor</code> style a node's box, and <code>pathWidth</code>/<code>pathColor</code> style the arrows that <em>start</em> at it. Each is settable per node, document-wide (a bare property at the sheet root — the fallback here paints every box), or bundled in a <code>@block</code> (the blue border on <em>Web Tier</em> is one <code>@use accent</code>). Only <em>API</em> sets a path style, so just its arrow turns blue while <em>UI</em>'s keeps the default — and there is no cascade, so a child never inherits a parent's colour.</p>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">styling.ark</div>
@@ -382,11 +382,14 @@ ordering.orders#db --&gt; inventory#api</code></pre>
   ui  { label: "UI" }
   api { label: "API" }
 }
-cache { label: "Cache" }
-db    { label: "Database" }
+data {
+  label: "Data"
+  cache { label: "Cache" }
+  store { label: "Store" }
+}
 
-web.api --&gt; cache
-web.api --&gt; db
+web.ui  --&gt; data.cache
+web.api --&gt; data.store
 
 @layout {
   # A bare style property at the sheet root is the DOCUMENT-WIDE default — the
@@ -396,19 +399,20 @@ web.api --&gt; db
 
   # Bundle a look into a @block and pull it in with @use, like any other layout.
   @block accent { borderColor: #2563eb; borderWidth: 2 }
-  web { direction: horizontal; @use accent }   # blue 2px border, imported
+  web { @use accent }                  # blue 2px border, imported
 
-  # pathColor / pathWidth style the arrows that START at this node.
+  # pathColor / pathWidth style only the arrows that START at this node — so the
+  # arrow from api turns blue and thick, while the one from ui keeps the default.
   web.api { pathColor: #2563eb; pathWidth: 2 }
 
-  cache { backgroundColor: #fef9c3 }   # per-node fill override of the default
-  db    { borderColor: #16a34a; borderWidth: 3 }
+  data.cache { backgroundColor: #fef9c3 }      # per-node fill override
+  data.store { borderColor: #16a34a; borderWidth: 3 }
 }</code></pre>
         </div>
         <div class="panel render">
           <div class="panel-label">rendered output</div>
           <div class="render-area">
-            <img src="examples/styling.svg" alt="A blue-bordered Web Tier box holding UI and API, a yellow-filled Cache box, and a thick green-bordered Database box, with two blue arrows from API to Cache and Database." />
+            <img src="examples/styling.svg" alt="A blue-bordered Web Tier box holding UI and API beside a Data box holding a yellow-filled Cache and a thick green-bordered Store. A thin black arrow runs from UI to Cache; a thick blue arrow runs from API to Store." />
           </div>
         </div>
       </div>
