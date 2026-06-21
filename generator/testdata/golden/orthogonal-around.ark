@@ -1,9 +1,9 @@
 # route: orthogonal routes an arrow *around* a box that blocks the direct path.
 # `left` and `right` sit at opposite ends of a row with `wall` between them, so
-# their straight cardinal line would cut through `wall`. Instead of falling back
-# to that straight line, the channel-graph router detours the arrow up through
-# the row's top perimeter and over `wall` — and that perimeter widens (a
-# cross-axis rail) to give the run its own lane above the boxes.
+# their straight cardinal line would cut through `wall`. Instead, the arrow leaves
+# `left`'s right edge into the channel beside it, rises through the row's top
+# perimeter, crosses over `wall`, and drops into the channel before `right` —
+# every run a full margin clear of the boxes in its own widened lane.
 row {
   left  { label: "Left" }
   wall  { label: "Wall" }

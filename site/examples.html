@@ -217,7 +217,7 @@ web.bff --&gt; core.auth</code></pre>
 
     <article class="example">
       <h2>Bounded contexts with anchors</h2>
-      <p>A Domain-Driven Design sketch: two bounded contexts, a borderless <code>box: none</code> node that groups Cart and Checkout for layout only, and an arrow routed through named <code>anchors</code> and a nested node path.</p>
+      <p>A Domain-Driven Design sketch: two bounded contexts, a borderless <code>box: none</code> node that groups Cart and Checkout for layout only, and an arrow routed through named <code>anchors</code> and a nested node path. With <code>route: orthogonal</code>, the arrow leaves the <em>Orders</em> bottom anchor straight down, follows the channel below it and around <em>Ordering Context</em>, and enters <em>Inventory Context</em> from the left — each run a full margin clear of the boxes.</p>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">contexts.ark</div>
@@ -241,6 +241,7 @@ inventory {
 }
 
 @layout {
+  route: orthogonal
   ordering     { direction: vertical }
   ordering.row { box: none; margin: 0; direction: horizontal }
 

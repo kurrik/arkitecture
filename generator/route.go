@@ -110,9 +110,15 @@ func resolveOrthoEndpoint(self, other string, layout layoutResult) (endpoint, bo
 	entryBox := breakoutBox(otherPath, path, layout.nodeBoxes)
 	_, s := cardinalEndpoint(exitBox, centerOf(entryBox))
 
+	inset := layout.defMargin / 2
 	if !explicit {
+		// A bare reference leaves/enters perpendicular to its facing edge, met one
+		// inset past the breakout-box border — out in the channel — so when the
+		// route must detour it runs up the gap *centre* rather than hugging the box
+		// edge. In the clear case this point is collinear with the elbow's exit and
+		// is absorbed by simplify, so a clear arrow is byte-identical.
 		tip, _ := cardinalEndpoint(selfBox, centerOf(otherBox))
-		return endpoint{tip: tip, edge: edgePointOnSide(exitBox, s, tip), side: s}, true
+		return endpoint{tip: tip, edge: offsetPoint(edgePointOnSide(exitBox, s, tip), s, inset), side: s}, true
 	}
 
 	ap := findAnchor(layout.anchorPositions, path, anchor)
@@ -120,7 +126,6 @@ func resolveOrthoEndpoint(self, other string, layout layoutResult) (endpoint, bo
 		return endpoint{}, false
 	}
 	tip := point{ap.x, ap.y}
-	inset := layout.defMargin / 2
 	es, isEdge := anchorEdge(selfBox, tip)
 	switch {
 	case isEdge && es != s:

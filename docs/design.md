@@ -387,11 +387,12 @@ otherwise independent of the rest of the `@layout` model.
 > leaves/enters perpendicular to *that* edge (a bottom anchor drops straight down),
 > the router then following the corridor it lands in; and **channel widening** — an
 > arrow running along a channel (a between-children gap, a perimeter, or a cross-axis
-> rail *along* a perimeter) reserves a lane there, so the channel widens
-> (`lanes × margin/2`) and the boxes spread, with the line snapped to its lane
-> instead of sitting in a box's margin, and **co-routed arrows spread to distinct
-> lanes** so they never overlap. Parked refinements: crossing-minimised lane ordering
-> and a per-arrow `route:` override. It extends M2 cardinal routing from "which edge
+> rail *along* a perimeter) reserves a lane there, so the channel widens and the
+> boxes spread, with the line snapped to its lane — a **full margin** clear of the
+> boxes (a wall in its own channel, not inside the node margin), half a margin
+> between lanes — and **co-routed arrows spread to distinct lanes** so they never
+> overlap. Parked refinements: crossing-minimised lane ordering and a per-arrow
+> `route:` override (or configurable lane spacing). It extends M2 cardinal routing from "which edge
 > does the line attach to" to "what path does the line take around the boxes in
 > between" — the deliberate, ADR-backed reversal of the v1 "no orthogonal/auto
 > routing" scope line, and only of *routing*: auto-*placement* (moving the author's

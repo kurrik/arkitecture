@@ -18,6 +18,7 @@ inventory {
 }
 
 @layout {
+  route: orthogonal
   ordering     { direction: vertical }
   ordering.row { box: none; margin: 0; direction: horizontal }
 

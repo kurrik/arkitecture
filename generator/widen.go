@@ -16,9 +16,10 @@ import (
 // A channel is either a **main-axis gap** (between two children, or the
 // leading/trailing perimeter — a run crosses the container's main axis here) or a
 // **cross-axis rail** (one of the two perimeter sides parallel to the main axis —
-// a run travels along the container here). laneSpacing is half the channel's base
-// margin (the author's "half a margin per lane"): a channel carrying N parallel
-// arrows widens by N * margin/2.
+// a run travels along the container here). Each lane clears the boxes by a full
+// margin (the channel's base) so the line sits in its own channel — a wall, not
+// inside the node's margin — with lanes half a margin apart; a channel carrying N
+// arrows therefore reserves (N+1)·base/2 of extra width.
 
 // channelRef identifies a widening channel so demand and snapping treat gaps and
 // rails uniformly.
@@ -108,7 +109,11 @@ func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) 
 			lm.index[k][ai] = lane
 		}
 
-		extra := float64(len(arrowIdxs)) * base[k] / 2
+		// Each lane clears the boxes by a full margin (the channel's base) and the
+		// lanes are half a margin apart, so a line sits in its own channel beyond the
+		// node margin rather than inside it. With the base gap already one margin,
+		// N lanes need (N+1)·base/2 of extra width (giving 2·base + (N−1)·base/2).
+		extra := float64(len(arrowIdxs)+1) * base[k] / 2
 		switch {
 		case k.rail:
 			r := d.rails[k.path]
