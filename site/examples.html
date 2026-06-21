@@ -138,6 +138,47 @@ tier.client --&gt; tier.database</code></pre>
     </article>
 
     <article class="example">
+      <h2>Lanes for parallel arrows</h2>
+      <p>When several arrows run along the same channel, each gets its own <strong>lane</strong>: the channel widens to hold them all and the parallel runs sit side by side instead of overlapping. Here both <em>UI&nbsp;→&nbsp;Data</em> and <em>BFF&nbsp;→&nbsp;Auth</em> cross the gap between the columns, so the gap opens into two lanes.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">lanes.ark</div>
+<pre><code data-ark="examples/lanes.ark"># Two arrows that both cross the gap between the columns each get their own lane:
+# the gap widens to hold both, so the parallel vertical runs sit side by side
+# instead of overlapping. web.ui --&gt; core.data drops down one lane; web.bff --&gt;
+# core.auth climbs the other.
+web {
+  label: "Web"
+  ui  { label: "UI" }
+  bff { label: "BFF" }
+}
+core {
+  label: "Core"
+  auth { label: "Auth" }
+  data { label: "Data" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  web  { direction: vertical }
+  core { direction: vertical }
+}
+
+web.ui  --&gt; core.data
+web.bff --&gt; core.auth</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/lanes.svg" alt="Two columns, Web (UI, BFF) and Core (Auth, Data); two arrows cross the gap between them in separate side-by-side lanes rather than overlapping." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/lanes.ark">lanes.ark</a></p>
+    </article>
+
+    <article class="example">
       <h2>Nesting &amp; direction</h2>
       <p>Nodes nest to any depth, and a separate <code>@layout</code> block arranges each parent's children with a <code>direction</code>. Here a vertical <em>Platform</em> stacks a gateway above a horizontal row of services.</p>
       <div class="demo">

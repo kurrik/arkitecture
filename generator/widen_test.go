@@ -43,12 +43,33 @@ func TestSnapToLanesCentresInteriorRuns(t *testing.T) {
 	layout := layoutResult{roots: roots}
 	// tip -> down -> horizontal run through the gap (off-centre at y=44) -> up -> tip.
 	in := []point{{20, 20}, {20, 44}, {80, 44}, {80, 20}}
-	out := snapToLanes(in, layout)
+	out := snapToLanes(in, layout, 0, laneMap{}) // no shared lanes -> centre
 	// The interior horizontal run snaps to the gap centre (50); the tip tails stay put.
 	if !samePoint(out[0], point{20, 20}) || !samePoint(out[3], point{80, 20}) {
 		t.Errorf("snap moved a tip: %v", out)
 	}
 	if out[1].y != 50 || out[2].y != 50 {
 		t.Errorf("interior run not centred: got y=%v,%v want 50", out[1].y, out[2].y)
+	}
+}
+
+func TestSnapToLanesDistributesSharedChannel(t *testing.T) {
+	roots := []*layoutNode{boxNode("box", 0, 0, 100, 100, 8,
+		boxNode("box.a", 10, 10, 80, 30, 8),
+		boxNode("box.b", 10, 60, 80, 30, 8),
+	)}
+	layout := layoutResult{roots: roots}
+	// box's between-children gap (centre 50, base 8) shared by arrows 0 and 1.
+	gap := channelKey{path: "box", index: 1}
+	lanes := laneMap{
+		index: map[channelKey]map[int]int{gap: {0: 0, 1: 1}},
+		count: map[channelKey]int{gap: 2},
+	}
+	run := []point{{20, 20}, {20, 44}, {80, 44}, {80, 20}}
+	a0 := snapToLanes(run, layout, 0, lanes)
+	a1 := snapToLanes(run, layout, 1, lanes)
+	// Two lanes around the centre, margin/2 apart: lane 0 at 50−2, lane 1 at 50+2.
+	if a0[1].y != 48 || a1[1].y != 52 {
+		t.Errorf("shared-channel lanes at y=%v (lane 0) and y=%v (lane 1), want 48 and 52", a0[1].y, a1[1].y)
 	}
 }

@@ -18,6 +18,33 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-21 — Auto edge routing: multi-lane distribution (widening track complete)
+**Choice:** When several arrows run along the **same** channel, give each a
+**distinct lane** instead of snapping them all to the centre. `channelDemand` now
+records, per channel, the set of arrows along it and assigns each a lane index
+(ordered by arrow index, so deterministic) in a `laneMap`; the channel widens by
+`lanes × margin/2` as before. `snapToLanes` places lane k of N at `centre +
+(k − (N−1)/2) × margin/2`, so the N lanes straddle the centre `margin/2` apart and
+a single-lane channel (k=0, N=1) stays exactly centred. The lane map is threaded
+from the routing pass through `renderArrows` (which now has each arrow's index).
+**Why:** The widening first cut counted lanes (so the channel was wide enough) but
+snapped every run to the centre, so two arrows sharing a channel overlapped. The
+fix is purely a **placement** one — the width was already reserved — so it is lane
+*assignment* + an offset, no new layout. Ordering lanes by arrow index is the
+simplest deterministic rule; it does not minimise crossings (two arrows that cross
+still cross), but it guarantees their parallel runs no longer coincide, which is
+the defect. Because the offset is exactly 0 for a single-lane channel, **every
+existing golden is byte-identical** — only genuinely shared channels change.
+**Implications:** `findChannel` exposes a `channelKey` (channel minus its base) for
+grouping; `renderSVG`/`renderArrows` take the `laneMap`. An `orthogonal-multilane`
+golden (two arrows crossing the inter-column gap, now in two lanes) locks it in;
+`widen_test.go` covers the shared-channel offsets. Deterministic, still
+single-pass. **This completes the Auto edge routing — sized-channel epic** (surface
+→ emission → anchors → break-out → channel-graph router → edge-normal exits →
+widening: gaps, rails, multi-lane). Parked refinements, not blockers: crossing-
+minimised lane *ordering*, and a per-arrow `route:` override (the lane-spacing
+formula is settled at `margin/2`).
+
 ## 2026-06-21 — Auto edge routing: channel widening for cross-axis rails
 **Choice:** Extend channel widening (the 2026-06-20 first cut, which handled
 main-axis gaps) to **cross-axis perimeter rails** — the two container sides
