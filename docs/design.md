@@ -386,11 +386,12 @@ otherwise independent of the rest of the `@layout` model.
 > way (few-bend A* over a per-arrow channel grid) instead of falling back to the
 > straight line; **edge-normal exits** — an anchor pinned to a box edge leaves/enters
 > perpendicular to *that* edge (a bottom anchor drops straight down), the router
-> then following the corridor it lands in; and **channel widening (first cut)** — an
-> arrow running along a between-children gap or perimeter reserves a lane there, so
-> the gap widens (`lanes × margin/2`) and the boxes spread, with the line snapped to
-> the lane centre instead of sitting in a box's margin. Still to come on widening:
-> cross-axis perimeter **rails** and **multi-lane** distribution. It
+> then following the corridor it lands in; and **channel widening** — an arrow
+> running along a channel (a between-children gap, a perimeter, or a cross-axis
+> rail *along* a perimeter) reserves a lane there, so the channel widens
+> (`lanes × margin/2`) and the boxes spread, with the line snapped to the lane
+> centre instead of sitting in a box's margin. Still to come on widening:
+> **multi-lane** distribution (co-routed lines sharing a lane). It
 > extends M2 cardinal routing from "which edge does the line attach to" to "what
 > path does the line take around the boxes in between" — the deliberate, ADR-backed
 > reversal of the v1 "no orthogonal/auto routing" scope line, and only of
