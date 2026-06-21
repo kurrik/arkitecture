@@ -373,29 +373,29 @@ to centre. This routing depends on margins for room — without a gap, edge
 attachment between touching boxes degenerates to a zero-length arrow — but is
 otherwise independent of the rest of the `@layout` model.
 
-### Auto edge routing — sized channels *(in progress)*
+### Auto edge routing — sized channels *(shipped)*
 
-> 🚧 **Being built in slices** (see the ADRs in [decisions.md](decisions.md) and
-> the slice list in [roadmap.md](roadmap.md)). The opt-in mode is enabled with a
-> document-level **`route: orthogonal`** at an `@layout` sheet root (default
-> `straight` is today's M2 line). Landed: the **surface**, **clear-case orthogonal
-> emission** (an unobstructed arrow draws as an axis-aligned elbow/Z), **explicit
-> anchors** (met at the box border on the facing side, the line *entering the node*
-> for an interior anchor), **break-out** across nesting levels, and the
-> **channel-graph router** — a blocked arrow now detours *around* the boxes in its
-> way (few-bend A* over a per-arrow channel grid) instead of falling back to the
-> straight line; **edge-normal exits** — an anchor pinned to a box edge leaves/enters
-> perpendicular to *that* edge (a bottom anchor drops straight down), the router
-> then following the corridor it lands in; and **channel widening** — an arrow
-> running along a channel (a between-children gap, a perimeter, or a cross-axis
+> ✅ **Shipped** in reviewable slices (see the ADRs in [decisions.md](decisions.md)).
+> The opt-in mode is enabled with a document-level **`route: orthogonal`** at an
+> `@layout` sheet root (default `straight` is the M2 line). It comprises: the
+> **surface**; **clear-case orthogonal emission** (an unobstructed arrow draws as an
+> axis-aligned elbow/Z); **explicit anchors** (met at the box border on the facing
+> side, the line *entering the node* for an interior anchor); **break-out** across
+> nesting levels; the **channel-graph router** — a blocked arrow detours *around* the
+> boxes in its way (few-bend A* over a per-arrow channel grid) instead of falling
+> back to the straight line; **edge-normal exits** — an anchor pinned to a box edge
+> leaves/enters perpendicular to *that* edge (a bottom anchor drops straight down),
+> the router then following the corridor it lands in; and **channel widening** — an
+> arrow running along a channel (a between-children gap, a perimeter, or a cross-axis
 > rail *along* a perimeter) reserves a lane there, so the channel widens
-> (`lanes × margin/2`) and the boxes spread, with the line snapped to the lane
-> centre instead of sitting in a box's margin. Still to come on widening:
-> **multi-lane** distribution (co-routed lines sharing a lane). It
-> extends M2 cardinal routing from "which edge does the line attach to" to "what
-> path does the line take around the boxes in between" — the deliberate, ADR-backed
-> reversal of the v1 "no orthogonal/auto routing" scope line, and only of
-> *routing*: auto-*placement* (moving the author's arrangement) stays out.
+> (`lanes × margin/2`) and the boxes spread, with the line snapped to its lane
+> instead of sitting in a box's margin, and **co-routed arrows spread to distinct
+> lanes** so they never overlap. Parked refinements: crossing-minimised lane ordering
+> and a per-arrow `route:` override. It extends M2 cardinal routing from "which edge
+> does the line attach to" to "what path does the line take around the boxes in
+> between" — the deliberate, ADR-backed reversal of the v1 "no orthogonal/auto
+> routing" scope line, and only of *routing*: auto-*placement* (moving the author's
+> arrangement) stays out.
 
 The mode draws each arrow as an **orthogonal path routed around the boxes between
 its endpoints**, instead of a straight line that may cut through them. Two ideas

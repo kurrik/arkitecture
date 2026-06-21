@@ -1,0 +1,24 @@
+# Two arrows that both cross the gap between the columns each get their own lane:
+# the gap widens to hold both, so the parallel vertical runs sit side by side
+# instead of overlapping. web.ui --> core.data drops down one lane; web.bff -->
+# core.auth climbs the other.
+web {
+  label: "Web"
+  ui  { label: "UI" }
+  bff { label: "BFF" }
+}
+core {
+  label: "Core"
+  auth { label: "Auth" }
+  data { label: "Data" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  web  { direction: vertical }
+  core { direction: vertical }
+}
+
+web.ui  --> core.data
+web.bff --> core.auth

@@ -2,6 +2,7 @@ package generator
 
 import (
 	"math"
+	"sort"
 
 	"github.com/kurrik/arkitecture/ast"
 )
@@ -28,42 +29,86 @@ type channelRef struct {
 	base  float64 // base margin to widen from
 }
 
-// channelDemand routes every arrow on the (un-widened) layout and tallies, per
-// channel, how many arrows run longitudinally along it, turning that into the
-// extra width each channel reserves. Returns nil when nothing needs widening.
-func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) *widenDemand {
-	type key struct {
-		path  string
-		rail  bool
-		index int
+// channelKey identifies a channel without its (constant) base, for grouping the
+// arrows that share it.
+type channelKey struct {
+	path  string
+	rail  bool
+	index int
+}
+
+func (r channelRef) key() channelKey { return channelKey{r.path, r.rail, r.index} }
+
+// laneMap records, per channel, the lane each arrow occupies (0-based) and how
+// many lanes the channel carries. Several arrows running along one channel are
+// spread across distinct lanes so they do not overlap.
+type laneMap struct {
+	index map[channelKey]map[int]int // channel -> arrow index -> lane
+	count map[channelKey]int         // channel -> number of lanes
+}
+
+// lane returns the lane an arrow occupies in a channel and the channel's lane
+// count, or ok = false when the arrow does not run along it.
+func (m laneMap) lane(k channelKey, arrowIdx int) (idx, count int, ok bool) {
+	byArrow, ok := m.index[k]
+	if !ok {
+		return 0, 0, false
 	}
-	lanes := map[key]int{}
-	base := map[key]float64{}
-	for _, a := range arrows {
+	idx, ok = byArrow[arrowIdx]
+	if !ok {
+		return 0, 0, false
+	}
+	return idx, m.count[k], true
+}
+
+// channelDemand routes every arrow on the (un-widened) layout and records, per
+// channel, which arrows run longitudinally along it. It returns the extra width
+// each channel reserves (lanes × margin/2) and a laneMap assigning each arrow a
+// distinct lane in every channel it shares. Returns (nil, empty) when nothing
+// needs widening. Lanes are ordered by arrow index, so the result is deterministic.
+func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) (*widenDemand, laneMap) {
+	uses := map[channelKey]map[int]bool{} // channel -> set of arrow indices along it
+	base := map[channelKey]float64{}
+	for i, a := range arrows {
 		pts, ok := arrowPath(a, layout, mode)
 		if !ok {
 			continue
 		}
-		for i := 0; i+1 < len(pts); i++ {
-			if samePoint(pts[i], pts[i+1]) {
+		for j := 0; j+1 < len(pts); j++ {
+			if samePoint(pts[j], pts[j+1]) {
 				continue
 			}
-			ref, ok := findChannel(layout.roots, pts[i], pts[i+1])
+			ref, ok := findChannel(layout.roots, pts[j], pts[j+1])
 			if !ok {
 				continue
 			}
-			k := key{ref.path, ref.rail, ref.index}
-			lanes[k]++
+			k := ref.key()
+			if uses[k] == nil {
+				uses[k] = map[int]bool{}
+			}
+			uses[k][i] = true
 			base[k] = ref.base
 		}
 	}
-	if len(lanes) == 0 {
-		return nil
+	if len(uses) == 0 {
+		return nil, laneMap{}
 	}
 
 	d := &widenDemand{gaps: map[string][]float64{}, rails: map[string][2]float64{}}
-	for k, n := range lanes {
-		extra := float64(n) * base[k] / 2
+	lm := laneMap{index: map[channelKey]map[int]int{}, count: map[channelKey]int{}}
+	for k, set := range uses {
+		arrowIdxs := make([]int, 0, len(set))
+		for ai := range set {
+			arrowIdxs = append(arrowIdxs, ai)
+		}
+		sort.Ints(arrowIdxs)
+		lm.count[k] = len(arrowIdxs)
+		lm.index[k] = make(map[int]int, len(arrowIdxs))
+		for lane, ai := range arrowIdxs {
+			lm.index[k][ai] = lane
+		}
+
+		extra := float64(len(arrowIdxs)) * base[k] / 2
 		switch {
 		case k.rail:
 			r := d.rails[k.path]
@@ -75,7 +120,7 @@ func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) 
 			d.gaps[k.path] = setAt(d.gaps[k.path], k.index, extra)
 		}
 	}
-	return d
+	return d, lm
 }
 
 // setAt sets s[i] = v, growing s with zeros as needed.
@@ -139,12 +184,15 @@ func findChannel(roots []*layoutNode, p0, p1 point) (channelRef, bool) {
 	}
 }
 
-// snapToLanes centres each interior longitudinal run of a routed polyline in the
-// (widened) channel it belongs to, so the line sits in its lane rather than at a
-// fixed inset from one box. The first and last segments are left alone — they are
-// the tip's exit/entry tails, anchored to the box. Snapping a run only moves its
-// perpendicular coordinate, so the connecting segments stay axis-aligned.
-func snapToLanes(pts []point, layout layoutResult) []point {
+// snapToLanes places each interior longitudinal run of arrow arrowIdx's polyline
+// in its lane within the (widened) channel it belongs to, so the line sits in a
+// reserved lane rather than at a fixed inset from one box. When a channel carries
+// several arrows they take distinct lanes around the centre (lane k of N is offset
+// (k − (N−1)/2) × margin/2), so co-routed lines do not overlap; a single-lane
+// channel keeps the centred run (offset 0). The first and last segments are left
+// alone — they are the tip's exit/entry tails, anchored to the box. Snapping a run
+// only moves its perpendicular coordinate, so connecting segments stay axis-aligned.
+func snapToLanes(pts []point, layout layoutResult, arrowIdx int, lanes laneMap) []point {
 	if len(pts) < 4 {
 		return pts // no interior segment to snap
 	}
@@ -161,6 +209,9 @@ func snapToLanes(pts []point, layout layoutResult) []point {
 		center, ok := channelCenterAt(layout.roots, ref)
 		if !ok {
 			continue
+		}
+		if k, n, ok := lanes.lane(ref.key(), arrowIdx); ok {
+			center += (float64(k) - float64(n-1)/2) * ref.base / 2
 		}
 		if math.Abs(p0.y-p1.y) < epsilon { // horizontal run -> snap its y
 			out[i].y, out[i+1].y = center, center

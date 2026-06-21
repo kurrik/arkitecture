@@ -1,0 +1,22 @@
+# Multi-lane: two arrows that both route through the gap between the two columns
+# each get their own lane. The gap widens to hold both (lanes × margin/2), and the
+# two vertical runs sit in distinct lanes around the centre instead of overlapping:
+# left.a --> right.d drops down one lane, left.b --> right.c climbs the other.
+left {
+  a { label: "A" }
+  b { label: "B" }
+}
+right {
+  c { label: "C" }
+  d { label: "D" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  left  { direction: vertical }
+  right { direction: vertical }
+}
+
+left.a --> right.d
+left.b --> right.c

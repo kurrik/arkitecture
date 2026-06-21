@@ -102,9 +102,12 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## In progress
 
-- **Auto edge routing — sized channels** (started 2026-06-20). Implementing the
-  designed orthogonal routing in reviewable slices (see the design and the ADRs in
-  [decisions.md](decisions.md)):
+_Nothing in progress._
+
+## Recently shipped — Auto edge routing (sized channels)
+
+- **The full epic** (2026-06-20 → 2026-06-21, complete). The designed orthogonal
+  routing shipped in reviewable slices (ADRs in [decisions.md](decisions.md)):
   - ✅ **Surface** — `route: straight | orthogonal` as a document-level setting at
     the `@layout` sheet root (mirrors `margin: N`), stored on `Document.Route`.
   - ✅ **Orthogonal emission (clear case)** — in `route: orthogonal` mode an arrow
@@ -138,17 +141,18 @@ for "where is this project at?". Move items between sections as work progresses:
     now detours instead of falling back; the elbow stays the fast path, so no
     existing golden moved. An `orthogonal-around` golden locks the up-and-over
     route. (Routing runs on the computed layout — sound until widening moves boxes.)
-  - 🟡 **Channel widening (gaps + rails)** — an arrow running along a channel now
-    reserves a lane there: a two-pass layout routes once, attributes each run to
-    its container channel (clipping by container → exact lane counts), widens by
-    `lanes × margin/2`, lays out again, and snaps runs to lane centres so lines sit
-    in breathing room, not the margin. Both **main-axis gaps** (between children /
-    perimeter) and **cross-axis rails** (a run *along* a perimeter, e.g. over an
-    obstacle) are covered. Threaded into `calcDimensions`/`positionNodes`
-    (`gapExtra`/`railExtra`), deterministic, default-zero (un-widened docs
-    byte-identical). `orthogonal-arrows`/`-breakout`/`-around` rebaselined; an
-    `orthogonal-widening` golden locks the showcase. **Still to do:** **multi-lane**
-    distribution (two arrows sharing one channel both snap to its centre).
+  - ✅ **Channel widening (gaps, rails, multi-lane)** — an arrow running along a
+    channel reserves a lane there: a two-pass layout routes once, attributes each
+    run to its container channel (clipping by container → exact lane counts), widens
+    by `lanes × margin/2`, lays out again, and snaps runs to their lanes so lines
+    sit in breathing room, not the margin. Covers **main-axis gaps**, **cross-axis
+    rails** (a run *along* a perimeter), and **multi-lane** distribution (co-routed
+    arrows spread to distinct lanes around the centre, so they never overlap).
+    Threaded into `calcDimensions`/`positionNodes` (`gapExtra`/`railExtra`),
+    deterministic, default-zero (un-widened docs byte-identical). `orthogonal-arrows`/
+    `-breakout`/`-around` rebaselined; `orthogonal-widening`/`-multilane` goldens
+    lock the showcase. Parked refinements: crossing-minimised lane ordering, and a
+    per-arrow `route:` override.
 
 ## Planned
 
@@ -156,16 +160,9 @@ The layered authoring model (M1–M5) is complete. What remains are the broader
 tracks below; each is independently shippable. The *model* lives in
 [design.md](design.md) and the *rationale* in [decisions.md](decisions.md).
 
-### Auto edge routing — sized channels
-
-**Now in progress** (see *In progress* above for the slice breakdown). The surface
-(`route: orthogonal`), clear-case orthogonal emission, positioned anchors,
-break-out, the **channel-graph router** (route around obstacles, few-bend A*), and
-**edge-normal exits** (anchors leave/enter perpendicular to their pinned edge) have
-landed; **channel widening** is the last slice. Still open within the track: the
-lane-spacing formula (the input to widening), and a per-arrow override (the
-document-wide knob shipped first). This is the agreed reversal of the v1 "no
-orthogonal/auto routing" scope line — *routing* only; auto-placement stays out.
+Auto edge routing — sized channels has **shipped** (see *Recently shipped* above);
+its only parked follow-ups are crossing-minimised lane ordering and a per-arrow
+`route:` override.
 
 ### Other tracks (lower priority)
 

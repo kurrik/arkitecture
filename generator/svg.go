@@ -17,7 +17,7 @@ const defsBlock = "  <defs>\n" +
 	"    </marker>\n" +
 	"  </defs>"
 
-func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFamily string) string {
+func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFamily string, lanes laneMap) string {
 	parts := []string{
 		fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s">`, num(layout.canvasWidth), num(layout.canvasHeight)),
 		defsBlock,
@@ -26,7 +26,7 @@ func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFam
 	if nodes := renderNodes(doc, layout, fontSize, fontFamily); nodes != "" {
 		parts = append(parts, "", "  <!-- Node rectangles and labels -->", nodes)
 	}
-	if arrows := renderArrows(doc.Arrows, layout, routeMode(doc)); arrows != "" {
+	if arrows := renderArrows(doc.Arrows, layout, routeMode(doc), lanes); arrows != "" {
 		parts = append(parts, "", "  <!-- Arrows -->", arrows)
 	}
 	parts = append(parts, "</svg>")
@@ -104,15 +104,15 @@ func nodeText(label string, d dimensions, fontSize float64, fontFamily string) s
 // point is a resolved coordinate where an arrow attaches.
 type point struct{ x, y float64 }
 
-func renderArrows(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) string {
+func renderArrows(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode, lanes laneMap) string {
 	var els []string
-	for _, a := range arrows {
+	for i, a := range arrows {
 		pts, ok := arrowPath(a, layout, mode)
 		if !ok {
 			continue // missing nodes/anchors are reported by the validator
 		}
 		if mode == ast.RouteOrthogonal {
-			pts = snapToLanes(pts, layout) // centre each run in its widened channel
+			pts = snapToLanes(pts, layout, i, lanes) // place each run in its lane
 		}
 		els = append(els, arrowElement(pts))
 	}
