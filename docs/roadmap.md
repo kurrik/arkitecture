@@ -138,16 +138,17 @@ for "where is this project at?". Move items between sections as work progresses:
     now detours instead of falling back; the elbow stays the fast path, so no
     existing golden moved. An `orthogonal-around` golden locks the up-and-over
     route. (Routing runs on the computed layout — sound until widening moves boxes.)
-  - 🟡 **Channel widening (first cut — main-axis gaps)** — an arrow running along a
-    between-children gap or perimeter now reserves a lane there: a two-pass layout
-    routes once, attributes each run to its container gap (clipping by container →
-    exact lane counts), widens by `lanes × margin/2`, lays out again, and snaps
-    runs to lane centres so lines sit in breathing room, not the margin. Threaded
-    into `calcDimensions`/`positionNodes` (`gapExtra`/`railExtra`), deterministic,
-    default-zero (un-widened docs byte-identical). `orthogonal-arrows`/`-breakout`
-    rebaselined; an `orthogonal-widening` golden locks the showcase. **Still to do:**
-    cross-axis **rails** (a run along a perimeter, e.g. over an obstacle, isn't
-    widened yet), and **multi-lane** distribution (co-routed lines share a centre).
+  - 🟡 **Channel widening (gaps + rails)** — an arrow running along a channel now
+    reserves a lane there: a two-pass layout routes once, attributes each run to
+    its container channel (clipping by container → exact lane counts), widens by
+    `lanes × margin/2`, lays out again, and snaps runs to lane centres so lines sit
+    in breathing room, not the margin. Both **main-axis gaps** (between children /
+    perimeter) and **cross-axis rails** (a run *along* a perimeter, e.g. over an
+    obstacle) are covered. Threaded into `calcDimensions`/`positionNodes`
+    (`gapExtra`/`railExtra`), deterministic, default-zero (un-widened docs
+    byte-identical). `orthogonal-arrows`/`-breakout`/`-around` rebaselined; an
+    `orthogonal-widening` golden locks the showcase. **Still to do:** **multi-lane**
+    distribution (two arrows sharing one channel both snap to its centre).
 
 ## Planned
 

@@ -18,6 +18,35 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-21 — Auto edge routing: channel widening for cross-axis rails
+**Choice:** Extend channel widening (the 2026-06-20 first cut, which handled
+main-axis gaps) to **cross-axis perimeter rails** — the two container sides
+*parallel* to its main axis, where an arrow travels *along* the perimeter (e.g.
+the over-the-obstacle run in `orthogonal-around`/`detour`). A run parallel to a
+container's main axis is now attributed to its low/high rail (`railSideAt`, by the
+run's cross-axis position relative to the children band), demand populates
+`widenDemand.rails`, and the run snaps to the rail centre (`railCenterAt`). The
+`railExtra` layout plumbing was already in place from the first cut, so this slice
+is attribution + snapping only. Gaps and rails were unified behind a
+`channelRef{path, rail, index, base}` so both flow through one path.
+**Why:** Reported: the first cut left lines running *along a perimeter* still
+inside the margin (the only part of "any line parallel to a node edge acts as a
+wall" not yet covered). Rails are the dual of gaps — a gap is a strip crossing the
+main axis, a rail a strip along it — so they widen by the same `lanes × margin/2`
+rule and reuse the same two-pass/clip-by-container machinery; the only genuinely
+new logic is choosing a rail *side* from the run's cross-axis position and finding
+the rail's centre (which must account for the label band, since for a *horizontal*
+container the band sits on the cross axis). The document **root** has no perimeter,
+so a run along it is deliberately not a channel (no canvas padding to widen).
+**Implications:** Only `orthogonal-around` rebaselined (its over-the-wall run now
+widens the row's top perimeter and centres in it); `orthogonal-arrows`/`-breakout`/
+`-widening` are unchanged (their lanes are gaps). The `detour` site example
+likewise widens. `findChannel` now returns a `channelRef`; `widen_test.go` covers
+gap **and** rail attribution. Deterministic and still single-pass. **Remaining on
+the widening track:** **multi-lane** distribution — two arrows sharing one channel
+both snap to its centre (the channel widens by the count, but the lanes aren't
+spread to distinct offsets); that is the last piece.
+
 ## 2026-06-20 — Auto edge routing: channel widening (first cut — main-axis gaps)
 **Choice:** Make an orthogonal arrow that runs *along* a channel reserve its own
 **lane** there, so the channel widens and the boxes spread, instead of the line

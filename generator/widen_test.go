@@ -7,26 +7,31 @@ func boxNode(path string, x, y, w, h, margin float64, children ...*layoutNode) *
 	return &layoutNode{path: path, dim: dimensions{x: x, y: y, width: w, height: h}, margin: margin, children: children}
 }
 
-func TestFindChannelAttributesGapRun(t *testing.T) {
-	// A vertical container "box" with two stacked children leaving a gap at y 40..60.
+func TestFindChannelAttributesGapsAndRails(t *testing.T) {
+	// A vertical container "box" with two stacked children (x 10..90), leaving a
+	// between-children gap at y 40..60 and left/right perimeter rails outside x 10..90.
 	roots := []*layoutNode{boxNode("box", 0, 0, 100, 100, 8,
 		boxNode("box.a", 10, 10, 80, 30, 8),
 		boxNode("box.b", 10, 60, 80, 30, 8),
 	)}
 
-	// A horizontal run through that gap is a lane in box's between-children gap (1).
-	path, gi, base, ok := findChannel(roots, point{20, 50}, point{80, 50})
-	if !ok || path != "box" || gi != 1 || base != 8 {
-		t.Errorf("findChannel(gap run) = (%q,%d,%v,%v), want (box,1,8,true)", path, gi, base, ok)
+	// A horizontal run through the gap is a lane in box's between-children gap (1).
+	if ref, ok := findChannel(roots, point{20, 50}, point{80, 50}); !ok || ref.path != "box" || ref.rail || ref.index != 1 || ref.base != 8 {
+		t.Errorf("findChannel(gap run) = (%+v,%v), want {path:box gap index:1 base:8}", ref, ok)
 	}
 	if c, ok := gapCenterAt(roots, "box", 1); !ok || c != 50 {
 		t.Errorf("gapCenterAt(box,1) = (%v,%v), want (50,true)", c, ok)
 	}
 
-	// A vertical run through the same gap is *along* box's main axis — a cross-axis
-	// rail, deferred — so it is not attributed to a main-axis gap.
-	if _, _, _, ok := findChannel(roots, point{50, 45}, point{50, 55}); ok {
-		t.Error("findChannel(rail run) = ok, want not attributed (rails are deferred)")
+	// A vertical run left of the children runs *along* box's main axis — its low
+	// (left) cross-axis perimeter rail.
+	if ref, ok := findChannel(roots, point{5, 30}, point{5, 70}); !ok || ref.path != "box" || !ref.rail || ref.index != 0 || ref.base != 8 {
+		t.Errorf("findChannel(rail run) = (%+v,%v), want {path:box rail side:0 base:8}", ref, ok)
+	}
+
+	// A vertical run *within* the children's span would pass through them — not a channel.
+	if _, ok := findChannel(roots, point{50, 45}, point{50, 55}); ok {
+		t.Error("findChannel(through children) = ok, want not attributed")
 	}
 }
 

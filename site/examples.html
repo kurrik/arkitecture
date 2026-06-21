@@ -105,7 +105,7 @@ edge.cdn --&gt; origin.database</code></pre>
 
     <article class="example">
       <h2>Routing around obstacles</h2>
-      <p>In <code>route: orthogonal</code> mode an arrow routes <em>around</em> the boxes that lie between its endpoints rather than cutting through them. The link from <em>Client</em> to the <em>Database</em> would run straight through <em>Cache</em>, so it detours up and over it as an axis-aligned path. Anchors pinned to an edge leave perpendicular to that edge, so you stay in control of where a line departs.</p>
+      <p>In <code>route: orthogonal</code> mode an arrow routes <em>around</em> the boxes that lie between its endpoints rather than cutting through them. The link from <em>Client</em> to the <em>Database</em> would run straight through <em>Cache</em>, so it detours up and over it as an axis-aligned path — and travels in its own <strong>lane</strong>: the row's top perimeter widens to hold the line above the boxes. Anchors pinned to an edge leave perpendicular to that edge, so you stay in control of where a line departs.</p>
       <div class="demo">
         <div class="panel source">
           <div class="panel-label">detour.ark</div>
