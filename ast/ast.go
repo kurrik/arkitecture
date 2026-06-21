@@ -102,6 +102,11 @@ type ContainerNode struct {
 // maps an anchor name to its relative [x, y] position. Arrangement, when
 // non-empty, is the node's ordered child layout (with optional `@group`
 // wrappers); empty means "lay children out in semantic order".
+//
+// The style fields are presentation overrides (hex `#rrggbb` colours and stroke
+// widths). BorderWidth/BorderColor/BackgroundColor style a node's own box;
+// PathWidth/PathColor style the arrows that *start* at the node. All default to
+// the plain look (white fill, 1px black border, 1px black arrows) when unset.
 type Declarations struct {
 	Direction   *Direction
 	Size        *float64
@@ -110,6 +115,12 @@ type Declarations struct {
 	LabelPos    *LabelPosition
 	Anchors     map[string][2]float64
 	Arrangement []ArrangementItem
+
+	BorderWidth     *float64 // box border stroke width (default 1)
+	BorderColor     *string  // box border colour, hex #rrggbb (default black)
+	BackgroundColor *string  // box fill colour, hex #rrggbb (default white)
+	PathWidth       *float64 // width of arrows starting at this node (default 1)
+	PathColor       *string  // colour of arrows starting at this node, hex (default black)
 }
 
 // ArrangementItem is one entry in a node's child arrangement: either a reference
@@ -185,6 +196,13 @@ type Arrow struct {
 // `route:` at the root of an `@layout` sheet (mirroring DefaultMargin). nil or
 // RouteStraight draws straight cardinal lines; RouteOrthogonal routes arrows as
 // orthogonal paths around intervening boxes.
+//
+// Defaults, when set, holds document-wide style defaults authored as bare style
+// properties (`borderColor:`, `pathWidth:`, …) at the root of an `@layout` sheet
+// — the same fallback model as DefaultMargin, but for the presentation fields of
+// [Declarations]. Only those style fields are ever populated; a node's own
+// resolved style overrides the document default, which overrides the built-in
+// plain look. nil means "use the built-in defaults".
 type Document struct {
 	Nodes         []*ContainerNode
 	Layout        []LayoutRule
@@ -192,6 +210,7 @@ type Document struct {
 	Arrows        []Arrow
 	DefaultMargin *float64
 	Route         *RouteMode
+	Defaults      *Declarations
 }
 
 // BuiltinBlocks are the layout blocks every document gets for free, keyed by

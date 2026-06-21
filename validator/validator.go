@@ -91,6 +91,17 @@ func (v *validator) validateLayout(doc *ast.Document) {
 	if doc.DefaultMargin != nil && *doc.DefaultMargin < 0.0 {
 		v.addError(ast.ErrorConstraint, fmt.Sprintf("Document default margin %s is out of range, expected >= 0.0", formatNum(*doc.DefaultMargin)))
 	}
+	if d := doc.Defaults; d != nil {
+		if d.BorderWidth != nil && *d.BorderWidth < 0.0 {
+			v.addError(ast.ErrorConstraint, fmt.Sprintf("Document default borderWidth %s is out of range, expected >= 0.0", formatNum(*d.BorderWidth)))
+		}
+		if d.PathWidth != nil && *d.PathWidth < 0.0 {
+			v.addError(ast.ErrorConstraint, fmt.Sprintf("Document default pathWidth %s is out of range, expected >= 0.0", formatNum(*d.PathWidth)))
+		}
+		v.validateColor("Document default borderColor", d.BorderColor)
+		v.validateColor("Document default backgroundColor", d.BackgroundColor)
+		v.validateColor("Document default pathColor", d.PathColor)
+	}
 
 	// Group rules by selector to detect duplicate direct properties on a node.
 	bySelector := make(map[string][]*ast.Declarations)
@@ -125,6 +136,7 @@ func (v *validator) validateLayout(doc *ast.Document) {
 // same node. (A property repeated inside a single block is caught by the parser.)
 func (v *validator) validateNoConflicts(selector string, decls []*ast.Declarations) {
 	var direction, size, margin, box, labelPos, arrangement int
+	var borderWidth, borderColor, backgroundColor, pathWidth, pathColor int
 	anchors := map[string]int{}
 	for _, d := range decls {
 		if d == nil {
@@ -148,6 +160,21 @@ func (v *validator) validateNoConflicts(selector string, decls []*ast.Declaratio
 		if len(d.Arrangement) > 0 {
 			arrangement++
 		}
+		if d.BorderWidth != nil {
+			borderWidth++
+		}
+		if d.BorderColor != nil {
+			borderColor++
+		}
+		if d.BackgroundColor != nil {
+			backgroundColor++
+		}
+		if d.PathWidth != nil {
+			pathWidth++
+		}
+		if d.PathColor != nil {
+			pathColor++
+		}
 		for name := range d.Anchors {
 			anchors[name]++
 		}
@@ -155,7 +182,8 @@ func (v *validator) validateNoConflicts(selector string, decls []*ast.Declaratio
 	for _, c := range []struct {
 		name  string
 		count int
-	}{{"direction", direction}, {"size", size}, {"margin", margin}, {"box", box}, {"label", labelPos}, {"arrangement", arrangement}} {
+	}{{"direction", direction}, {"size", size}, {"margin", margin}, {"box", box}, {"label", labelPos}, {"arrangement", arrangement},
+		{"borderWidth", borderWidth}, {"borderColor", borderColor}, {"backgroundColor", backgroundColor}, {"pathWidth", pathWidth}, {"pathColor", pathColor}} {
 		if c.count > 1 {
 			v.addError(ast.ErrorReference, fmt.Sprintf("Conflicting layout property '%s' on node '%s'", c.name, selector))
 		}
@@ -177,6 +205,15 @@ func (v *validator) validateDeclRanges(selector string, d *ast.Declarations) {
 	if d.Margin != nil && *d.Margin < 0.0 {
 		v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' margin %s is out of range, expected >= 0.0", selector, formatNum(*d.Margin)))
 	}
+	if d.BorderWidth != nil && *d.BorderWidth < 0.0 {
+		v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' borderWidth %s is out of range, expected >= 0.0", selector, formatNum(*d.BorderWidth)))
+	}
+	if d.PathWidth != nil && *d.PathWidth < 0.0 {
+		v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' pathWidth %s is out of range, expected >= 0.0", selector, formatNum(*d.PathWidth)))
+	}
+	v.validateColor(fmt.Sprintf("Node '%s' borderColor", selector), d.BorderColor)
+	v.validateColor(fmt.Sprintf("Node '%s' backgroundColor", selector), d.BackgroundColor)
+	v.validateColor(fmt.Sprintf("Node '%s' pathColor", selector), d.PathColor)
 	for _, name := range sortedCoordKeys(d.Anchors) {
 		c := d.Anchors[name]
 		if x := c[0]; x < 0.0 || x > 1.0 {
@@ -192,6 +229,39 @@ func (v *validator) validateDeclRanges(selector string, d *ast.Declarations) {
 			v.validateDeclRanges(selector, it.Group)
 		}
 	}
+}
+
+// validateColor reports a malformed hex colour. nil (unset) is fine; otherwise
+// the value must be #rgb, #rgba, #rrggbb, or #rrggbbaa. label names the offending
+// property in the message (e.g. "Node 'a' borderColor"). The tokenizer only emits
+// a colour token for a `#` + hex run, so the usual failure here is a wrong digit
+// count.
+func (v *validator) validateColor(label string, c *string) {
+	if c == nil {
+		return
+	}
+	if !isValidHexColor(*c) {
+		v.addError(ast.ErrorConstraint, fmt.Sprintf("%s '%s' is not a valid hex colour, expected #rgb, #rgba, #rrggbb, or #rrggbbaa", label, *c))
+	}
+}
+
+// isValidHexColor reports whether s is a `#` followed by 3, 4, 6, or 8 hex digits.
+func isValidHexColor(s string) bool {
+	if len(s) == 0 || s[0] != '#' {
+		return false
+	}
+	h := s[1:]
+	switch len(h) {
+	case 3, 4, 6, 8:
+	default:
+		return false
+	}
+	for _, c := range h {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 // validateAnchorPositions checks that every positioned anchor names a declared

@@ -2,31 +2,36 @@ package generator
 
 import (
 	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/kurrik/arkitecture/ast"
 )
 
-// defsBlock is emitted verbatim (including the trailing space after
-// markerHeight) so output stays byte-for-byte stable with the golden fixtures.
-const defsBlock = "  <defs>\n" +
-	"    <marker id=\"arrowhead\" markerWidth=\"10\" markerHeight=\"7\" \n" +
-	"            refX=\"9\" refY=\"3.5\" orient=\"auto\" markerUnits=\"strokeWidth\">\n" +
-	"      <polygon points=\"0 0, 10 3.5, 0 7\" fill=\"black\" />\n" +
-	"    </marker>\n" +
-	"  </defs>"
+// The built-in plain look, used when neither a node nor the document default sets
+// a style. The colour sentinels are the literal strings the original output used
+// ("white"/"black"), so an unstyled diagram renders byte-for-byte as before.
+const (
+	defaultBorderColor     = "black"
+	defaultBackgroundColor = "white"
+	defaultPathColor       = "black"
+	defaultPathWidth       = 1.0
+)
 
-func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFamily string, lanes laneMap) string {
+func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFamily string, lanes laneMap, resolved map[string]*ast.Declarations) string {
+	arrows, markerColors := renderArrows(doc.Arrows, layout, routeMode(doc), lanes, resolved, doc.Defaults)
+
 	parts := []string{
 		fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s">`, num(layout.canvasWidth), num(layout.canvasHeight)),
-		defsBlock,
+		buildDefs(markerColors),
 	}
 
 	if nodes := renderNodes(doc, layout, fontSize, fontFamily); nodes != "" {
 		parts = append(parts, "", "  <!-- Node rectangles and labels -->", nodes)
 	}
-	if arrows := renderArrows(doc.Arrows, layout, routeMode(doc), lanes); arrows != "" {
+	if arrows != "" {
 		parts = append(parts, "", "  <!-- Arrows -->", arrows)
 	}
 	parts = append(parts, "</svg>")
@@ -34,23 +39,57 @@ func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFam
 	return strings.Join(parts, "\n")
 }
 
+// buildDefs emits the <defs> with one arrowhead marker per path colour: the black
+// default (id "arrowhead", kept byte-identical to the original) plus one coloured
+// marker per distinct non-default path colour, so a coloured arrow gets a matching
+// arrowhead. colors is sorted and free of the default.
+func buildDefs(colors []string) string {
+	var b strings.Builder
+	b.WriteString("  <defs>\n")
+	b.WriteString(markerDef("arrowhead", defaultPathColor))
+	for _, c := range colors {
+		b.WriteString(markerDef(markerID(c), c))
+	}
+	b.WriteString("  </defs>")
+	return b.String()
+}
+
+// markerDef renders one arrowhead <marker> with the given id and fill. The layout
+// (including the trailing space after markerHeight) matches the original verbatim
+// marker so the unstyled defs stay byte-for-byte stable.
+func markerDef(id, fill string) string {
+	return fmt.Sprintf("    <marker id=\"%s\" markerWidth=\"10\" markerHeight=\"7\" \n"+
+		"            refX=\"9\" refY=\"3.5\" orient=\"auto\" markerUnits=\"strokeWidth\">\n"+
+		"      <polygon points=\"0 0, 10 3.5, 0 7\" fill=\"%s\" />\n"+
+		"    </marker>\n", id, fill)
+}
+
+// markerID is the arrowhead marker id for a path colour: the shared "arrowhead"
+// for the default black, else "arrowhead-<hex>" (the '#' stripped for a valid id).
+func markerID(color string) string {
+	if color == defaultPathColor {
+		return "arrowhead"
+	}
+	return "arrowhead-" + strings.TrimPrefix(color, "#")
+}
+
 func renderNodes(doc *ast.Document, layout layoutResult, fontSize float64, fontFamily string) string {
 	var els []string
 	for _, l := range layout.roots {
-		collectNodeElements(l, fontSize, fontFamily, &els)
+		collectNodeElements(l, fontSize, fontFamily, doc.Defaults, &els)
 	}
 	return strings.Join(els, "\n")
 }
 
-func collectNodeElements(l *layoutNode, fontSize float64, fontFamily string, els *[]string) {
+func collectNodeElements(l *layoutNode, fontSize float64, fontFamily string, defStyle *ast.Declarations, els *[]string) {
 	if nodeBordered(l) {
-		*els = append(*els, nodeRect(l.dim))
+		*els = append(*els, nodeRect(l, defStyle))
 	}
 	if label, ok := nodeLabel(l); ok {
 		*els = append(*els, nodeText(label, labelDim(l), fontSize, fontFamily))
 	}
 	for _, c := range l.children {
-		collectNodeElements(c, fontSize, fontFamily, els)
+		collectNodeElements(c, fontSize, fontFamily, defStyle, els)
 	}
 }
 
@@ -68,9 +107,58 @@ func labelDim(l *layoutNode) dimensions {
 	return d
 }
 
-func nodeRect(d dimensions) string {
-	return fmt.Sprintf(`  <rect x="%s" y="%s" width="%s" height="%s" fill="white" stroke="black" stroke-width="1" />`,
-		num(d.x), num(d.y), num(d.width), num(d.height))
+// nodeRect renders a bordered node's rectangle with its resolved fill, stroke,
+// and stroke width. shape-rendering="crispEdges" keeps the 1px (or wider) border
+// a consistent width regardless of the box's sub-pixel position — without it, a
+// border whose coordinate lands off the half-pixel grid anti-aliases into a
+// fainter, wider smear, so otherwise-identical boxes look inconsistent.
+func nodeRect(l *layoutNode, defStyle *ast.Declarations) string {
+	d := l.dim
+	return fmt.Sprintf(`  <rect x="%s" y="%s" width="%s" height="%s" fill="%s" stroke="%s" stroke-width="%s" shape-rendering="crispEdges" />`,
+		num(d.x), num(d.y), num(d.width), num(d.height),
+		backgroundColorOf(l.decls, defStyle), borderColorOf(l.decls, defStyle), num(l.borderW))
+}
+
+// --- resolved style accessors (node value, else document default, else built-in) ---
+
+func borderColorOf(d, def *ast.Declarations) string {
+	if d != nil && d.BorderColor != nil {
+		return *d.BorderColor
+	}
+	if def != nil && def.BorderColor != nil {
+		return *def.BorderColor
+	}
+	return defaultBorderColor
+}
+
+func backgroundColorOf(d, def *ast.Declarations) string {
+	if d != nil && d.BackgroundColor != nil {
+		return *d.BackgroundColor
+	}
+	if def != nil && def.BackgroundColor != nil {
+		return *def.BackgroundColor
+	}
+	return defaultBackgroundColor
+}
+
+func pathColorOf(d, def *ast.Declarations) string {
+	if d != nil && d.PathColor != nil {
+		return *d.PathColor
+	}
+	if def != nil && def.PathColor != nil {
+		return *def.PathColor
+	}
+	return defaultPathColor
+}
+
+func pathWidthOf(d, def *ast.Declarations) float64 {
+	if d != nil && d.PathWidth != nil {
+		return *d.PathWidth
+	}
+	if def != nil && def.PathWidth != nil {
+		return *def.PathWidth
+	}
+	return defaultPathWidth
 }
 
 func nodeText(label string, d dimensions, fontSize float64, fontFamily string) string {
@@ -104,8 +192,14 @@ func nodeText(label string, d dimensions, fontSize float64, fontFamily string) s
 // point is a resolved coordinate where an arrow attaches.
 type point struct{ x, y float64 }
 
-func renderArrows(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode, lanes laneMap) string {
+// renderArrows draws every arrow and reports the distinct non-default path colours
+// it used, so the caller can emit a matching arrowhead marker for each. An arrow's
+// width and colour come from its **source** node's resolved pathWidth/pathColor
+// (falling back to the document default, then the plain 1px black), so styling a
+// node restyles the arrows that start at it.
+func renderArrows(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode, lanes laneMap, resolved map[string]*ast.Declarations, defStyle *ast.Declarations) (string, []string) {
 	var els []string
+	colorSet := map[string]bool{}
 	for i, a := range arrows {
 		pts, ok := arrowPath(a, layout, mode)
 		if !ok {
@@ -114,25 +208,61 @@ func renderArrows(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode, l
 		if mode == ast.RouteOrthogonal {
 			pts = snapToLanes(pts, layout, i, lanes) // place each run in its lane
 		}
-		els = append(els, arrowElement(pts))
+		src := resolved[nodePathOf(a.Source)]
+		color := pathColorOf(src, defStyle)
+		width := pathWidthOf(src, defStyle)
+		if color != defaultPathColor {
+			colorSet[color] = true
+		}
+		els = append(els, arrowElement(pts, color, width))
 	}
-	return strings.Join(els, "\n")
+	return strings.Join(els, "\n"), sortedColorKeys(colorSet)
 }
 
-// arrowElement renders an arrow's resolved polyline. A two-point path emits the
-// same <line> straight mode always has (keeping that output byte-stable); a path
-// with a bend emits a <polyline>. The arrowhead marker sits at the final point.
-func arrowElement(pts []point) string {
+// arrowElement renders an arrow's resolved polyline with the given stroke colour
+// and width. A two-point path emits a <line>, a bent path a <polyline>. An
+// axis-aligned path gets shape-rendering="crispEdges" so horizontal/vertical runs
+// stay a consistent width (a diagonal straight line keeps its anti-aliasing). The
+// arrowhead marker — colour-matched to the stroke — sits at the final point.
+func arrowElement(pts []point, color string, width float64) string {
+	crisp := ""
+	if axisAligned(pts) {
+		crisp = ` shape-rendering="crispEdges"`
+	}
+	marker := markerID(color)
 	if len(pts) == 2 {
-		return fmt.Sprintf(`  <line x1="%s" y1="%s" x2="%s" y2="%s" stroke="black" stroke-width="1" marker-end="url(#arrowhead)" />`,
-			num(pts[0].x), num(pts[0].y), num(pts[1].x), num(pts[1].y))
+		return fmt.Sprintf(`  <line x1="%s" y1="%s" x2="%s" y2="%s" stroke="%s" stroke-width="%s"%s marker-end="url(#%s)" />`,
+			num(pts[0].x), num(pts[0].y), num(pts[1].x), num(pts[1].y), color, num(width), crisp, marker)
 	}
 	coords := make([]string, len(pts))
 	for i, p := range pts {
 		coords[i] = num(p.x) + "," + num(p.y)
 	}
-	return fmt.Sprintf(`  <polyline points="%s" fill="none" stroke="black" stroke-width="1" marker-end="url(#arrowhead)" />`,
-		strings.Join(coords, " "))
+	return fmt.Sprintf(`  <polyline points="%s" fill="none" stroke="%s" stroke-width="%s"%s marker-end="url(#%s)" />`,
+		strings.Join(coords, " "), color, num(width), crisp, marker)
+}
+
+// axisAligned reports whether every segment of pts runs horizontally or
+// vertically (so crispEdges is safe). A diagonal segment makes it false.
+func axisAligned(pts []point) bool {
+	if len(pts) < 2 {
+		return false
+	}
+	for i := 0; i+1 < len(pts); i++ {
+		if math.Abs(pts[i].x-pts[i+1].x) > epsilon && math.Abs(pts[i].y-pts[i+1].y) > epsilon {
+			return false
+		}
+	}
+	return true
+}
+
+func sortedColorKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func centerOf(d dimensions) point {

@@ -49,5 +49,5 @@ func GenerateSVG(doc *ast.Document, resolved map[string]*ast.Declarations, opts 
 			lanes = lm
 		}
 	}
-	return renderSVG(doc, layout, fontSize, fontFamily, lanes), nil
+	return renderSVG(doc, layout, fontSize, fontFamily, lanes, resolved), nil
 }

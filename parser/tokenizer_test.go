@@ -110,6 +110,68 @@ func TestTokenizeValues(t *testing.T) {
 	}
 }
 
+func TestTokenizeColors(t *testing.T) {
+	seqTests := []struct {
+		name  string
+		input string
+		want  []TokenType
+	}{
+		{
+			"colour value after a property",
+			"borderColor: #ff0000",
+			[]TokenType{TokenIdentifier, TokenColon, TokenColor, TokenEOF},
+		},
+		{
+			"short colour at line start",
+			"#abc",
+			[]TokenType{TokenColor, TokenEOF},
+		},
+		{
+			"colour glued to a brace boundary",
+			"{ #fff }",
+			[]TokenType{TokenLBrace, TokenColor, TokenRBrace, TokenEOF},
+		},
+		{
+			"comment with a space stays a comment",
+			"# ff0000 is red",
+			[]TokenType{TokenEOF},
+		},
+		{
+			"hash run trailed by a word is a comment",
+			"#deadbeefxyz note",
+			[]TokenType{TokenEOF},
+		},
+		{
+			"anchor hash is unaffected even when the name is hex",
+			"n1#abc",
+			[]TokenType{TokenIdentifier, TokenHash, TokenIdentifier, TokenEOF},
+		},
+	}
+	for _, tt := range seqTests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tokenTypes(mustTokenize(t, tt.input))
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Tokenize(%q) types = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+
+	// The colour token carries the full "#rrggbb" value (length is the validator's
+	// concern, so even an odd length tokenizes for a better error downstream).
+	valueTests := []struct{ input, want string }{
+		{"#ff0000", "#ff0000"},
+		{"#abc", "#abc"},
+		{"#11223344", "#11223344"},
+		{"#ff", "#ff"},
+	}
+	for _, tt := range valueTests {
+		toks := mustTokenize(t, tt.input)
+		if len(toks) != 2 || toks[0].Type != TokenColor || toks[0].Value != tt.want {
+			t.Errorf("Tokenize(%q) = %+v, want a single COLOR %q", tt.input, toks, tt.want)
+		}
+	}
+}
+
 func TestTokenizePositions(t *testing.T) {
 	toks := mustTokenize(t, "ab cd")
 	want := []Token{

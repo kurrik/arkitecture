@@ -1,0 +1,33 @@
+# Styling: document-wide defaults, per-node overrides, @block reuse, and path
+# styling. Colours are hex; widths are plain numbers.
+services {
+  label: "Services"
+  api { label: "API" }
+  worker { label: "Worker" }
+}
+store { label: "Data Store" }
+
+services.api --> store
+services.worker --> store
+
+@layout {
+  # Document-wide style defaults — the baseline for every node and arrow that
+  # sets none.
+  borderColor: #334155
+  backgroundColor: #f8fafc
+
+  # A reusable styled bundle, imported with @use.
+  @block accent { borderColor: #2563eb; borderWidth: 2 }
+
+  services { @use accent }              # imported border style
+
+  # pathColor/pathWidth style the arrows that START at the node.
+  services.api { pathColor: #2563eb }
+  services.worker {
+    backgroundColor: #fef9c3            # direct override of the default fill
+    pathColor: #ca8a04
+    pathWidth: 2
+  }
+
+  store { borderColor: #16a34a; borderWidth: 3 }
+}

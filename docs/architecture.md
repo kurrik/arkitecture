@@ -71,18 +71,24 @@ until a stage genuinely needs sub-packages.
 The AST (`ast` package) is the contract every stage shares, split into a
 semantic layer and a layout layer:
 
-- **`Document`** — `{ Nodes []*ContainerNode; Layout []LayoutRule; Blocks []Block; Arrows []Arrow; DefaultMargin *float64 }`.
+- **`Document`** — `{ Nodes []*ContainerNode; Layout []LayoutRule; Blocks []Block; Arrows []Arrow; DefaultMargin *float64; Route *RouteMode; Defaults *Declarations }`.
   Layout rules, blocks, and arrows are collected into flat lists (top-level
   statements may appear in any order), not attached to nodes. `DefaultMargin` (a
   bare `margin:` at a sheet root) is the document-wide fallback margin — the
   generator uses it in place of the built-in 8 for any node that sets none.
+  `Route` is the document-wide routing mode (a bare `route:`). `Defaults` holds the
+  document-wide **style** fallbacks (bare `borderColor:`/`pathWidth:`/… at a sheet
+  root) — the same fallback model as `DefaultMargin`, reusing `Declarations` but
+  with only its style fields populated.
 - **`ContainerNode`** — the single node type: `ID`, optional `Label`, `Kind`,
   `Anchors` (declared anchor *names*), and `Children []*ContainerNode`. It carries
   no layout — `GroupNode` is gone; a borderless grouping is a `box: none` node.
 - **`Declarations`** — a set of layout properties (`Direction`, `Size`, `Margin`,
-  `Box`, `LabelPos`, and `Anchors` name→position) plus an optional `Arrangement`
-  (the node's ordered child layout). Each scalar is a pointer so "unset" stays
-  distinguishable, which the conflict check relies on.
+  `Box`, `LabelPos`, the style fields `BorderWidth`/`BorderColor`/`BackgroundColor`
+  (the box) and `PathWidth`/`PathColor` (arrows starting at the node), and `Anchors`
+  name→position) plus an optional `Arrangement` (the node's ordered child layout).
+  Colours are hex strings; widths are floats. Each scalar is a pointer so "unset"
+  stays distinguishable, which the conflict check relies on.
 - **`ArrangementItem`** — one entry in a node's child arrangement: either a
   `ChildID` (a direct child reference) or a `Group *Declarations` (an anonymous
   `@group`). A group *is* a `Declarations` whose own `Arrangement` holds its nested
@@ -105,9 +111,12 @@ semantic layer and a layout layer:
 
 - **Tokenizer** (`parser/tokenizer.go`) — hand-written rune scanner producing
   `Token`s with line/column info: identifiers, strings (with escapes), numbers,
-  structural punctuation, the `-->` arrow, `@` (directive), `#` (anchor vs
-  comment), and newlines (`;` is a cosmetic separator skipped like whitespace).
-  Returns a `*TokenizerError` on an unexpected character or unterminated string.
+  hex **colour** values (`#rrggbb`), structural punctuation, the `-->` arrow, `@`
+  (directive), `#` (anchor vs colour vs comment), and newlines (`;` is a cosmetic
+  separator skipped like whitespace). The `#` is disambiguated by what precedes it:
+  glued to an identifier (`node#anchor`) it is an anchor hash; otherwise a complete
+  hex run with a word boundary is a colour and anything else is a comment. Returns a
+  `*TokenizerError` on an unexpected character or unterminated string.
 - **Parser** (`parser/parser.go`) — recursive-descent build of the `Document`:
   semantic node bodies (`label`/`kind`/anchor names/children), inline and
   standalone `@layout` blocks (the declaration grammar and exact-path selectors),
@@ -124,7 +133,9 @@ semantic layer and a layout layer:
 - **Validator** (`validator/validator.go`) — semantic checks over a parsed
   `Document`: ID uniqueness within a scope, dangling layout selectors (reported at
   the selector position), duplicate **direct** layout properties on a node, layout
-  ranges (`size`/`margin`/coords), anchor positions naming a declared anchor,
+  ranges (`size`/`margin`/`borderWidth`/`pathWidth`/coords) and hex-colour format
+  (`borderColor`/`backgroundColor`/`pathColor`, including the document defaults),
+  anchor positions naming a declared anchor,
   undefined `@use` blocks and `@use` composition cycles (reported at the `@use` /
   block position), child-arrangement same-parent and completeness checks (each
   direct child referenced exactly once, no foreigners), and arrow source/target +
@@ -173,7 +184,15 @@ semantic layer and a layout layer:
   `svg.go` walks the tree to emit `<rect>` + `<text>` per visible node (the label
   is centred in its reserved band when a parent has one; a `box: none` node and a
   `@group` render no rect) and, per arrow, a `<line>` (two points) or `<polyline>`
-  (a bent route) with the arrowhead `<marker>`. Output is byte-for-byte stable.
+  (a bent route) with the arrowhead `<marker>`. Each rect takes its resolved
+  `fill`/`stroke`/`stroke-width` (node value → document `Defaults` → built-in
+  white/black/1px); each arrow takes its **source** node's resolved
+  `pathColor`/`pathWidth` and a colour-matched arrowhead — `buildDefs` emits one
+  `<marker>` per distinct path colour (the black `arrowhead` plus `arrowhead-<hex>`
+  per colour). Axis-aligned strokes (every rect, orthogonal polylines, and
+  horizontal/vertical lines) carry `shape-rendering="crispEdges"` for a consistent
+  1px; a diagonal line omits it. Output is byte-for-byte stable, and identical to
+  the pre-styling output for an unstyled document.
 
 ## Public API
 

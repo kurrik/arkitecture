@@ -8,6 +8,7 @@ import (
 )
 
 func dirp(d ast.Direction) *ast.Direction { return &d }
+func strp(s string) *string               { return &s }
 
 func TestValidateValidDocument(t *testing.T) {
 	doc := &ast.Document{
@@ -144,6 +145,63 @@ func TestValidateDocumentDefaultMarginRange(t *testing.T) {
 	errs := Validate(doc)
 	if !containsMsg(errs, "Document default margin -1 is out of range, expected >= 0.0") {
 		t.Errorf("expected document default margin range error, got %+v", errs)
+	}
+}
+
+func TestValidateInvalidHexColor(t *testing.T) {
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "a"}},
+		Layout: []ast.LayoutRule{{Selector: "a", Decls: &ast.Declarations{BorderColor: strp("#ff")}}},
+	}
+	errs := Validate(doc)
+	if !containsMsg(errs, "Node 'a' borderColor '#ff' is not a valid hex colour") {
+		t.Errorf("expected invalid colour error, got %+v", errs)
+	}
+	if len(errs) > 0 && errs[0].Type != ast.ErrorConstraint {
+		t.Errorf("expected constraint type, got %+v", errs[0])
+	}
+}
+
+func TestValidateNegativeStyleWidths(t *testing.T) {
+	negBW, negPW := -1.0, -2.0
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "a"}},
+		Layout: []ast.LayoutRule{{Selector: "a", Decls: &ast.Declarations{BorderWidth: &negBW, PathWidth: &negPW}}},
+	}
+	errs := Validate(doc)
+	if !containsMsg(errs, "Node 'a' borderWidth -1 is out of range") {
+		t.Errorf("expected borderWidth range error, got %+v", errs)
+	}
+	if !containsMsg(errs, "Node 'a' pathWidth -2 is out of range") {
+		t.Errorf("expected pathWidth range error, got %+v", errs)
+	}
+}
+
+func TestValidateConflictingStyle(t *testing.T) {
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{ID: "a"}},
+		Layout: []ast.LayoutRule{
+			{Selector: "a", Decls: &ast.Declarations{BorderColor: strp("#ffffff")}},
+			{Selector: "a", Decls: &ast.Declarations{BorderColor: strp("#000000")}},
+		},
+	}
+	if !containsMsg(Validate(doc), "Conflicting layout property 'borderColor' on node 'a'") {
+		t.Errorf("expected borderColor conflict error, got %+v", Validate(doc))
+	}
+}
+
+func TestValidateDocumentDefaultStyle(t *testing.T) {
+	negBW := -3.0
+	doc := &ast.Document{
+		Nodes:    []*ast.ContainerNode{{ID: "a"}},
+		Defaults: &ast.Declarations{PathColor: strp("#nothex"), BorderWidth: &negBW},
+	}
+	errs := Validate(doc)
+	if !containsMsg(errs, "Document default pathColor '#nothex' is not a valid hex colour") {
+		t.Errorf("expected document default colour error, got %+v", errs)
+	}
+	if !containsMsg(errs, "Document default borderWidth -3 is out of range") {
+		t.Errorf("expected document default borderWidth error, got %+v", errs)
 	}
 }
 

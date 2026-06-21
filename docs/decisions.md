@@ -18,6 +18,51 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-21 — Per-element styling in `@layout` (hex colour + stroke width)
+**Choice:** Add a first visual layer to `@layout`: `borderWidth`/`borderColor`/
+`backgroundColor` style a node's box, and `pathWidth`/`pathColor` style the arrows
+that *start* at a node. Colours are hex literals (`#rgb`/`#rgba`/`#rrggbb`/
+`#rrggbbaa`); widths are floats `>= 0`. Each is settable per-node, document-wide (a
+bare property at a sheet root, mirroring the default `margin`/`route`), or in a
+`@block` — resolved by the existing no-cascade two-tier precedence. Stored as new
+pointer fields on `ast.Declarations` (plus `Document.Defaults *Declarations` for the
+document-wide values); the generator's accessors fall back node → document default →
+built-in plain look, so an unstyled diagram is byte-identical.
+**Why:** Author feedback asked for styling control. This reverses the v1 "visual
+styling out of scope" line, but only for *per-element* styling — the part that earns
+its keep — while keeping the genuinely complex, action-at-a-distance parts
+(inheritance/cascade, palettes, fonts) out. Reusing `Declarations` + the resolver's
+merge meant `@use`/`kind`/document-default all worked for free with no new
+precedence machinery. Arrows are styled by their **source** node (not a new
+arrow-level layer) so a style stays attributable to one node and needs no arrow
+syntax. The tokenizer disambiguates the overloaded `#` by what *precedes* it —
+glued to an identifier ⇒ anchor hash (`node#anchor`); otherwise a complete hex run
+to a word boundary ⇒ colour, else a comment — which leaves existing anchors and
+`# comment` lexing untouched.
+**Implications:** Output is no longer always plain, but defaults to plain. Theming
+stays out of scope (see design.md): no cascade, palettes, or fonts. `pathWidth` is
+visual only — it does not widen routing channels (a very thick path can overrun its
+lane; revisit if it bites). A coloured arrow needs a colour-matched arrowhead, so
+`<defs>` now emits one `<marker>` per distinct path colour. `kind`/`@block` remain
+the sharing mechanism a future theme layer would build on.
+
+## 2026-06-21 — Consistent line weight via `shape-rendering="crispEdges"`
+**Choice:** Emit axis-aligned strokes — every box `<rect>`, orthogonal `<polyline>`,
+and horizontal/vertical `<line>` — with `shape-rendering="crispEdges"`. Diagonal
+straight lines are left without it.
+**Why:** A 1px SVG stroke whose coordinate doesn't land on the half-pixel grid is
+anti-aliased into a fainter ~2px smear, so boxes at different sub-pixel offsets
+rendered at visibly different weights (author-reported). `crispEdges` snaps
+axis-aligned strokes to the device-pixel grid, giving a uniform 1px everywhere,
+deterministically and without perturbing the layout maths (the alternative,
+rounding all coordinates to the grid, would fight the deterministic layout and still
+not fix odd stroke widths). It is scoped to axis-aligned strokes because snapping a
+*diagonal* line to the pixel grid turns it into a visible staircase — so diagonal
+arrows keep their anti-aliasing, applied per-segment.
+**Implications:** All box/orthogonal-arrow goldens gained one attribute (a reviewed,
+purely-additive diff); diagonal-arrow goldens are unchanged. The arrowhead `<marker>`
+(a triangle) is deliberately left un-crisped to stay smooth.
+
 ## 2026-06-21 — Auto edge routing: channel-following for bare refs + full-margin lanes
 **Choice:** Two routing-quality fixes from author feedback on the rendered output:
 - **Bare references leave/enter through the channel, not along the box edge.** A

@@ -109,6 +109,53 @@ func TestParseDocumentDefaultMargin(t *testing.T) {
 	}
 }
 
+func TestParseStyleProperties(t *testing.T) {
+	doc := parseOK(t, `a {}`+"\n@layout { a { borderWidth: 2; borderColor: #ff0000; backgroundColor: #00ff00; pathWidth: 3; pathColor: #0000ff } }")
+	d := ruleFor(doc, "a").Decls
+	if d.BorderWidth == nil || *d.BorderWidth != 2 {
+		t.Errorf("borderWidth = %v, want 2", d.BorderWidth)
+	}
+	if d.BorderColor == nil || *d.BorderColor != "#ff0000" {
+		t.Errorf("borderColor = %v, want #ff0000", d.BorderColor)
+	}
+	if d.BackgroundColor == nil || *d.BackgroundColor != "#00ff00" {
+		t.Errorf("backgroundColor = %v, want #00ff00", d.BackgroundColor)
+	}
+	if d.PathWidth == nil || *d.PathWidth != 3 {
+		t.Errorf("pathWidth = %v, want 3", d.PathWidth)
+	}
+	if d.PathColor == nil || *d.PathColor != "#0000ff" {
+		t.Errorf("pathColor = %v, want #0000ff", d.PathColor)
+	}
+}
+
+func TestParseStyleDocumentDefaults(t *testing.T) {
+	doc := parseOK(t, `a {}`+"\n@layout {\n  borderColor: #111111\n  backgroundColor: #eeeeee\n  pathWidth: 2\n}")
+	if doc.Defaults == nil {
+		t.Fatal("Defaults is nil, want style document defaults")
+	}
+	if doc.Defaults.BorderColor == nil || *doc.Defaults.BorderColor != "#111111" {
+		t.Errorf("default borderColor = %v, want #111111", doc.Defaults.BorderColor)
+	}
+	if doc.Defaults.BackgroundColor == nil || *doc.Defaults.BackgroundColor != "#eeeeee" {
+		t.Errorf("default backgroundColor = %v, want #eeeeee", doc.Defaults.BackgroundColor)
+	}
+	if doc.Defaults.PathWidth == nil || *doc.Defaults.PathWidth != 2 {
+		t.Errorf("default pathWidth = %v, want 2", doc.Defaults.PathWidth)
+	}
+}
+
+func TestParseStyleInBlock(t *testing.T) {
+	doc := parseOK(t, `a {}`+"\n@layout { @block warn { borderColor: #cc0000; backgroundColor: #fff0f0 }\n  a { @use warn } }")
+	if len(doc.Blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1", len(doc.Blocks))
+	}
+	b := doc.Blocks[0]
+	if b.Name != "warn" || b.Decls.BorderColor == nil || *b.Decls.BorderColor != "#cc0000" {
+		t.Errorf("block = %+v, want warn with borderColor #cc0000", b)
+	}
+}
+
 func TestParseDocumentRoute(t *testing.T) {
 	for _, tt := range []struct {
 		src  string
@@ -398,6 +445,11 @@ func TestParseErrors(t *testing.T) {
 		{"duplicate route", `@layout { route: orthogonal; route: straight }`, ast.ErrorSyntax, "Duplicate document property 'route'"},
 		{"unknown layout property", `a { @layout { foo: 1 } }`, ast.ErrorSyntax, "Unknown layout property 'foo'"},
 		{"duplicate layout property", `a { @layout { size: 0.5; size: 0.6 } }`, ast.ErrorSyntax, "Duplicate layout property 'size'"},
+		{"style property on node", `a { borderColor: #ff0000 }`, ast.ErrorSyntax, "Layout property 'borderColor' must be set inside an @layout block"},
+		{"non-colour border colour", `a { @layout { borderColor: 5 } }`, ast.ErrorSyntax, "Expected a hex colour (e.g. #ff0000) for borderColor"},
+		{"non-number border width", `a { @layout { borderWidth: thick } }`, ast.ErrorSyntax, "Expected number value for borderWidth"},
+		{"duplicate path colour", `a { @layout { pathColor: #fff; pathColor: #000 } }`, ast.ErrorSyntax, "Duplicate layout property 'pathColor'"},
+		{"duplicate document default colour", `@layout { borderColor: #fff; borderColor: #000 }`, ast.ErrorSyntax, "Duplicate layout property 'borderColor'"},
 		{"unknown top-level directive", `@block { }`, ast.ErrorSyntax, "Unknown directive '@block'"},
 		{"block without name", `@layout { @block { size: 0.5 } }`, ast.ErrorSyntax, "Expected block name after @block"},
 		{"use without name", `a { @layout { @use } }`, ast.ErrorSyntax, "Expected block name after @use"},

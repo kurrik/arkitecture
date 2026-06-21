@@ -7,14 +7,14 @@
   </defs>
 
   <!-- Node rectangles and labels -->
-  <rect x="0" y="0" width="244" height="96" fill="white" stroke="black" stroke-width="1" />
-  <rect x="24" y="48" width="31" height="24" fill="white" stroke="black" stroke-width="1" />
+  <rect x="0" y="0" width="244" height="96" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <rect x="24" y="48" width="31" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
   <text x="39.5" y="60" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Left</text>
-  <rect x="103" y="48" width="31" height="24" fill="white" stroke="black" stroke-width="1" />
+  <rect x="103" y="48" width="31" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
   <text x="118.5" y="60" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Wall</text>
-  <rect x="182" y="48" width="38" height="24" fill="white" stroke="black" stroke-width="1" />
+  <rect x="182" y="48" width="38" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
   <text x="201" y="60" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Right</text>
 
   <!-- Arrows -->
-  <polyline points="55,60 79,60 79,24.5 158,24.5 158,60 182,60" fill="none" stroke="black" stroke-width="1" marker-end="url(#arrowhead)" />
+  <polyline points="55,60 79,60 79,24.5 158,24.5 158,60 182,60" fill="none" stroke="black" stroke-width="1" shape-rendering="crispEdges" marker-end="url(#arrowhead)" />
 </svg>

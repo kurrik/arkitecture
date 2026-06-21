@@ -8,6 +8,7 @@ const (
 	TokenIdentifier TokenType = "IDENTIFIER"
 	TokenString     TokenType = "STRING"
 	TokenNumber     TokenType = "NUMBER"
+	TokenColor      TokenType = "COLOR"    // #rrggbb hex colour value
 	TokenLBrace     TokenType = "LBRACE"   // {
 	TokenRBrace     TokenType = "RBRACE"   // }
 	TokenLBracket   TokenType = "LBRACKET" // [
