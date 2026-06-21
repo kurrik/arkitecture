@@ -48,9 +48,9 @@ func TestGenerateMarginSpacing(t *testing.T) {
 	}
 	svg := render(t, doc, Options{}) // 12px => leaf min 24x24
 	for _, want := range []string{
-		`width="44" height="78">`,                    // 10 + 24 + 10 + 24 + 10 (uniform channels)
-		`<rect x="10" y="10" width="24" height="24"`, // a inset by its margin
-		`<rect x="10" y="44" width="24" height="24"`, // b sits a 10px (collapsed) gap below a
+		`width="45" height="79" viewBox="-0.5 -0.5 45 79">`, // 44x78 content (10+24+10+24+10) + 1px border overflow
+		`<rect x="10" y="10" width="24" height="24"`,        // a inset by its margin
+		`<rect x="10" y="44" width="24" height="24"`,        // b sits a 10px (collapsed) gap below a
 	} {
 		if !strings.Contains(svg, want) {
 			t.Errorf("SVG missing %q:\n%s", want, svg)
@@ -221,10 +221,10 @@ func TestGenerateGroupLabelReservesTopBand(t *testing.T) {
 	}
 	svg := render(t, doc, Options{}) // 12px: leaf 24, band max(round(14.4)+2,24)=24
 	for _, want := range []string{
-		`width="40" height="96">`,                   // 24 band + 8 + 24 + 8 + 24 + 8
-		`<text x="20" y="12"`,                       // label centred in the top band
-		`<rect x="8" y="32" width="24" height="24"`, // a, an 8px margin below the band wall
-		`<rect x="8" y="64" width="24" height="24"`, // b below a
+		`width="41" height="97" viewBox="-0.5 -0.5 41 97">`, // 40x96 content (24 band + 8 + 24 + 8 + 24 + 8) + 1px border overflow
+		`<text x="20" y="12"`,                               // label centred in the top band
+		`<rect x="8" y="32" width="24" height="24"`,         // a, an 8px margin below the band wall
+		`<rect x="8" y="64" width="24" height="24"`,         // b below a
 	} {
 		if !strings.Contains(svg, want) {
 			t.Errorf("SVG missing %q:\n%s", want, svg)
@@ -247,7 +247,7 @@ func TestGenerateGroupLabelBottomBand(t *testing.T) {
 	}
 	svg := render(t, doc, Options{})
 	for _, want := range []string{
-		`width="40" height="96">`,
+		`width="41" height="97" viewBox="-0.5 -0.5 41 97">`,
 		`<rect x="8" y="8" width="24" height="24"`,  // a at the top (no top band)
 		`<rect x="8" y="40" width="24" height="24"`, // b below a
 		`<text x="20" y="84"`,                       // label centred in the bottom band (y in [72,96])
@@ -301,9 +301,9 @@ func TestGenerateBoxNoneLabelReservesBand(t *testing.T) {
 		t.Errorf("got %d rects, want 1 (only a; p is box:none):\n%s", got, svg)
 	}
 	for _, want := range []string{
-		`width="24" height="48">`,                   // band 24 + child 24
-		`<text x="12" y="12"`,                       // label "G" in the top band
-		`<rect x="0" y="24" width="24" height="24"`, // child flush below the band
+		`width="25" height="48.5" viewBox="-0.5 0 25 48.5">`, // band 24 + child 24; the border overflow grows the sides + bottom, not the band-only top
+		`<text x="12" y="12"`,                                // label "G" in the top band
+		`<rect x="0" y="24" width="24" height="24"`,          // child flush below the band
 	} {
 		if !strings.Contains(svg, want) {
 			t.Errorf("SVG missing %q:\n%s", want, svg)
@@ -323,9 +323,9 @@ func TestGenerateDocumentDefaultMargin(t *testing.T) {
 	}
 	svg := render(t, doc, Options{}) // leaves 24x24; top-level horizontal pack
 	for _, want := range []string{
-		`width="68" height="24">`,                   // 24 + 20 channel + 24
-		`<rect x="0" y="0" width="24" height="24"`,  // a
-		`<rect x="44" y="0" width="24" height="24"`, // b, a 20px channel after a
+		`width="69" height="25" viewBox="-0.5 -0.5 69 25">`, // 68x24 content (24 + 20 channel + 24) + 1px border overflow
+		`<rect x="0" y="0" width="24" height="24"`,          // a
+		`<rect x="44" y="0" width="24" height="24"`,         // b, a 20px channel after a
 	} {
 		if !strings.Contains(svg, want) {
 			t.Errorf("SVG missing %q:\n%s", want, svg)
@@ -435,13 +435,29 @@ func TestGenerateSingleNode(t *testing.T) {
 	svg := render(t, doc, Options{}) // defaults: 12px Arial
 	// "Hi" at 12px: width = max(round(2*12*0.6)+2, 24) = max(16, 24) = 24; square.
 	for _, want := range []string{
-		`width="24" height="24">`,
+		`width="25" height="25" viewBox="-0.5 -0.5 25 25">`, // 24x24 content + 1px border overflow
 		`<rect x="0" y="0" width="24" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />`,
 		`<text x="12" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Hi</text>`,
 	} {
 		if !strings.Contains(svg, want) {
 			t.Errorf("SVG missing %q:\n%s", want, svg)
 		}
+	}
+}
+
+func TestGenerateViewBoxFitsBorderStroke(t *testing.T) {
+	// A border stroke is centred on the box edge, so half its width sits outside
+	// the border box. The viewBox grows by that half-width on each side so a
+	// perimeter border renders full width instead of being clipped to half by the
+	// SVG viewport. A 4px border ⇒ a 2px overflow ⇒ a -2 viewBox origin.
+	bw := 4.0
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "a", Label: ptr("A")}},
+		Layout: []ast.LayoutRule{rule("a", &ast.Declarations{BorderWidth: &bw})},
+	}
+	svg := render(t, doc, Options{})
+	if want := `viewBox="-2 -2 `; !strings.Contains(svg, want) {
+		t.Errorf("a 4px border should offset the viewBox by -2 on each axis, got:\n%s", svg)
 	}
 }
 

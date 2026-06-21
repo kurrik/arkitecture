@@ -18,6 +18,29 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-21 — Grow the canvas `viewBox` to fit border strokes
+**Choice:** Size the SVG viewport to the content bounds *plus each border's stroke
+overflow* — half a border width, since an SVG stroke is centred on the box edge —
+emitted as a `viewBox` offset (e.g. `viewBox="-0.5 -0.5 …"` for a 1px border)
+rather than by moving any element. Computed in `generator/layout.go` (`strokeBounds`
+over bordered nodes, unioned with the content bounds) and rendered in `svg.go`.
+**Why:** The canvas fit the *border boxes* exactly, but a centred stroke extends
+half its width outside the box, so the outermost edges had that half clipped by the
+SVG viewport — perimeter borders rendered at half width while interior edges showed
+full. Invisible with 1px anti-aliased borders, it became obvious once `crispEdges`
+and thick coloured borders (2–3px) landed: a box looked like it had inconsistent
+edge weights (author-reported). A `viewBox` offset fixes it without touching any
+element coordinate (the alternative — translating every box/anchor/arrow by the
+padding — is far more invasive), and bounding by *actual* per-box stroke extents
+keeps the added room minimal and asymmetric-correct (only sides with a border on the
+perimeter grow). It stays within "the canvas fits the content exactly": the stroke
+*is* drawn content, so fitting it is not phantom padding.
+**Implications:** Every diagram's `<svg>` gained a `viewBox` and grew by the border
+overflow (≤ ~1px for default borders) — a one-line, reviewed change per golden and
+site snapshot; element coordinates are untouched. Box geometry, routing, and anchors
+are unchanged. Arrow/marker extents are assumed to stay within the box-stroke bounds
+(true for the current router); revisit if an arrowhead is ever shown to overflow.
+
 ## 2026-06-21 — Per-element styling in `@layout` (hex colour + stroke width)
 **Choice:** Add a first visual layer to `@layout`: `borderWidth`/`borderColor`/
 `backgroundColor` style a node's box, and `pathWidth`/`pathColor` style the arrows

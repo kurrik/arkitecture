@@ -152,7 +152,13 @@ Layout is bottom-up and deterministic:
   doubles a channel; `margin: 0` makes it contribute exactly its children's
   margins.
 - The canvas fits the top-level content exactly: the document root is invisible,
-  so the diagram gains no outer padding even though inner nodes are spaced.
+  so the diagram gains no outer padding even though inner nodes are spaced. The one
+  thing it does reserve is the *stroke* a border draws: an SVG stroke is centred on
+  the box edge, so half its width sits outside the border box, and the canvas grows
+  by that half-width wherever a border sits on the perimeter — otherwise the SVG
+  viewport would clip an outer border to half its width. (Emitted as a `viewBox`
+  offset, so element coordinates are unchanged; the effect is at most ~1px and is
+  not author-visible spacing.)
 
 ## Semantic vs. layout (the `@layout` model)
 

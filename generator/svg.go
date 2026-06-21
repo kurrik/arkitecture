@@ -24,7 +24,9 @@ func renderSVG(doc *ast.Document, layout layoutResult, fontSize float64, fontFam
 	arrows, markerColors := renderArrows(doc.Arrows, layout, routeMode(doc), lanes, resolved, doc.Defaults)
 
 	parts := []string{
-		fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s">`, num(layout.canvasWidth), num(layout.canvasHeight)),
+		fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s" viewBox="%s %s %s %s">`,
+			num(layout.canvasWidth), num(layout.canvasHeight),
+			num(layout.viewMinX), num(layout.viewMinY), num(layout.canvasWidth), num(layout.canvasHeight)),
 		buildDefs(markerColors),
 	}
 
