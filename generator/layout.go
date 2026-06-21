@@ -43,11 +43,49 @@ type layoutNode struct {
 	labelBand float64            // reserved label-strip height (0 = no reserved strip)
 	isGroup   bool               // true for an anonymous @group: invisible, unaddressable
 	children  []*layoutNode
+
+	// Channel widening (route: orthogonal). gapExtra[i] is extra main-axis space
+	// reserved at gap i (0 = leading perimeter … len(children) = trailing perimeter,
+	// i = before child i) for arrows routing along that gap; railExtra is the same
+	// for the two cross-axis perimeter rails (0 = low/left/top side, 1 = high). Both
+	// default to zero, so a document without widened channels lays out unchanged.
+	gapExtra  []float64
+	railExtra [2]float64
+}
+
+// widenDemand is the extra width each channel reserves for the arrows routing
+// along it, keyed by container dotted path ("" = the document root). It is the
+// output of the routing pass and the input to the second (widened) layout pass.
+type widenDemand struct {
+	gaps  map[string][]float64  // container path -> per-gap extra (len = children+1)
+	rails map[string][2]float64 // container path -> [low, high] cross-axis perimeter extra
+	root  []float64             // extra at each gap between top-level nodes (len = roots+1)
+}
+
+// gapExtraAt returns the widening reserved at gap i of l (0 when none).
+func gapExtraAt(l *layoutNode, i int) float64 {
+	if i >= 0 && i < len(l.gapExtra) {
+		return l.gapExtra[i]
+	}
+	return 0
+}
+
+// annotateWidening copies a container's channel widening from the demand onto the
+// layout tree (by path), so calcDimensions/positionNodes can reserve it.
+func annotateWidening(l *layoutNode, d *widenDemand) {
+	if d != nil && !l.isGroup {
+		l.gapExtra = d.gaps[l.path]
+		l.railExtra = d.rails[l.path]
+	}
+	for _, c := range l.children {
+		annotateWidening(c, d)
+	}
 }
 
 // computeLayout sizes and positions every node bottom-up then top-down, sizes
-// the canvas to fit, and resolves anchor coordinates. It is deterministic.
-func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontSize float64) layoutResult {
+// the canvas to fit, and resolves anchor coordinates. It is deterministic. demand
+// is the channel widening from the routing pass (nil on the first/un-widened pass).
+func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontSize float64, demand *widenDemand) layoutResult {
 	// The document may override the built-in default margin with a bare `margin:`
 	// at an @layout sheet root; it is the fallback for any node that sets none.
 	defMargin := defaultMargin
@@ -58,6 +96,7 @@ func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontS
 	roots := make([]*layoutNode, 0, len(doc.Nodes))
 	for _, n := range doc.Nodes {
 		l := buildLayoutTree(n, "", layout)
+		annotateWidening(l, demand)
 		calcDimensions(l, fontSize, defMargin)
 		roots = append(roots, l)
 	}
@@ -65,10 +104,14 @@ func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontS
 	// The document root is invisible: top-level nodes pack left-to-right with
 	// only the collapsed gap between siblings (the larger of their facing
 	// margins) — there is no perimeter, so the canvas gains no phantom padding.
+	// A widened top-level gap (demand.root) spreads the siblings further.
 	currentX := 0.0
 	for i, l := range roots {
 		if i > 0 {
 			currentX += math.Max(roots[i-1].margin, l.margin)
+			if demand != nil && i < len(demand.root) {
+				currentX += demand.root[i]
+			}
 		}
 		positionNodes(l, currentX, 0)
 		currentX += l.dim.width
@@ -184,12 +227,18 @@ func calcDimensions(l *layoutNode, fontSize, defMargin float64) {
 	// border) and stretches children to fill the cross axis; a transparent
 	// box:none parent (and the root) reserves no perimeter and does not stretch,
 	// bounding the children's border boxes plus the collapsed gaps only.
+	// Channel widening reserves extra space at the gaps an arrow routes along:
+	// gapExtra grows the main axis (at each between-children gap and the
+	// leading/trailing perimeter), railExtra grows the cross axis (the two
+	// perimeter rails). Both are zero unless the routing pass widened a channel,
+	// so an un-widened document is byte-identical.
+	rail := l.railExtra[0] + l.railExtra[1]
 	n := len(l.children)
 	if direction == ast.Horizontal {
 		main, cross := 0.0, 0.0
 		for i, c := range l.children {
 			if i > 0 {
-				main += math.Max(l.children[i-1].margin, c.margin)
+				main += math.Max(l.children[i-1].margin, c.margin) + gapExtraAt(l, i)
 			}
 			main += c.dim.width
 			ch := c.dim.height
@@ -201,10 +250,11 @@ func calcDimensions(l *layoutNode, fontSize, defMargin float64) {
 		if bordered && n > 0 {
 			main += l.children[0].margin + l.children[n-1].margin
 		}
+		main += gapExtraAt(l, 0) + gapExtraAt(l, n)
 		// The band is a full-width strip stacked above/below the children area
 		// (cross); the label must also fit across the main (width) axis.
 		l.dim.width = math.Max(main, labelW)
-		l.dim.height = cross + band
+		l.dim.height = cross + band + rail
 		if bordered {
 			for _, c := range l.children {
 				c.dim.height = cross - 2*c.margin
@@ -214,7 +264,7 @@ func calcDimensions(l *layoutNode, fontSize, defMargin float64) {
 		main, cross := 0.0, 0.0
 		for i, c := range l.children {
 			if i > 0 {
-				main += math.Max(l.children[i-1].margin, c.margin)
+				main += math.Max(l.children[i-1].margin, c.margin) + gapExtraAt(l, i)
 			}
 			main += c.dim.height
 			cw := c.dim.width
@@ -226,13 +276,15 @@ func calcDimensions(l *layoutNode, fontSize, defMargin float64) {
 		if bordered && n > 0 {
 			main += l.children[0].margin + l.children[n-1].margin
 		}
+		main += gapExtraAt(l, 0) + gapExtraAt(l, n)
 		// The band is a full-width strip stacked above/below the children stack
 		// (main); the label must also fit across the cross (width) axis.
+		contentW := math.Max(cross, labelW)
 		l.dim.height = main + band
-		l.dim.width = math.Max(cross, labelW)
+		l.dim.width = contentW + rail
 		if bordered {
 			for _, c := range l.children {
-				c.dim.width = l.dim.width - 2*c.margin
+				c.dim.width = contentW - 2*c.margin
 			}
 		}
 	}
@@ -266,34 +318,37 @@ func positionNodes(l *layoutNode, x, y float64) {
 		childY = y + l.labelBand
 	}
 
+	// Mirror calcDimensions' widening: the leading gap and each between-children
+	// gap advance the main-axis cursor by gapExtra; the low-side rail offsets every
+	// child on the cross axis by railExtra[0].
 	if direction == ast.Horizontal {
-		cursor := x
+		cursor := x + gapExtraAt(l, 0)
 		if bordered && len(l.children) > 0 {
 			cursor += l.children[0].margin
 		}
 		for i, c := range l.children {
 			if i > 0 {
-				cursor += math.Max(l.children[i-1].margin, c.margin)
+				cursor += math.Max(l.children[i-1].margin, c.margin) + gapExtraAt(l, i)
 			}
-			cy := childY
+			cy := childY + l.railExtra[0]
 			if bordered {
-				cy = childY + c.margin
+				cy += c.margin
 			}
 			positionNodes(c, cursor, cy)
 			cursor += c.dim.width
 		}
 	} else {
-		cursor := childY
+		cursor := childY + gapExtraAt(l, 0)
 		if bordered && len(l.children) > 0 {
 			cursor += l.children[0].margin
 		}
 		for i, c := range l.children {
 			if i > 0 {
-				cursor += math.Max(l.children[i-1].margin, c.margin)
+				cursor += math.Max(l.children[i-1].margin, c.margin) + gapExtraAt(l, i)
 			}
-			cx := x
+			cx := x + l.railExtra[0]
 			if bordered {
-				cx = x + c.margin
+				cx += c.margin
 			}
 			positionNodes(c, cx, cursor)
 			cursor += c.dim.height

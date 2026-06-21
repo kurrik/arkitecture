@@ -1,0 +1,24 @@
+# Channel widening: an arrow routing *along* a channel reserves its own lane
+# there, so the channel widens and the boxes spread — the line sits in breathing
+# room instead of inside a box's margin. Here `inner`'s bottom anchor drops into
+# the perimeter below it (widened) and crosses the gap to `peer` (widened); each
+# run is centred in its lane, half a margin from the boxes on either side.
+box {
+  label: "Box"
+  top   { label: "Top" }
+  inner { label: "Inner" anchors: [out] }
+}
+peer {
+  label: "Peer"
+  anchors: [in]
+}
+
+@layout {
+  route: orthogonal
+  margin: 20
+  box       { direction: vertical }
+  box.inner { anchor out: [0.5, 1.0] }   # bottom edge of inner
+  peer      { anchor in: [0.0, 0.5] }    # left edge of peer
+}
+
+box.inner#out --> peer#in

@@ -37,6 +37,14 @@ func GenerateSVG(doc *ast.Document, resolved map[string]*ast.Declarations, opts 
 		fontFamily = opts.FontFamily
 	}
 
-	layout := computeLayout(doc, resolved, fontSize)
+	layout := computeLayout(doc, resolved, fontSize, nil)
+	// Channel widening: in orthogonal mode, learn each channel's lane demand from a
+	// first routing pass, then lay out again with those channels widened so arrows
+	// get their own lanes instead of sitting in the boxes' margins.
+	if routeMode(doc) == ast.RouteOrthogonal {
+		if demand := channelDemand(doc.Arrows, layout, ast.RouteOrthogonal); demand != nil {
+			layout = computeLayout(doc, resolved, fontSize, demand)
+		}
+	}
 	return renderSVG(doc, layout, fontSize, fontFamily), nil
 }
