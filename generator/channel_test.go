@@ -7,16 +7,6 @@ import (
 	"github.com/kurrik/arkitecture/ast"
 )
 
-// axisAligned reports whether every segment of a polyline runs along one axis.
-func axisAligned(pts []point) bool {
-	for i := 0; i+1 < len(pts); i++ {
-		if math.Abs(pts[i].x-pts[i+1].x) > epsilon && math.Abs(pts[i].y-pts[i+1].y) > epsilon {
-			return false
-		}
-	}
-	return true
-}
-
 func TestAxisLines(t *testing.T) {
 	// One obstacle x in [40,60]; inset 5 puts lanes at 35 and 65, plus the two
 	// endpoints — sorted and de-duplicated.

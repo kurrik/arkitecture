@@ -111,6 +111,7 @@ Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `chore`, `bui
 
 ## Notes
 
-- Output is intentionally plain (white fill, 1px black border, one font); styling and theming are out of scope for v1 — see [docs/design.md](docs/design.md).
+- Output defaults to a plain look (white fill, 1px black border, one font). Per-element styling is now authored in `@layout` — `borderWidth`/`borderColor`/`backgroundColor` on a node and `pathWidth`/`pathColor` on the arrows that start at it (hex colours and plain widths), settable per-node, document-wide, or via `@block` — but *theming/cascade* stays out of scope for v1. See [docs/design.md](docs/design.md).
+- Axis-aligned strokes (box borders, orthogonal arrow runs) render with `shape-rendering="crispEdges"` so a 1px line stays a consistent 1px regardless of sub-pixel position; diagonal arrows keep their anti-aliasing.
 - The defining constraint is *manual, deterministic layout*: never introduce automatic placement that moves elements the author didn't position.
 - Favor clarity over premature optimization.

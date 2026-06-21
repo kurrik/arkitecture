@@ -99,6 +99,11 @@ worker {}</code></pre>
         <tr><td><code>box</code></td><td><code>none</code> &middot; <code>default</code></td><td>Whether the node draws its border. <code>none</code> makes it invisible — no rectangle — while keeping its id, label, and anchors. Defaults to <code>default</code>.</td></tr>
         <tr><td><code>label</code></td><td><code>top</code> &middot; <code>bottom</code></td><td>Which end of a parent reserves the strip for its label, so the label never overlaps the children. In a bordered parent the strip acts as an inner wall; a <code>box: none</code> parent reserves the same strip and packs its children flush below it. Defaults to <code>top</code>.</td></tr>
         <tr><td><code>anchor &lt;name&gt;</code></td><td><code>[x, y]</code></td><td>Positions a declared anchor name, in relative coordinates (see below).</td></tr>
+        <tr><td><code>borderWidth</code></td><td>number <code>&ge; 0</code></td><td>Stroke width of the node's border. Defaults to <code>1</code>.</td></tr>
+        <tr><td><code>borderColor</code></td><td>hex colour</td><td>Colour of the node's border, e.g. <code>#334155</code>. Defaults to black.</td></tr>
+        <tr><td><code>backgroundColor</code></td><td>hex colour</td><td>Fill colour of the node's box, e.g. <code>#f8fafc</code>. Defaults to white.</td></tr>
+        <tr><td><code>pathWidth</code></td><td>number <code>&ge; 0</code></td><td>Stroke width of the arrows that <em>start</em> at this node. Defaults to <code>1</code>.</td></tr>
+        <tr><td><code>pathColor</code></td><td>hex colour</td><td>Colour of the arrows that <em>start</em> at this node (the arrowhead matches). Defaults to black.</td></tr>
       </tbody>
     </table>
 <pre><code>services {
@@ -149,6 +154,43 @@ worker {}</code></pre>
 <pre><code>@layout {
   route: orthogonal   # every arrow becomes an axis-aligned, obstacle-avoiding path
 }</code></pre>
+    <h3 id="styling">Styling — colour &amp; stroke width</h3>
+    <p>
+      The five style properties above (<code>borderWidth</code>, <code>borderColor</code>,
+      <code>backgroundColor</code>, <code>pathWidth</code>, <code>pathColor</code>) are
+      ordinary <code>@layout</code> declarations, so they obey the same no-cascade
+      resolution as everything else. Colours are hex literals — <code>#rgb</code>,
+      <code>#rgba</code>, <code>#rrggbb</code>, or <code>#rrggbbaa</code> (a wrong length or
+      non-hex digit is an error); widths are lengths <code>&ge; 0</code>. The box
+      properties paint a node's own rectangle; <code>pathWidth</code>/<code>pathColor</code>
+      style the arrows that <strong>start</strong> at the node (its <em>source</em> end), and
+      the arrowhead matches the line colour.
+    </p>
+    <p>
+      Each can be set three ways: directly on a node, via an imported <code>@block</code> or
+      <code>kind</code>, or <strong>document-wide</strong> as a bare property at the sheet
+      <strong>root</strong> (like the default <code>margin</code>/<code>route</code>) — the
+      fallback for every node and arrow that sets none. A direct value beats an imported one
+      beats the document default beats the built-in plain look; there is no inheritance, so a
+      child never picks up its parent's colour.
+    </p>
+<pre><code>@layout {
+  borderColor: #334155          # document-wide default for every box…
+  backgroundColor: #f8fafc
+
+  @block accent { borderColor: #2563eb; borderWidth: 2 }
+  services { @use accent }      # …overridden here by the imported accent border
+
+  services.api { pathColor: #2563eb; pathWidth: 2 }   # styles arrows leaving api
+  database     { borderColor: #16a34a; borderWidth: 3 }
+}</code></pre>
+    <p>
+      Everything defaults to the plain look — white fill, 1&nbsp;px black border, 1&nbsp;px
+      black arrows — so an unstyled diagram is unchanged. Theming beyond this (a cascade,
+      named palettes, per-node fonts) is intentionally out of scope; <code>@block</code> and
+      <code>kind</code> are how you share a look. See <a href="examples.html">Styling</a> on
+      the Examples page.
+    </p>
 
     <h2 id="reuse">Reusable layout (<code>@block</code> &amp; <code>@use</code>)</h2>
     <p>
@@ -156,7 +198,8 @@ worker {}</code></pre>
       in, not a class that matches at a distance. Inside an <code>@layout</code> sheet,
       <code>@block &lt;name&gt; { … }</code> defines a reusable, parameterless bundle of
       layout properties (<code>direction</code>, <code>size</code>, <code>margin</code>,
-      <code>box</code>, anchor positions); <code>@use &lt;name&gt;</code> imports it
+      <code>box</code>, the <a href="#styling">style</a> properties, anchor positions);
+      <code>@use &lt;name&gt;</code> imports it
       into a selector, an inline block, or another block. Blocks may compose (a block
       may <code>@use</code> another); a composition <strong>cycle</strong> is an error,
       as is a <code>@use</code> of an <strong>undefined</strong> block.

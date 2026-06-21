@@ -6,8 +6,9 @@ import (
 	"github.com/kurrik/arkitecture/ast"
 )
 
-// borderWidth is the 1px border every bordered node draws.
-const borderWidth = 1.0
+// defaultBorderWidth is the 1px border a bordered node draws when its resolved
+// layout (and the document default) set no borderWidth.
+const defaultBorderWidth = 1.0
 
 // defaultMargin is the uniform space a node reserves around its border box when
 // its resolved layout sets no explicit margin. It is non-zero so flush-packed
@@ -41,6 +42,7 @@ type layoutNode struct {
 	dim       dimensions         // the border box: the visible rectangle (content + border)
 	margin    float64            // uniform margin around the border box (the margin box)
 	labelBand float64            // reserved label-strip height (0 = no reserved strip)
+	borderW   float64            // effective border width (geometry inset + stroke width)
 	isGroup   bool               // true for an anonymous @group: invisible, unaddressable
 	children  []*layoutNode
 
@@ -92,12 +94,18 @@ func computeLayout(doc *ast.Document, layout map[string]*ast.Declarations, fontS
 	if doc.DefaultMargin != nil {
 		defMargin = *doc.DefaultMargin
 	}
+	// The document may also default the border width (a bare `borderWidth:` at a
+	// sheet root); it is the fallback for any node that sets none.
+	defBW := defaultBorderWidth
+	if doc.Defaults != nil && doc.Defaults.BorderWidth != nil {
+		defBW = *doc.Defaults.BorderWidth
+	}
 
 	roots := make([]*layoutNode, 0, len(doc.Nodes))
 	for _, n := range doc.Nodes {
 		l := buildLayoutTree(n, "", layout)
 		annotateWidening(l, demand)
-		calcDimensions(l, fontSize, defMargin)
+		calcDimensions(l, fontSize, defMargin, defBW)
 		roots = append(roots, l)
 	}
 
@@ -176,15 +184,17 @@ func buildArrangement(items []ast.ArrangementItem, parent *ast.ContainerNode, pa
 // margins show through it, so its effective margin is the larger of its own and
 // its children's. That single effective margin then collapses against neighbours
 // like any other, so a box:none group never doubles a channel.
-func calcDimensions(l *layoutNode, fontSize, defMargin float64) {
+func calcDimensions(l *layoutNode, fontSize, defMargin, defBW float64) {
 	for _, c := range l.children {
-		calcDimensions(c, fontSize, defMargin)
+		calcDimensions(c, fontSize, defMargin, defBW)
 	}
 
 	ownMargin := marginOf(l.decls, defMargin)
 	direction := directionOf(l.decls)
 	minDim := fontSize * 2
 	bordered := nodeBordered(l)
+	bw := borderWidthOf(l.decls, defBW)
+	l.borderW = bw
 
 	if len(l.children) == 0 {
 		l.margin = ownMargin
@@ -192,8 +202,8 @@ func calcDimensions(l *layoutNode, fontSize, defMargin float64) {
 			return // an empty @group occupies no space
 		}
 		label, _ := nodeLabel(l)
-		l.dim.width = math.Max(textWidth(label, fontSize)+2*borderWidth, minDim)
-		l.dim.height = math.Max(textHeight(label, fontSize)+2*borderWidth, minDim)
+		l.dim.width = math.Max(textWidth(label, fontSize)+2*bw, minDim)
+		l.dim.height = math.Max(textHeight(label, fontSize)+2*bw, minDim)
 		return
 	}
 
@@ -215,8 +225,8 @@ func calcDimensions(l *layoutNode, fontSize, defMargin float64) {
 	// labelW keeps the box at least as wide as its label.
 	var band, labelW float64
 	if label, ok := nodeLabel(l); ok {
-		band = labelBandHeight(label, fontSize)
-		labelW = textWidth(label, fontSize) + 2*borderWidth
+		band = labelBandHeight(label, fontSize, bw)
+		labelW = textWidth(label, fontSize) + 2*bw
 	}
 	l.labelBand = band
 
@@ -438,6 +448,17 @@ func marginOf(d *ast.Declarations, def float64) float64 {
 	return def
 }
 
+// borderWidthOf returns a node's effective border width, falling back to def
+// (the document default, itself defaulting to defaultBorderWidth) when it sets
+// none. It governs both the box geometry (content fits inside the border) and the
+// rendered stroke width.
+func borderWidthOf(d *ast.Declarations, def float64) float64 {
+	if d != nil && d.BorderWidth != nil {
+		return *d.BorderWidth
+	}
+	return def
+}
+
 func directionOf(d *ast.Declarations) ast.Direction {
 	if d != nil && d.Direction != nil && *d.Direction != ast.DirectionUnset {
 		return *d.Direction
@@ -463,9 +484,9 @@ func nodeLabel(l *layoutNode) (string, bool) {
 
 // labelBandHeight is the strip a bordered, labelled parent reserves for its
 // label. It is sized exactly like a leaf box holding that label, so a group's
-// title reads as a consistent row.
-func labelBandHeight(label string, fontSize float64) float64 {
-	return math.Max(textHeight(label, fontSize)+2*borderWidth, fontSize*2)
+// title reads as a consistent row. bw is the parent's effective border width.
+func labelBandHeight(label string, fontSize, bw float64) float64 {
+	return math.Max(textHeight(label, fontSize)+2*bw, fontSize*2)
 }
 
 // labelPositionOf returns the resolved label-strip position (default top).

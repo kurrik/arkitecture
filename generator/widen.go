@@ -261,7 +261,7 @@ func gapCenterAt(roots []*layoutNode, path string, gi int) (float64, bool) {
 		mainHorizontal = directionOf(c.decls) == ast.Horizontal
 		b := 0.0
 		if nodeBordered(c) {
-			b = borderWidth
+			b = c.borderW
 		}
 		if mainHorizontal {
 			loEdge, hiEdge = c.dim.x+b, c.dim.x+c.dim.width-b
@@ -305,7 +305,7 @@ func railCenterAt(roots []*layoutNode, path string, side int) (float64, bool) {
 	mainHorizontal := directionOf(c.decls) == ast.Horizontal
 	b := 0.0
 	if nodeBordered(c) {
-		b = borderWidth
+		b = c.borderW
 	}
 	near, far := childrenCrossBand(c.children, mainHorizontal)
 	var contentNear, contentFar float64

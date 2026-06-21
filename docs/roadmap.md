@@ -6,6 +6,21 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **Per-element styling + consistent line weight** (2026-06-21): `@layout` gained a
+  visual layer — `borderWidth`/`borderColor`/`backgroundColor` (a node's box) and
+  `pathWidth`/`pathColor` (the arrows that *start* at a node), as hex colours and
+  plain widths, settable per-node, document-wide (`Document.Defaults`, a bare style
+  property at a sheet root), or in a `@block`. Resolution reuses the no-cascade
+  two-tier merge, so `@use`/`kind`/document-default work unchanged; the generator's
+  accessors fall back node → document default → built-in plain look, so an unstyled
+  diagram is byte-identical. The tokenizer learned a hex-colour token (disambiguating
+  the overloaded `#` by what precedes it), and a coloured arrow gets a colour-matched
+  arrowhead (one `<marker>` per distinct path colour). Separately, axis-aligned
+  strokes now render with `shape-rendering="crispEdges"` so 1px borders/orthogonal
+  runs stay a consistent width regardless of sub-pixel position (diagonal arrows keep
+  anti-aliasing). A new `styling` golden locks the look in; the existing goldens
+  gained the one crispEdges attribute. Theming/cascade/fonts stay out of scope. See
+  the two ADRs in [decisions.md](decisions.md).
 - **Document default margin** (2026-06-19): a bare `margin: N` at the root of an
   `@layout` sheet sets the document-wide default margin — the fallback spacing for
   every node that declares none, replacing the built-in 8. It's a single global

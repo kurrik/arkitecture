@@ -45,15 +45,16 @@ type parser struct {
 	tokens        []Token
 	current       int
 	errors        []ast.Error
-	rules         []ast.LayoutRule // collected inline + standalone layout rules
-	blocks        []ast.Block      // collected @block definitions
-	defaultMargin *float64         // document-wide default margin (bare `margin:` at a sheet root)
-	route         *ast.RouteMode   // document-wide routing mode (bare `route:` at a sheet root)
+	rules         []ast.LayoutRule  // collected inline + standalone layout rules
+	blocks        []ast.Block       // collected @block definitions
+	defaultMargin *float64          // document-wide default margin (bare `margin:` at a sheet root)
+	route         *ast.RouteMode    // document-wide routing mode (bare `route:` at a sheet root)
+	defaults      *ast.Declarations // document-wide style defaults (bare style props at a sheet root)
 }
 
 func (p *parser) parseDocument() ast.ParseResult {
 	nodes, arrows := p.parseTopLevel()
-	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Blocks: p.blocks, Arrows: arrows, DefaultMargin: p.defaultMargin, Route: p.route}
+	doc := &ast.Document{Nodes: nodes, Layout: p.rules, Blocks: p.blocks, Arrows: arrows, DefaultMargin: p.defaultMargin, Route: p.route, Defaults: p.defaults}
 	if len(p.errors) > 0 {
 		return ast.ParseResult{Success: false, Document: doc, Errors: p.errors}
 	}
@@ -185,7 +186,7 @@ func (p *parser) parseSemanticProperty(node *ast.ContainerNode) {
 		p.parseKind(node)
 	case "anchors":
 		p.parseAnchorNames(node)
-	case "direction", "size", "margin", "box":
+	case "direction", "size", "margin", "box", "borderWidth", "borderColor", "backgroundColor", "pathWidth", "pathColor":
 		p.addError(ast.ErrorSyntax, fmt.Sprintf("Layout property '%s' must be set inside an @layout block, not on the node", name), propTok.Line, propTok.Column)
 		if !p.check(TokenRBrace) && !p.isAtEnd() {
 			p.advance()
@@ -360,9 +361,10 @@ func (p *parser) parseLayoutSheet() {
 }
 
 // parseDocumentDefault parses a bare `property: value` at the root of an @layout
-// sheet — a document-wide setting that is not a per-node layout property. v1
-// supports `margin` (the fallback spacing) and `route` (the arrow routing mode);
-// the cursor is on the property identifier.
+// sheet — a document-wide setting that is not a per-node layout property. It
+// supports `margin` (the fallback spacing), `route` (the arrow routing mode), and
+// the style fallbacks (`borderWidth`, `borderColor`, `backgroundColor`,
+// `pathWidth`, `pathColor`); the cursor is on the property identifier.
 func (p *parser) parseDocumentDefault() {
 	propTok := p.advance() // the property identifier
 	name := propTok.Value
@@ -373,8 +375,13 @@ func (p *parser) parseDocumentDefault() {
 		p.parseNumberDecl(&p.defaultMargin, "margin", propTok)
 	case "route":
 		p.parseRouteDecl(propTok)
+	case "borderWidth", "borderColor", "backgroundColor", "pathWidth", "pathColor":
+		if p.defaults == nil {
+			p.defaults = &ast.Declarations{}
+		}
+		p.parseStyleDecl(p.defaults, name, propTok)
 	default:
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown document default '%s'; only 'margin' and 'route' may be set at the @layout root", name), propTok.Line, propTok.Column)
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown document default '%s'; only 'margin', 'route', and the style properties may be set at the @layout root", name), propTok.Line, propTok.Column)
 		if !p.check(TokenRBrace) && !p.isAtEnd() {
 			p.advance()
 		}
@@ -480,7 +487,8 @@ func (p *parser) parseSelectorBlock() (ast.LayoutRule, bool) {
 }
 
 // parseDeclarations reads the body of an @layout block: `@use` imports plus the
-// direct properties direction, size, margin, box, and anchor positions. It
+// direct properties direction, size, margin, box, label position, the style
+// properties (border/background/path colour and width), and anchor positions. It
 // returns the `@use` directives in source order. A property set twice in the
 // same block is a syntax error (across-rule duplicates are the validator's job).
 func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
@@ -536,6 +544,8 @@ func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
 			p.parseBoxDecl(d, propTok)
 		case "label":
 			p.parseLabelPosDecl(d, propTok)
+		case "borderWidth", "borderColor", "backgroundColor", "pathWidth", "pathColor":
+			p.parseStyleDecl(d, name, propTok)
 		default:
 			p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown layout property '%s'", name), propTok.Line, propTok.Column)
 			if !p.check(TokenRBrace) && !p.isAtEnd() {
@@ -639,6 +649,44 @@ func (p *parser) parseNumberDecl(dst **float64, name string, propTok Token) {
 		p.addError(ast.ErrorSyntax, fmt.Sprintf("Invalid %s value '%s', expected a number", name, tok.Value), tok.Line, tok.Column)
 		return
 	}
+	if *dst != nil {
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Duplicate layout property '%s'", name), propTok.Line, propTok.Column)
+		return
+	}
+	*dst = &v
+}
+
+// parseStyleDecl dispatches one of the style properties to a number or colour
+// parser, by name. It is shared by per-node declarations and the sheet-root
+// document defaults so both accept exactly the same values.
+func (p *parser) parseStyleDecl(d *ast.Declarations, name string, propTok Token) {
+	switch name {
+	case "borderWidth":
+		p.parseNumberDecl(&d.BorderWidth, "borderWidth", propTok)
+	case "pathWidth":
+		p.parseNumberDecl(&d.PathWidth, "pathWidth", propTok)
+	case "borderColor":
+		p.parseColorDecl(&d.BorderColor, "borderColor", propTok)
+	case "backgroundColor":
+		p.parseColorDecl(&d.BackgroundColor, "backgroundColor", propTok)
+	case "pathColor":
+		p.parseColorDecl(&d.PathColor, "pathColor", propTok)
+	}
+}
+
+// parseColorDecl reads a hex colour value (a TokenColor like `#ff0000`) into dst.
+// The exact hex format is range-checked by the validator; here we only require a
+// colour token. A property set twice in the same block is a syntax error.
+func (p *parser) parseColorDecl(dst **string, name string, propTok Token) {
+	if !p.check(TokenColor) {
+		tok := p.peek()
+		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected a hex colour (e.g. #ff0000) for %s, got %s", name, tok.Type), tok.Line, tok.Column)
+		if !p.check(TokenRBrace) {
+			p.advance()
+		}
+		return
+	}
+	v := p.advance().Value
 	if *dst != nil {
 		p.addError(ast.ErrorSyntax, fmt.Sprintf("Duplicate layout property '%s'", name), propTok.Line, propTok.Column)
 		return

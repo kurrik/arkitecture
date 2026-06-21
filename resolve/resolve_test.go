@@ -128,6 +128,27 @@ func TestResolveDirectBeatsImported(t *testing.T) {
 	}
 }
 
+func TestResolveStyleImportAndOverride(t *testing.T) {
+	// A block sets a border colour/width baseline; a direct borderColor overrides
+	// it while the imported borderWidth carries through (last-write-wins per field).
+	red, blue := "#cc0000", "#0000ff"
+	doc := &ast.Document{
+		Blocks: []ast.Block{{Name: "warn", Decls: &ast.Declarations{BorderColor: &red, BorderWidth: fptr(3)}}},
+		Layout: []ast.LayoutRule{{
+			Selector: "a",
+			Uses:     []ast.Use{{Block: "warn"}},
+			Decls:    &ast.Declarations{BorderColor: &blue},
+		}},
+	}
+	a := Resolve(doc)["a"]
+	if a == nil || a.BorderColor == nil || *a.BorderColor != blue {
+		t.Errorf("a.BorderColor = %v, want #0000ff (direct beats imported)", a.BorderColor)
+	}
+	if a == nil || a.BorderWidth == nil || *a.BorderWidth != 3 {
+		t.Errorf("a.BorderWidth = %v, want 3 (imported, not overridden)", a.BorderWidth)
+	}
+}
+
 func TestResolveKindBaselineLowestPrecedence(t *testing.T) {
 	// kind: invisible would set box:none, but a direct box:default wins.
 	doc := &ast.Document{

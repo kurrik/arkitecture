@@ -193,7 +193,7 @@ draw a border just sets `box: none` in layout — the spiritual twin of CSS
 | `kind` (e.g. `database`)            | implicit `@use database` baseline |
 | anchor **names** (`db`, `north`)    | anchor **positions** (`[x, y]`)   |
 | containment (nesting)               | child **arrangement** + regroup   |
-| arrows (`a#db --> b`)               | `box: none`, future styling       |
+| arrows (`a#db --> b`)               | `box: none`, **styling** (colour/width) |
 
 An arrow connects *named* anchors (semantic); where a named anchor sits on the box
 is layout. The same split applies to a node's label: the **text** is semantic (a
@@ -312,6 +312,49 @@ so a reusable block carrying an arrangement makes no sense — and is an error).
 
 `@layout { … }` may sit inside a node body (local presentation) or stand alone as
 a sheet of selectors (separation / theming). Same declarations either way.
+
+### Styling — colour & stroke width
+
+Presentation now extends past structure to a small, deliberate set of visual
+properties, authored in the same `@layout` layer (hex colours, plain numeric
+widths). They split by *what they paint*:
+
+- **A node's own box** — `borderWidth`, `borderColor`, `backgroundColor`.
+- **The arrows that *start* at a node** — `pathWidth`, `pathColor`. An arrow is
+  styled by its **source** node, so "make everything leaving the cache red" is one
+  declaration on the cache. (An arrow's other end has no say; this keeps each
+  arrow's style attributable to a single node.)
+
+They obey the same no-cascade resolution as every other layout property, so each
+can be set three ways with the usual two-tier precedence:
+
+- **Per node** — `services.api { borderColor: #2563eb }` (direct).
+- **Document-wide** — a bare `borderColor: #334155` at an `@layout` sheet root,
+  exactly mirroring the default `margin`/`route`: the fallback for every node that
+  sets none. (Imported `@use`/`kind` and direct per-node values both override it.)
+- **In a `@block`** — bundle a look (`@block accent { borderColor: #2563eb;
+  borderWidth: 2 }`) and `@use` it, or hook it to a `kind`.
+
+Colours are `#rgb` / `#rgba` / `#rrggbb` / `#rrggbbaa` hex literals (a wrong length
+or non-hex digit is a constraint error); widths are lengths `>= 0`. Everything
+defaults to the plain look — white fill, 1px black border, 1px black arrows — so an
+unstyled diagram is unchanged. A coloured arrow gets a colour-matched arrowhead.
+
+This is the first visual layer over the structural one. It is deliberately *not* a
+theme system: there is no inheritance or cascade (a child does not inherit its
+parent's colour), no named palette, and no font control — those stay out of scope
+(see below). `kind` remains the natural hook for sharing a look across many nodes.
+
+### Consistent line rendering
+
+Box borders and orthogonal arrow runs are emitted with
+`shape-rendering="crispEdges"`. Without it, a 1px stroke whose coordinate does not
+land on the half-pixel grid is anti-aliased into a fainter, ~2px smear, so
+otherwise-identical boxes render at visibly different weights. `crispEdges` snaps
+axis-aligned strokes to the device-pixel grid, giving every border and orthogonal
+run a uniform width regardless of sub-pixel position. It is applied only to
+axis-aligned strokes — a *diagonal* straight arrow keeps its anti-aliasing, since
+snapping a diagonal to the pixel grid would make it a visible staircase.
 
 ### Box model & margins
 
@@ -455,10 +498,12 @@ no-JavaScript fallback.
   inheritance. A deliberate non-feature (see *Semantic vs. layout*).
 - **Parameterized layout blocks** — `@block`/`@use` is parameterless; no mixin
   arguments yet.
-- **Visual styling / theming** — output is intentionally plain (white fill, 1px
-  black border, one font). Colour and per-node fonts are not modelled; the
-  `@layout` layer is structural (size, direction, anchors, box). `kind` is the
-  intended hook for a future styling layer.
+- **Theming / cascade / fonts** — per-element styling (hex `borderWidth`/
+  `borderColor`/`backgroundColor` and `pathWidth`/`pathColor`) *is* now modelled in
+  the `@layout` layer (see *Styling* above), but a full theme system is not: no
+  inheritance/cascade (a child never inherits a parent's colour), no named
+  palettes or design tokens, and no per-node font control (one font for the whole
+  diagram). `kind`/`@block` are the sharing mechanism instead of a cascade.
 - **Interactivity** — static SVG only; no links, tooltips, or animation.
 - **Curved arrow routing** — arrows are straight or orthogonal segments, never
   splines. (Orthogonal sized-channel routing is *planned*, designed above; curved

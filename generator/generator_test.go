@@ -436,12 +436,62 @@ func TestGenerateSingleNode(t *testing.T) {
 	// "Hi" at 12px: width = max(round(2*12*0.6)+2, 24) = max(16, 24) = 24; square.
 	for _, want := range []string{
 		`width="24" height="24">`,
-		`<rect x="0" y="0" width="24" height="24" fill="white" stroke="black" stroke-width="1" />`,
+		`<rect x="0" y="0" width="24" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />`,
 		`<text x="12" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Hi</text>`,
 	} {
 		if !strings.Contains(svg, want) {
 			t.Errorf("SVG missing %q:\n%s", want, svg)
 		}
+	}
+}
+
+func TestGenerateStyledNode(t *testing.T) {
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{ID: "a", Label: ptr("A")}},
+		Layout: []ast.LayoutRule{rule("a", &ast.Declarations{
+			BorderColor: ptr("#ff0000"), BackgroundColor: ptr("#eeeeee"), BorderWidth: fptr(3),
+		})},
+	}
+	svg := render(t, doc, Options{})
+	if want := `fill="#eeeeee" stroke="#ff0000" stroke-width="3" shape-rendering="crispEdges"`; !strings.Contains(svg, want) {
+		t.Errorf("SVG missing styled rect %q:\n%s", want, svg)
+	}
+}
+
+func TestGeneratePathStyling(t *testing.T) {
+	// pathColor/pathWidth come from the arrow's SOURCE node (a), so styling a
+	// node restyles the arrows that start there — and the arrowhead colour matches.
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "a", Label: ptr("A")}, {ID: "b", Label: ptr("B")}},
+		Arrows: []ast.Arrow{{Source: "a", Target: "b"}},
+		Layout: []ast.LayoutRule{rule("a", &ast.Declarations{PathColor: ptr("#0066ff"), PathWidth: fptr(2)})},
+	}
+	svg := render(t, doc, Options{})
+	if !strings.Contains(svg, `stroke="#0066ff" stroke-width="2"`) {
+		t.Errorf("arrow not styled from its source node:\n%s", svg)
+	}
+	if !strings.Contains(svg, `marker-end="url(#arrowhead-0066ff)"`) {
+		t.Errorf("arrow missing colour-matched marker reference:\n%s", svg)
+	}
+	if !strings.Contains(svg, `<marker id="arrowhead-0066ff"`) || !strings.Contains(svg, `<polygon points="0 0, 10 3.5, 0 7" fill="#0066ff" />`) {
+		t.Errorf("defs missing the coloured arrowhead marker:\n%s", svg)
+	}
+}
+
+func TestGenerateDocumentDefaultStyle(t *testing.T) {
+	// The document default styles every node that sets none; a node's own style
+	// overrides it.
+	doc := &ast.Document{
+		Nodes:    []*ast.ContainerNode{{ID: "a", Label: ptr("A")}, {ID: "b", Label: ptr("B")}},
+		Defaults: &ast.Declarations{BorderColor: ptr("#333333"), BackgroundColor: ptr("#fafafa")},
+		Layout:   []ast.LayoutRule{rule("b", &ast.Declarations{BorderColor: ptr("#cc0000")})},
+	}
+	svg := render(t, doc, Options{})
+	if !strings.Contains(svg, `fill="#fafafa" stroke="#333333"`) {
+		t.Errorf("document default style not applied to a:\n%s", svg)
+	}
+	if !strings.Contains(svg, `fill="#fafafa" stroke="#cc0000"`) {
+		t.Errorf("node b should override only borderColor, keeping the default fill:\n%s", svg)
 	}
 }
 

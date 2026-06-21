@@ -371,6 +371,50 @@ ordering.orders#db --&gt; inventory#api</code></pre>
       <p class="dl"><a href="examples/arrangement.ark">arrangement.ark</a></p>
     </article>
 
+    <article class="example">
+      <h2>Styling (colour &amp; stroke width)</h2>
+      <p>Hex colours and stroke widths live in <code>@layout</code> like any other property: <code>borderWidth</code>/<code>borderColor</code>/<code>backgroundColor</code> style a node's box, and <code>pathWidth</code>/<code>pathColor</code> style the arrows that <em>start</em> at it. Each is settable per node, document-wide (a bare property at the sheet root — the fallback here paints every box), or bundled in a <code>@block</code> (the blue border on <em>Web Tier</em> is one <code>@use accent</code>). There is no cascade: a direct value wins, and a child never inherits a parent's colour.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">styling.ark</div>
+<pre><code data-ark="examples/styling.ark">web {
+  label: "Web Tier"
+  ui  { label: "UI" }
+  api { label: "API" }
+}
+cache { label: "Cache" }
+db    { label: "Database" }
+
+web.api --&gt; cache
+web.api --&gt; db
+
+@layout {
+  # A bare style property at the sheet root is the DOCUMENT-WIDE default — the
+  # fallback for every node and arrow that sets none. Colours are hex.
+  borderColor: #334155
+  backgroundColor: #f8fafc
+
+  # Bundle a look into a @block and pull it in with @use, like any other layout.
+  @block accent { borderColor: #2563eb; borderWidth: 2 }
+  web { direction: horizontal; @use accent }   # blue 2px border, imported
+
+  # pathColor / pathWidth style the arrows that START at this node.
+  web.api { pathColor: #2563eb; pathWidth: 2 }
+
+  cache { backgroundColor: #fef9c3 }   # per-node fill override of the default
+  db    { borderColor: #16a34a; borderWidth: 3 }
+}</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/styling.svg" alt="A blue-bordered Web Tier box holding UI and API, a yellow-filled Cache box, and a thick green-bordered Database box, with two blue arrows from API to Cache and Database." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/styling.ark">styling.ark</a></p>
+    </article>
+
     <p style="margin-top:40px">
       Want the full grammar? Head to the <a href="spec.html">syntax reference</a>.
     </p>

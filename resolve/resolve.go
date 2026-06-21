@@ -155,6 +155,21 @@ func mergeDecls(dst, src *ast.Declarations) {
 	if src.LabelPos != nil {
 		dst.LabelPos = src.LabelPos
 	}
+	if src.BorderWidth != nil {
+		dst.BorderWidth = src.BorderWidth
+	}
+	if src.BorderColor != nil {
+		dst.BorderColor = src.BorderColor
+	}
+	if src.BackgroundColor != nil {
+		dst.BackgroundColor = src.BackgroundColor
+	}
+	if src.PathWidth != nil {
+		dst.PathWidth = src.PathWidth
+	}
+	if src.PathColor != nil {
+		dst.PathColor = src.PathColor
+	}
 	for name, pos := range src.Anchors {
 		if dst.Anchors == nil {
 			dst.Anchors = map[string][2]float64{}

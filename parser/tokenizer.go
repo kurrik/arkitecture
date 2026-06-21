@@ -57,15 +57,20 @@ func (t *tokenizer) nextToken() (*Token, *TokenizerError) {
 		startColumn := t.column
 		ch := t.peek(0)
 
-		// '#' is a comment when it starts a line or follows whitespace;
-		// otherwise it is a hash token used by anchor references.
+		// '#' is overloaded three ways. Glued to an identifier (`node#anchor`) it
+		// is an anchor hash. Otherwise it introduces either a hex colour value
+		// (`#ff0000`) or a comment — a complete hex run with a word boundary after
+		// it is a colour; anything else (a space, a non-hex word) is a comment.
 		if ch == '#' {
-			if t.column == 1 || t.isPrecedingWhitespace() {
-				t.skipComment()
-				continue
+			if t.isPrecedingIdentChar() {
+				t.advance()
+				return &Token{Type: TokenHash, Value: "#", Line: startLine, Column: startColumn}, nil
 			}
-			t.advance()
-			return &Token{Type: TokenHash, Value: "#", Line: startLine, Column: startColumn}, nil
+			if tok := t.scanColor(startLine, startColumn); tok != nil {
+				return tok, nil
+			}
+			t.skipComment()
+			continue
 		}
 
 		if ch == '\n' {
@@ -181,6 +186,31 @@ func (t *tokenizer) scanNumber(startLine, startColumn int) *Token {
 	return &Token{Type: TokenNumber, Value: b.String(), Line: startLine, Column: startColumn}
 }
 
+// scanColor reads a hex colour token starting at the '#'. It returns nil (so the
+// caller falls back to comment handling) unless the '#' is followed by a run of
+// hex digits ending at a word boundary — e.g. `#ff0000`, `#abc`. A run trailed by
+// a non-hex word char (`#fffg`) or no run at all (`# note`) is not a clean colour,
+// so it stays a comment. The exact digit count (3/4/6/8) is the validator's check;
+// here any boundary-terminated hex run becomes a TokenColor so a wrong length can
+// be reported with a helpful message rather than silently swallowed as a comment.
+func (t *tokenizer) scanColor(startLine, startColumn int) *Token {
+	n := 1
+	for isHexDigit(t.peek(n)) {
+		n++
+	}
+	if n == 1 {
+		return nil // '#' not followed by any hex digit
+	}
+	if isAlphaNumeric(t.peek(n)) {
+		return nil // a non-hex word char follows the run: not a clean colour
+	}
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		b.WriteRune(t.advance())
+	}
+	return &Token{Type: TokenColor, Value: b.String(), Line: startLine, Column: startColumn}
+}
+
 func (t *tokenizer) scanIdentifier(startLine, startColumn int) *Token {
 	var b strings.Builder
 	for isAlphaNumeric(t.peek(0)) || t.peek(0) == '_' {
@@ -248,7 +278,18 @@ func (t *tokenizer) isPrecedingWhitespace() bool {
 	}
 }
 
+// isPrecedingIdentChar reports whether the rune just before the cursor is an
+// identifier char — the test that distinguishes an anchor hash (`node#a`, glued
+// to an identifier) from a colour/comment `#` (preceded by space, ':', '{', …).
+func (t *tokenizer) isPrecedingIdentChar() bool {
+	return t.position > 0 && isAlphaNumeric(t.input[t.position-1])
+}
+
 func isDigit(c rune) bool { return c >= '0' && c <= '9' }
+
+func isHexDigit(c rune) bool {
+	return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
 
 func isAlpha(c rune) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
