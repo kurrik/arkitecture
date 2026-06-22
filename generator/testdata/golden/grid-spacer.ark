@@ -1,0 +1,15 @@
+# Spacer tracks: a grid track that no cell covers reserves a minimum size, so a
+# deliberately sparse placement leaves a visible gap instead of collapsing to
+# nothing. Here nothing is placed in row 2, so it acts as a blank spacer between
+# the header (row 1) and footer (row 3).
+panel {
+  label: "Panel"
+  header { label: "Header" }
+  footer { label: "Footer" }
+}
+
+@layout {
+  panel { cols: 1 }
+  panel.header { col: 1; row: 1 }
+  panel.footer { col: 1; row: 3 }
+}

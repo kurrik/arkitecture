@@ -18,6 +18,26 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-22 — Spacer tracks: empty grid tracks reserve a minimum size
+**Choice:** A grid track that no cell covers reserves a minimum size — `fontSize*2`,
+the same minimum a leaf box uses — instead of collapsing to zero. Applied in
+`calcGrid` after track sizing: a per-axis "used" map marks every track any placed
+cell (single or spanning) covers, and each unused track is grown to the minimum.
+**Why:** The consolidation gave `direction`/`cols: 1` stacks sparse `col`/`row`
+placement "for free", but an empty track collapsing to zero made it invisible —
+placing children in rows 1 and 3 looked identical to rows 1 and 2. Reserving a
+minimum for empty tracks makes the gap real (an empty row becomes a blank spacer),
+the payoff the whole consolidation was aimed at. Chose an **automatic** minimum over
+a new `gap`/track-size knob to keep the surface minimal: it fits *manual,
+deterministic layout* because the gap is a predictable consequence of an explicit
+placement (the author opted in by skipping a track), not auto-placement. An explicit
+per-track size could refine it later.
+**Implications:** Non-breaking — a populated track is already content-sized, so only
+truly empty tracks change, and no existing golden has one (every row/column in the
+grid fixtures holds at least one cell). A `grid-spacer` golden and a generator test
+(`TestGridEmptyTrackReservesSpacer`) lock it in. The minimum is the leaf minimum, so
+an empty spacer row reads as one blank slot; `gridInfo` needed no new state.
+
 ## 2026-06-22 — 2-D channel widening: unify the router on track boundaries
 **Choice:** Replace the router's 1-D "main-axis gap vs cross-axis rail" channel
 model with one keyed on **track boundaries**. A channel is a column boundary or a

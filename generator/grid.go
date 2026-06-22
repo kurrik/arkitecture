@@ -117,6 +117,32 @@ func calcGrid(l *layoutNode, fontSize, ownMargin float64, bordered bool, bw floa
 		}
 	}
 
+	// Spacer tracks: a track no cell covers reserves a minimum size (a leaf's
+	// minimum), so a deliberately sparse placement — a child skipping rows/columns —
+	// leaves a visible gap instead of collapsing to nothing. A populated track is
+	// already sized by its content, so this only affects truly empty tracks.
+	colUsed := make([]bool, cols+1)
+	rowUsed := make([]bool, rows+1)
+	for _, pc := range placed {
+		for c := pc.Col; c < pc.Col+pc.ColSpan && c <= cols; c++ {
+			colUsed[c] = true
+		}
+		for r := pc.Row; r < pc.Row+pc.RowSpan && r <= rows; r++ {
+			rowUsed[r] = true
+		}
+	}
+	minTrack := fontSize * 2
+	for c := 1; c <= cols; c++ {
+		if !colUsed[c] {
+			colW[c] = math.Max(colW[c], minTrack)
+		}
+	}
+	for r := 1; r <= rows; r++ {
+		if !rowUsed[r] {
+			rowH[r] = math.Max(rowH[r], minTrack)
+		}
+	}
+
 	// Orthogonal-route channel widening (route: orthogonal): colExtra/rowExtra index
 	// the track boundaries (0 = low perimeter … tracks = high) and hold the extra the
 	// arrows routing along them reserve. A between-track extra widens that collapsed
