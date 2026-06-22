@@ -44,7 +44,8 @@
     <h2>Nodes</h2>
     <p>
       A node is an identifier followed by a brace block. The identifier is required;
-      everything inside is optional. Identifiers are letters, digits, and underscores.
+      everything inside is optional. Identifiers are letters, digits, and underscores,
+      and must start with a letter or underscore.
     </p>
 <pre><code>api {
   label: "API Gateway"
@@ -367,16 +368,6 @@ fmt.Println(res.SVG)</code></pre>
       <code>constraint</code>).
     </p>
 
-    <div class="note">
-      <strong>The layered authoring model is complete.</strong> The <code>@layout</code>
-      split (presentation separated from semantics), reusable blocks
-      (<code>@block</code>/<code>@use</code>), a <code>kind</code> that hooks a shared
-      block, and presentational regrouping (<code>@group</code>) have all landed — all
-      without giving up determinism. What's next builds on this machinery: visual
-      styling (fill, stroke, per-node fonts) layered on <code>@layout</code>/<code>kind</code>,
-      arrow labels, and richer routing. Follow along in the
-      <a href="https://github.com/kurrik/arkitecture/blob/main/docs/roadmap.md">roadmap</a>.
-    </div>
   </main>
 
   <footer class="wrap foot">
