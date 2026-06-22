@@ -148,9 +148,6 @@ func mergeDecls(dst, src *ast.Declarations) {
 	if src.Direction != nil {
 		dst.Direction = src.Direction
 	}
-	if src.Size != nil {
-		dst.Size = src.Size
-	}
 	if src.Margin != nil {
 		dst.Margin = src.Margin
 	}

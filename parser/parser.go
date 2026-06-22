@@ -5,7 +5,7 @@
 // The grammar has three kinds of top-level item: semantic nodes, standalone
 // `@layout { … }` sheets, and arrows. A node body holds only semantics (label,
 // kind, anchor names, child nodes) plus an inline `@layout {…}`; layout
-// properties (direction, size, margin, box, anchor positions) live exclusively
+// properties (direction, margin, box, anchor positions) live exclusively
 // inside `@layout` blocks. An inline block is desugared into a LayoutRule
 // selecting the enclosing node's full path, so the resolver and validator treat
 // inline and standalone layout identically. Inside an `@layout` sheet a
@@ -187,7 +187,7 @@ func (p *parser) parseSemanticProperty(node *ast.ContainerNode) {
 		p.parseKind(node)
 	case "anchors":
 		p.parseAnchorNames(node)
-	case "direction", "size", "margin", "box", "borderWidth", "borderColor", "backgroundColor", "pathWidth", "pathColor":
+	case "direction", "margin", "box", "borderWidth", "borderColor", "backgroundColor", "pathWidth", "pathColor":
 		p.addError(ast.ErrorSyntax, fmt.Sprintf("Layout property '%s' must be set inside an @layout block, not on the node", name), propTok.Line, propTok.Column)
 		if !p.check(TokenRBrace) && !p.isAtEnd() {
 			p.advance()
@@ -488,7 +488,7 @@ func (p *parser) parseSelectorBlock() (ast.LayoutRule, bool) {
 }
 
 // parseDeclarations reads the body of an @layout block: `@use` imports plus the
-// direct properties direction, size, margin, box, label position, the style
+// direct properties direction, margin, box, label position, the style
 // properties (border/background/path colour and width), and anchor positions. It
 // returns the `@use` directives in source order. A property set twice in the
 // same block is a syntax error (across-rule duplicates are the validator's job).
@@ -542,8 +542,6 @@ func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
 		switch name {
 		case "direction":
 			p.parseDirectionDecl(d, propTok)
-		case "size":
-			p.parseNumberDecl(&d.Size, "size", propTok)
 		case "margin":
 			p.parseNumberDecl(&d.Margin, "margin", propTok)
 		case "box":

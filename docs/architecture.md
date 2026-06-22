@@ -84,7 +84,7 @@ semantic layer and a layout layer:
 - **`ContainerNode`** — the single node type: `ID`, optional `Label`, `Kind`,
   `Anchors` (declared anchor *names*), and `Children []*ContainerNode`. It carries
   no layout — `GroupNode` is gone; a borderless grouping is a `box: none` node.
-- **`Declarations`** — a set of layout properties (`Direction`, `Size`, `Margin`,
+- **`Declarations`** — a set of layout properties (`Direction`, `Margin`,
   `Box`, `LabelPos`, the style fields `BorderWidth`/`BorderColor`/`BackgroundColor`
   (the box) and `PathWidth`/`PathColor` (arrows starting at the node), and `Anchors`
   name→position) plus an optional `Arrangement` (the node's ordered child layout).
@@ -142,7 +142,7 @@ semantic layer and a layout layer:
 - **Validator** (`validator/validator.go`) — semantic checks over a parsed
   `Document`: ID uniqueness within a scope, dangling layout selectors (reported at
   the selector position), duplicate **direct** layout properties on a node, layout
-  ranges (`size`/`margin`/`borderWidth`/`pathWidth`/coords) and hex-colour format
+  ranges (`margin`/`borderWidth`/`pathWidth`/coords) and hex-colour format
   (`borderColor`/`backgroundColor`/`pathColor`, including the document defaults),
   anchor positions naming a declared anchor,
   undefined `@use` blocks and `@use` composition cycles (reported at the `@use` /
@@ -176,8 +176,7 @@ semantic layer and a layout layer:
   the vertical/horizontal rules (or, when a node sets `@grid`, `grid.go`'s joint
   two-axis track sizing + per-cell placement/alignment), the label band a labelled
   parent reserves (a top/bottom strip — a wall in a bordered parent, flush-packed
-  reserved space in a `box: none` one), and `size` overrides — falling back to the
-  document's
+  reserved space in a `box: none` one) — falling back to the document's
   `DefaultMargin` (else 8) for any node with no margin — positions top-down, sizes
   the canvas (the content bounds grown to include each border's *stroke* — half a
   border width sits outside its box, emitted as a `viewBox` offset so a perimeter

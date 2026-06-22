@@ -106,23 +106,18 @@ func TestValidateDuplicateIDs(t *testing.T) {
 }
 
 func TestValidateLayoutConstraints(t *testing.T) {
-	bigSize := 1.5
 	negMargin := -2.0
 	doc := &ast.Document{
 		Nodes: []*ast.ContainerNode{{ID: "a", Anchors: []string{"bad"}}},
 		Layout: []ast.LayoutRule{{
 			Selector: "a",
 			Decls: &ast.Declarations{
-				Size:    &bigSize,
 				Margin:  &negMargin,
 				Anchors: map[string][2]float64{"bad": {2.0, -1.0}},
 			},
 		}},
 	}
 	errs := Validate(doc)
-	if !containsMsg(errs, "Node 'a' size 1.5 is out of range") {
-		t.Errorf("expected size constraint error, got %+v", errs)
-	}
 	if !containsMsg(errs, "Node 'a' margin -2 is out of range") {
 		t.Errorf("expected margin constraint error, got %+v", errs)
 	}
@@ -301,7 +296,7 @@ func TestValidateUseOfBuiltinIsValid(t *testing.T) {
 func TestValidateUserDefinedBlockIsValid(t *testing.T) {
 	doc := &ast.Document{
 		Nodes:  []*ast.ContainerNode{{ID: "a"}},
-		Blocks: []ast.Block{{Name: "wide", Decls: &ast.Declarations{Size: ptr(0.75)}}},
+		Blocks: []ast.Block{{Name: "wide", Decls: &ast.Declarations{Margin: ptr(0.75)}}},
 		Layout: []ast.LayoutRule{{Selector: "a", Uses: []ast.Use{{Block: "wide"}}}},
 	}
 	if errs := Validate(doc); len(errs) != 0 {

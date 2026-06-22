@@ -95,7 +95,6 @@ worker {}</code></pre>
       <thead><tr><th>Declaration</th><th>Value</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>direction</code></td><td><code>vertical</code> &middot; <code>horizontal</code></td><td>How children are stacked. Defaults to <code>vertical</code>.</td></tr>
-        <tr><td><code>size</code></td><td>number <code>0.0</code>–<code>1.0</code></td><td>Override for the node's <em>orthogonal</em> dimension, as a fraction of what the parent would otherwise give it.</td></tr>
         <tr><td><code>margin</code></td><td>number <code>&ge; 0</code></td><td>Uniform blank space reserved around the node's border box. Defaults to <code>8</code>; set <code>0</code> to pack flush against siblings.</td></tr>
         <tr><td><code>box</code></td><td><code>none</code> &middot; <code>default</code></td><td>Whether the node draws its border. <code>none</code> makes it invisible — no rectangle — while keeping its id, label, and anchors. Defaults to <code>default</code>.</td></tr>
         <tr><td><code>label</code></td><td><code>top</code> &middot; <code>bottom</code></td><td>Which end of a parent reserves the strip for its label, so the label never overlaps the children. In a bordered parent the strip acts as an inner wall; a <code>box: none</code> parent reserves the same strip and packs its children flush below it. Defaults to <code>top</code>.</td></tr>
@@ -119,7 +118,7 @@ worker {}</code></pre>
 
 # A standalone sheet targets nodes by exact path.
 @layout {
-  services { size: 0.75; anchor north: [0.5, 0.0] }
+  services { anchor north: [0.5, 0.0] }
   services.database { margin: 16 }
 }</code></pre>
     <p>
@@ -198,7 +197,7 @@ worker {}</code></pre>
       Shared layout is <strong>opt-in and explicit</strong> — a named bundle you pull
       in, not a class that matches at a distance. Inside an <code>@layout</code> sheet,
       <code>@block &lt;name&gt; { … }</code> defines a reusable, parameterless bundle of
-      layout properties (<code>direction</code>, <code>size</code>, <code>margin</code>,
+      layout properties (<code>direction</code>, <code>margin</code>,
       <code>box</code>, the <a href="#styling">style</a> properties, anchor positions);
       <code>@use &lt;name&gt;</code> imports it
       into a selector, an inline block, or another block. Blocks may compose (a block
@@ -248,7 +247,7 @@ worker {}</code></pre>
       <code>@group { … }</code> for purely visual nesting — the layout-layer cousin of an
       HTML wrapper <code>&lt;div&gt;</code>. A bare identifier (no <code>:</code>) is a
       child reference; a <code>@group</code> is a wrapper with its own
-      <code>direction</code>/<code>size</code>/<code>margin</code> and its own nested
+      <code>direction</code>/<code>margin</code> and its own nested
       arrangement.
     </p>
 <pre><code>@layout {
@@ -323,9 +322,8 @@ services.userService#db --&gt; database#north</code></pre>
     <p>Layout is bottom-up and deterministic:</p>
     <ul>
       <li>A leaf node sizes to its label text, measured with a fixed font.</li>
-      <li>A <strong>vertical</strong> parent stacks children top-to-bottom: its width is the widest child; children span the full width unless they set <code>size</code>.</li>
-      <li>A <strong>horizontal</strong> parent places children left-to-right: its height is the tallest child; children span the full height unless they set <code>size</code>.</li>
-      <li><code>size: f</code> scales only the orthogonal dimension to a fraction <code>f</code> of the parent; it does not change the parent's own size.</li>
+      <li>A <strong>vertical</strong> parent stacks children top-to-bottom: its width is the widest child; children span the full width.</li>
+      <li>A <strong>horizontal</strong> parent places children left-to-right: its height is the tallest child; children span the full height.</li>
       <li>Each node reserves a uniform <code>margin</code> (default <code>8</code>) around its border box. Inside a bordered parent it acts like padding; inside an invisible parent (<code>box: none</code> or the document root) the outer margins collapse, leaving only the gaps between siblings. <code>margin: 0</code> restores flush packing.</li>
       <li>The canvas fits the top-level content exactly — the document root is invisible, so there is no outer padding even though inner nodes are spaced.</li>
     </ul>

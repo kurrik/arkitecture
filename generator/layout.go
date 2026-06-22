@@ -319,16 +319,6 @@ func calcDimensions(l *layoutNode, fontSize, defMargin, defBW float64) {
 			}
 		}
 	}
-
-	// Apply the size override to the orthogonal dimension, after children have
-	// been stretched to the pre-override parent size.
-	if size := sizeOf(l.decls); size != nil {
-		if direction == ast.Horizontal {
-			l.dim.height *= *size
-		} else {
-			l.dim.width *= *size
-		}
-	}
 }
 
 // positionNodes places l's border box at (x, y) and lays out its children with
@@ -518,13 +508,6 @@ func directionOf(d *ast.Declarations) ast.Direction {
 		return *d.Direction
 	}
 	return ast.Vertical
-}
-
-func sizeOf(d *ast.Declarations) *float64 {
-	if d != nil {
-		return d.Size
-	}
-	return nil
 }
 
 // nodeLabel returns a layout node's non-empty label text, if it has one. A

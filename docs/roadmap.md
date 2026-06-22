@@ -6,6 +6,15 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **Removed the `size` property** (2026-06-22): the `size: f` layout override —
+  scaling a node's *orthogonal* dimension to a fraction of what its parent would
+  give it — has been dropped from the language (parser, validator, resolver,
+  generator, and `ast.Declarations.Size`). It was implicit and hard to reason
+  about ("orthogonal of what, exactly?"); explicit per-node sizing controls will
+  replace it later (see *Planned*). A breaking change: a `.ark` using `size:` now
+  reports `Unknown layout property 'size'`. No golden fixture used it, so SVG
+  output is unchanged. First step of the direction/grid consolidation below. See
+  the ADR in [decisions.md](decisions.md).
 - **`@grid` arrangement (2-D layout)** (2026-06-22): a third child-arrangement
   mode beside `direction`, declared `@grid { cols: N; rows: M? }` in a node's
   `@layout` (direct-only, like `@group`). Children place themselves with `col`/
@@ -55,7 +64,7 @@ for "where is this project at?". Move items between sections as work progresses:
   site samples were regenerated. See the ADR in [decisions.md](decisions.md).
 - **M5 — `@layout` regrouping** (2026-06-18): an anonymous `@group { … }` inside a
   node's `@layout` block wraps sibling children into an invisible layout
-  sub-container (its own `direction`/`size`/`margin`, no border, no path segment),
+  sub-container (its own `direction`/`margin`, no border, no path segment),
   and a node's children can be reordered by listing them. The arrangement is
   modelled on `Declarations` (a group is itself a nested `Declarations`) and is
   **direct-only** — never imported via `@use`/`kind`. The validator enforces
@@ -87,7 +96,7 @@ for "where is this project at?". Move items between sections as work progresses:
   unchanged; a new `kind-and-use` golden locks the behaviour in.
 - **M3 — `@layout`, the split** (2026-06-18): semantics and presentation are now
   separate layers. A node body holds only semantics (`label`, `kind`, anchor
-  *names*, children); all presentation — `direction`, `size`, `margin`, `box`,
+  *names*, children); all presentation — `direction`, `margin`, `box`,
   anchor *positions* — moves into `@layout` blocks, either inline on a node or as
   a standalone sheet of exact-path selectors. The tokenizer recognises `@`
   directives; the `group` keyword is gone (a `box: none` node replaces it and now
@@ -117,8 +126,8 @@ for "where is this project at?". Move items between sections as work progresses:
     `wasm/`); tokenizer + recursive-descent parser
   - validator: scoped ID uniqueness, arrow/anchor reference resolution, range
     constraints (non-fail-fast)
-  - generator: deterministic text measurement, bottom-up layout with `size`
-    overrides + anchor resolution, byte-for-byte-stable SVG emission
+  - generator: deterministic text measurement, bottom-up layout + anchor
+    resolution, byte-for-byte-stable SVG emission
   - CLI (parse/validate/generate + `--watch` via a stdlib polling watcher) and a
     `GOOS=js GOARCH=wasm` shim, both thin wrappers over the library
   - golden tests reproducing the TypeScript SVG/error fixtures exactly; Go CI
@@ -194,6 +203,34 @@ tracks below; each is independently shippable. The *model* lives in
 Auto edge routing — sized channels has **shipped** (see *Recently shipped* above);
 its only parked follow-ups are crossing-minimised lane ordering and a per-arrow
 `route:` override.
+
+### Unify `direction` and `@grid` into one arrangement engine
+
+The agreed direction (2026-06-22): `direction: vertical | horizontal` are just
+degenerate grids — a single column (rows grow) and a single row (cols grow). The
+goal is **one arrangement engine** so a stack and a grid share placement
+vocabulary, and direction'd nodes gain sparse `col`/`row` placement, spans, and
+`justify`/`align` "for free". Concretely:
+
+- **Dissolve the `@grid { … }` block** into plain `cols`/`rows` `@layout`
+  properties (it is the only block-shaped layout property; its per-child
+  placement props are already plain properties).
+- **`direction` becomes sugar** for `cols: 1` / `rows: 1`, kept as the readable
+  everyday spelling.
+- **One engine.** The hard part: the grid engine (`generator/grid.go`) uses a
+  uniform inter-track `gap`, while 1-D packing (`calcDimensions`) uses the
+  margin-collapse box model — collapsing channels, `box: none` effective-margin
+  propagation, label-band walls, and **channel widening for orthogonal routing**
+  (`gapExtra`/`railExtra`). Merging means teaching the grid engine that box model
+  so a single-track grid reproduces today's stack exactly (and orthogonal routing
+  keeps working). Stage carefully with golden review; uniform-margin grids should
+  stay byte-identical.
+- **Sparse needs spacer tracks.** Sparse 1-D placement only yields *visible* gaps
+  once empty tracks have a size — see *Min-size / spacer tracks* below; pair the
+  two or "sparse" is a no-op in a stack.
+
+Explicit **per-node sizing controls** (the replacement for the removed `size`)
+land on top of this unified model rather than the old orthogonal-fraction hack.
 
 ### `@grid` follow-ups
 

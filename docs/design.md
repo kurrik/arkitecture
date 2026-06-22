@@ -56,11 +56,9 @@ choose controllable.
   implicit centre anchor at `[0.5, 0.5]`.
 - **Arrow** — a directed connection `source --> target`, where each end is a
   (possibly dotted) node path with an optional `#anchor`.
-- **Size** — an override in `[0, 1]` for a node's *orthogonal* dimension, as a
-  fraction of what the parent would otherwise give it.
 - **Semantic vs. layout layers** *(M3)* — structure (`id`, `label`, `kind`,
   anchor *names*, nesting, arrows) is authored separately from presentation
-  (`@layout`: `direction`, `size`, anchor *positions*, `margin`, `box`, child
+  (`@layout`: `direction`, anchor *positions*, `margin`, `box`, child
   arrangement). See the section below.
 - **Kind** *(M4)* — an arbitrary semantic classification on a node
   (`kind: database`) that implicitly applies the layout block of the same name
@@ -107,8 +105,8 @@ choose controllable.
    input with a `.svg` extension).
 3. Read the reported errors — syntax, bad references, out-of-range values — all at
    once, with line/column positions.
-4. Adjust `direction`, nesting, and `size` to shape the layout; add `anchors` to
-   steer arrows.
+4. Adjust `direction`, nesting, and grid placement to shape the layout; add
+   `anchors` to steer arrows.
 5. Re-run, or use `--watch` to regenerate on every save.
 6. Commit the `.ark` source alongside the code it documents.
 
@@ -129,11 +127,9 @@ Layout is bottom-up and deterministic:
   parent reserves the same strip but packs its children flush below it (it adds no
   perimeter of its own, consistent with how it packs them flush everywhere else).
 - A **vertical** parent stacks children top-to-bottom: its width is the widest
-  child; children span the full width unless they set `size`.
+  child; children span the full width.
 - A **horizontal** parent places children left-to-right: its height is the tallest
-  child; children span the full height unless they set `size`.
-- `size: f` scales only the orthogonal dimension to a fraction `f` of the parent;
-  it does not affect the parent's own size.
+  child; children span the full height.
 - Each node reserves a uniform **`margin`** (default 8, or the document's
   **default margin** if set — see below) around its border box. Margins
   **collapse** rather than stack: the channel between two adjacent siblings is the
@@ -170,7 +166,7 @@ Layout is bottom-up and deterministic:
 > ✅ The full `@layout` model has shipped: the **split** (two-layer authoring,
 > `@layout` blocks, exact-path selectors, no-cascade resolution) in M3, **reuse**
 > (`@block`/`@use` and `kind` hooking a layout block) in M4, and presentational
-> **`@group` regrouping** in M5. In M3 the inline `size`/`direction`/`anchors:{pos}`
+> **`@group` regrouping** in M5. In M3 the inline `direction`/`anchors:{pos}`
 > shorthand was **dropped**: a node body is purely semantic and all presentation
 > lives in `@layout`.
 
@@ -182,7 +178,7 @@ principle rejects.
   `id`, optional `label`, its `kind`, the named anchors it exposes, containment
   (nesting = "is part of"), and arrows (relations). The stable part.
 - **Layout layer** (`@layout`) — *where and how* things are drawn: `direction`,
-  `size`, anchor *positions*, whether a node draws a box, and how a node's
+  anchor *positions*, whether a node draws a box, and how a node's
   children are arranged. The frequently-tweaked part, editable without touching
   semantics.
 
@@ -200,7 +196,7 @@ draw a border just sets `box: none` in layout — the spiritual twin of CSS
 
 | Semantic (in the `.ark` structure)  | Layout (in `@layout`)             |
 | ----------------------------------- | --------------------------------- |
-| node `id`, `label` **text**         | `direction`, `size`, `label` **position** |
+| node `id`, `label` **text**         | `direction`, `label` **position**         |
 | `kind` (e.g. `database`)            | implicit `@use database` baseline |
 | anchor **names** (`db`, `north`)    | anchor **positions** (`[x, y]`)   |
 | containment (nesting)               | child **arrangement** + regroup   |
@@ -236,10 +232,10 @@ that matches at a distance:
 
 ```
 @layout {
-  @block service { size: 0.75 }
+  @block service { margin: 16 }
 
   services.userService  { @use service }
-  services.orderService { @use service; size: 0.5 }   # local override (last wins)
+  services.orderService { @use service; margin: 8 }   # local override (last wins)
 }
 ```
 
@@ -279,7 +275,7 @@ Rules:
   `kind` is a semantic tag, so a node may carry one without a matching layout
   block. An explicit **`@use` of an undefined block *is* an error**, because that
   is a layout import the author asked for that cannot be satisfied. (M4 decision.)
-- v1 layout is structural (box, size, direction, anchors), so built-in kinds can
+- v1 layout is structural (box, direction, anchors), so built-in kinds can
   only touch those for now. `kind` is the natural hook for visual styling (colour,
   fonts) if/when that layer lands — part of why the bridge is worth building now.
 
@@ -300,7 +296,7 @@ layout-layer equivalent of an HTML wrapper `<div>`:
 ```
 
 A bare identifier (no `:`) is a child reference; `@group { … }` is a wrapper with
-its own `direction`/`size`/`margin` and nested arrangement. A `@group` is always
+its own `direction`/`margin` and nested arrangement. A `@group` is always
 **invisible** (it renders as `box: none`) and **anonymous** — it has no id and
 adds no path segment, so a child inside a group keeps its real dotted path and
 arrows/anchors are unaffected. (v1: a group can't be bordered or labelled, and

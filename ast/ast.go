@@ -9,7 +9,7 @@
 //
 //   - a semantic tree of [ContainerNode]s carrying id, label, kind, anchor
 //     *names*, and children;
-//   - a layout layer of [Declarations] — direction, size, margin, box, and
+//   - a layout layer of [Declarations] — direction, margin, box, and
 //     anchor *positions* — authored in `@layout` blocks, either inline on a
 //     node or as standalone sheet rules ([Document.Layout]). Layout can be
 //     bundled into reusable named [Block]s and imported with [Use]; a node's
@@ -82,7 +82,7 @@ const (
 
 // ContainerNode is the single node type: a component identified by ID, with an
 // optional label, an optional semantic kind, the named anchors it exposes, and
-// nested children. Layout (direction, size, margin, box, anchor positions) is
+// nested children. Layout (direction, margin, box, anchor positions) is
 // not stored on the node — it lives in the document's layout rules, which the
 // resolve stage merges onto the node by exact path. An inline `@layout {…}` in
 // a node body is desugared by the parser into a [LayoutRule] whose selector is
@@ -109,7 +109,6 @@ type ContainerNode struct {
 // the plain look (white fill, 1px black border, 1px black arrows) when unset.
 type Declarations struct {
 	Direction   *Direction
-	Size        *float64
 	Margin      *float64
 	Box         *Box
 	LabelPos    *LabelPosition
@@ -293,7 +292,7 @@ type GridProblem struct {
 // to a direct child (by id) or an anonymous `@group` wrapper. Exactly one of
 // ChildID / Group is set. A group is itself a [Declarations] whose own
 // Arrangement holds its nested items — an invisible (`box: none`) layout
-// sub-container with its own direction/size/margin. Line/Column point at the
+// sub-container with its own direction/margin. Line/Column point at the
 // entry for arrangement diagnostics.
 type ArrangementItem struct {
 	ChildID string
@@ -400,7 +399,7 @@ const (
 	ErrorSyntax ErrorType = "syntax"
 	// ErrorReference is an unresolved node, anchor, or selector reference.
 	ErrorReference ErrorType = "reference"
-	// ErrorConstraint is an out-of-range value (size, margin, or coordinate).
+	// ErrorConstraint is an out-of-range value (margin or coordinate).
 	ErrorConstraint ErrorType = "constraint"
 )
 

@@ -18,6 +18,29 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-22 — Removed the `size` layout property
+**Choice:** Drop `size: f` from the language entirely — the `@layout` property,
+`ast.Declarations.Size`, the parser case, the validator's `0.0–1.0` range check,
+the resolver merge, and the generator's orthogonal-dimension scaling. A `.ark`
+that still sets `size:` now fails with `Unknown layout property 'size'`.
+**Why:** `size` scaled a node's *orthogonal* dimension to a fraction of "what the
+parent would otherwise give it" — an implicit, direction-dependent reference
+("orthogonal of what, exactly?", and the meaning flips with `direction`) that was
+hard to reason about and didn't generalise to a 2-D grid (which has no single
+orthogonal axis — it uses `justify`/`align` instead). Rather than carry an
+awkward 1-D-only knob into the unified arrangement engine (see below), remove it
+now and reintroduce **explicit** per-node sizing controls later, designed on top
+of the unified model. Considered keeping it as a direction-mode-only affordance;
+rejected because it is exactly the kind of implicit, hard-to-place property the
+cleanup is meant to retire.
+**Implications:** A breaking syntax change (called out in the roadmap). No golden
+fixture used `size`, so SVG output is unchanged and no fixtures were regenerated;
+tests that used `Size` as a representative `*float64` property now use `Margin` /
+`BorderWidth`. This is the first step of consolidating `direction` and `@grid`
+into one arrangement engine — supersedes the parts of the M3 label-band ADR that
+describe the band being applied "before the `size` override" (that override no
+longer exists). Explicit sizing is now a *Planned* item, not a shipped feature.
+
 ## 2026-06-22 — `@grid` arrangement (2-D layout)
 **Choice:** Add a grid as a third arrangement mode alongside `direction:
 vertical|horizontal`. A node declares `@grid { cols: N; rows: M? }` in its

@@ -124,7 +124,7 @@ a path segment.
 
 ### Layout layer — `@layout`
 
-Presentation — `direction`, `size`, `margin`, `box`, styling (colour/width), and
+Presentation — `direction`, `margin`, `box`, styling (colour/width), and
 anchor **positions** — lives in `@layout` blocks that target nodes by **exact
 dotted path**. A block can sit inline in a node body or stand alone as a sheet:
 
@@ -132,7 +132,7 @@ dotted path**. A block can sit inline in a node body or stand alone as a sheet:
 @layout {
   api { direction: vertical; anchor south: [0.5, 1.0] }
 
-  api.auth { size: 0.5 }    # half the orthogonal dimension the parent would give
+  api.auth { margin: 16 }    # extra breathing room around just this node
 }
 ```
 
@@ -154,10 +154,10 @@ explicit and overridable — a direct property always wins, with no cascade:
 
 ```
 @layout {
-  @block service { size: 0.75 }
+  @block service { margin: 16 }
 
   services.userService  { @use service }
-  services.orderService { @use service; size: 0.5 }   # direct wins over the import
+  services.orderService { @use service; margin: 8 }   # direct wins over the import
 }
 ```
 
@@ -234,7 +234,6 @@ Semantic (in the node body):
 Layout (in `@layout`):
 
 - **`direction`** — `vertical` (default) or `horizontal`
-- **`size`** — override (0.0–1.0) for the orthogonal dimension
 - **`margin`** — space around the node's border box (default 8; `0` packs flush)
 - **`box`** — `default` (bordered) or `none` (borderless grouping)
 - **`label`** — `top` (default) or `bottom`: which end of a parent reserves the
