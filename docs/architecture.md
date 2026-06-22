@@ -48,6 +48,7 @@ github.com/kurrik/arkitecture        (module)
     route.go         arrow endpoint resolution + straight/orthogonal routing
     channel.go       channel-graph router: few-bend A* around an arrow's obstacles
     widen.go         channel widening: attribute runs to gaps, widen, snap to lanes
+    grid.go          @grid arrangement: joint two-axis track sizing + placement
     testdata/golden/ .ark fixtures + .svg/.error references for the golden test
   cmd/arkitecture/   package main — the CLI (flags, file I/O, watch); imports the library
   wasm/              package main — js,wasm shim exposing ToSVG to JS (+ host stub)
@@ -94,6 +95,13 @@ semantic layer and a layout layer:
   `@group`). A group *is* a `Declarations` whose own `Arrangement` holds its nested
   items, so nodes and groups share one shape and nest recursively. The arrangement
   is direct-only — never imported via `@use`/`kind`.
+- **`GridSpec` / grid placement** — `Declarations.Grid *GridSpec` ({`Cols`,
+  `Rows`}) makes a node arrange its children as a 2-D grid (direct-only, like
+  `Arrangement`); a child's own `Col`/`Row`/`ColSpan`/`RowSpan` and `Justify`/
+  `Align` (all pointers) place and align it. `ast.PlaceGrid` is the pure,
+  panic-free placement algorithm (explicit + sparse auto-flow, reporting
+  out-of-bounds and overlap `GridProblem`s) shared by the validator's checks and
+  the generator's geometry.
 - **`LayoutRule`** — `{ Selector string; Decls *Declarations; Uses []Use; Line, Column }`.
   One per `@layout` selector block: the node's direct declarations plus any `@use`
   imports. An inline `@layout` is desugared by the parser into a rule whose selector
@@ -121,9 +129,10 @@ semantic layer and a layout layer:
   semantic node bodies (`label`/`kind`/anchor names/children), inline and
   standalone `@layout` blocks (the declaration grammar and exact-path selectors),
   a bare `margin:` at a sheet root (the document default, distinguished from a
-  selector by the `:`), `@block` definitions, `@use` imports, and `@group` child
+  selector by the `:`), `@block` definitions, `@use` imports, `@group` child
   arrangements inside `@layout` (a bare identifier with no `:` is a child
-  reference), and arrows. Nodes,
+  reference), the `@grid { cols/rows }` arrangement and per-child `col`/`row`/
+  `colSpan`/`rowSpan`/`justify`/`align` placement, and arrows. Nodes,
   `@layout` sheets, and arrows may appear in **any order** at the top level — each
   statement is dispatched by lookahead (an identifier reaching `-->` is an arrow),
   so an arrow can be colocated with the nodes it connects. An inline `@layout` is
@@ -138,8 +147,10 @@ semantic layer and a layout layer:
   anchor positions naming a declared anchor,
   undefined `@use` blocks and `@use` composition cycles (reported at the `@use` /
   block position), child-arrangement same-parent and completeness checks (each
-  direct child referenced exactly once, no foreigners), and arrow source/target +
-  anchor-name resolution (with the implicit `center`); non-fail-fast. An unknown
+  direct child referenced exactly once, no foreigners), grid placement bounds and
+  overlap (via `ast.PlaceGrid` over a node's resolved-direct cells), and arrow
+  source/target + anchor-name resolution (with the implicit `center`);
+  non-fail-fast. An unknown
   `kind` is deliberately *not* an error (it's a semantic tag). Apart from the
   position-bearing cases above,
   diagnostics report at line 1, column 1 — the semantic AST carries no node
@@ -150,8 +161,10 @@ semantic layer and a layout layer:
   with two precedence tiers: the **imported** tier (a node's `kind` baseline, then
   each `@use` in source order, each block expanded recursively as its own
   imports-then-decls) underneath the **direct** tier (declarations naming the
-  node). A visiting set makes block composition cycle-safe even though the
-  validator rejects cycles first (so `GenerateSVG`, which skips validation, can't
+  node). `Grid` is carried direct-only, like the child `Arrangement` (never
+  imported via a block or kind). A visiting set makes block composition cycle-safe
+  even though the validator rejects cycles first (so `GenerateSVG`, which skips
+  validation, can't
   loop). A node's child **arrangement** is carried direct-only — copied from the
   node's own rules, never imported through a block or kind.
 - **Generator** (`generator/`) — takes the document plus the resolved layout.
@@ -160,9 +173,11 @@ semantic layer and a layout layer:
   `Arrangement` when present, otherwise semantic child order — a `@group` becomes a
   synthetic invisible node that adds no path segment, so its children keep their
   real paths), reads each node's resolved declarations, sizes bottom-up applying
-  the vertical/horizontal rules, the label band a labelled parent reserves (a
-  top/bottom strip — a wall in a bordered parent, flush-packed reserved space in a
-  `box: none` one), and `size` overrides — falling back to the document's
+  the vertical/horizontal rules (or, when a node sets `@grid`, `grid.go`'s joint
+  two-axis track sizing + per-cell placement/alignment), the label band a labelled
+  parent reserves (a top/bottom strip — a wall in a bordered parent, flush-packed
+  reserved space in a `box: none` one), and `size` overrides — falling back to the
+  document's
   `DefaultMargin` (else 8) for any node with no margin — positions top-down, sizes
   the canvas (the content bounds grown to include each border's *stroke* — half a
   border width sits outside its box, emitted as a `viewBox` offset so a perimeter
