@@ -6,6 +6,19 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **One layout engine — 1-D packing path deleted** (2026-06-22): every arranging
+  node now runs through the grid engine; the former vertical/horizontal
+  `calcDimensions`/`positionNodes` packing code is gone. The grid engine learned to
+  apply the orthogonal-route channel widening (`gapExtra`/`railExtra`) for a
+  single-track stack — the case the router's 1-D channel model addresses — so all
+  five orthogonal-routing goldens stay **byte-identical**; `widen.go` now derives
+  the main axis from the grid arrangement (`mainHorizontalOf`) rather than a bare
+  direction check. A bordered grid distributes a label wider than its content into
+  its columns so stretched children fill it (matching 1-D). No golden changed; one
+  unit test updated for the documented cross-axis margin semantic. Step (c) of the
+  consolidation. **Still open:** channel widening through a *multi-track* grid (the
+  router's channel graph is 1-D per container), so `route: orthogonal` across a true
+  grid is a follow-up. See the ADR in [decisions.md](decisions.md).
 - **`direction` unified with the grid engine** (2026-06-22): `direction` is now
   formally sugar for a single-track grid — `vertical` ≡ `cols: 1`, `horizontal` ≡
   `rows: 1` — proven byte-for-byte for bordered *and* `box: none`, both axes (a
@@ -262,14 +275,16 @@ vocabulary, and direction'd nodes gain sparse `col`/`row` placement, spans, and
   column-major (via a transpose) for the horizontal case; the cross-alignment
   default follows the box model. Stacks gain sparse placement, routed to the grid
   engine when a child opts in.
-- **(c) Delete the 1-D path + 2-D channel widening.** Dense stacks still take the
-  1-D `calcDimensions`/`positionNodes` packing path, kept *only* because it carries
-  the orthogonal-route channel widening the grid engine cannot yet apply:
-  `widen.go`'s `gapIndexAt`/`railSideAt`/`childrenCrossBand` assume children in a
-  single line along one axis. Generalising the channel model from 1-D to grid
-  tracks lets the grid engine widen too — at which point the 1-D path can be
-  deleted and there is a single engine. Until then, `route: orthogonal` through a
-  multi-track grid is unsupported. Stage carefully with golden review.
+- ✅ **(c) Delete the 1-D path** — *done* (see *Done* above). One engine; the grid
+  applies channel widening for single-track stacks, so the orthogonal goldens are
+  byte-identical and the 1-D packing code is gone.
+- **(c-follow-up) 2-D channel widening through a multi-track grid.** `widen.go`'s
+  `gapIndexAt`/`railSideAt`/`childrenCrossBand` still assume children in a single
+  line along one axis, so widening only maps onto a single-track stack. Generalising
+  the channel model from 1-D to grid tracks (column gaps, row gaps, the perimeter
+  ring) would let `route: orthogonal` work *across* a true grid. Until then, a
+  multi-track grid routes orthogonally without widening (unchanged from before the
+  consolidation — grids never widened).
 - **Sparse needs spacer tracks.** Sparse 1-D placement only yields *visible* gaps
   once empty tracks have a size — see *Min-size / spacer tracks* below; pair the
   two or "sparse" is a no-op in a stack.

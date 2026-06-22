@@ -204,7 +204,6 @@ func calcDimensions(l *layoutNode, fontSize, defMargin, defBW float64) {
 	}
 
 	ownMargin := marginOf(l.decls, defMargin)
-	direction := directionOf(l.decls)
 	minDim := fontSize * 2
 	bordered := nodeBordered(l)
 	bw := borderWidthOf(l.decls, defBW)
@@ -221,116 +220,19 @@ func calcDimensions(l *layoutNode, fontSize, defMargin, defBW float64) {
 		return
 	}
 
-	// A grid node sizes its children's tracks jointly on both axes — the one
-	// thing 1-D packing can't do — instead of stacking along a single direction.
-	if needsGridEngine(l) {
-		calcGrid(l, fontSize, ownMargin, bordered, bw)
-		return
-	}
-
-	// Effective margin: a transparent box:none group carries its children's
-	// margins outward (the larger of its own and theirs).
-	l.margin = ownMargin
-	if !bordered {
-		for _, c := range l.children {
-			l.margin = math.Max(l.margin, c.margin)
-		}
-	}
-
-	// A labelled parent reserves a strip for its label — a top (default) or
-	// bottom band, sized like a leaf box holding that label — so the label is
-	// never obscured by the children, which lay out in the remaining area. In a
-	// bordered parent the band's inner edge is a wall the children's facing margin
-	// lands against; a box:none parent packs its children flush below the band,
-	// just as it packs them flush everywhere (it adds no perimeter of its own).
-	// labelW keeps the box at least as wide as its label.
-	var band, labelW float64
-	if label, ok := nodeLabel(l); ok {
-		band = labelBandHeight(label, fontSize, bw)
-		labelW = textWidth(label, fontSize) + 2*bw
-	}
-	l.labelBand = band
-
-	// Channels between boxes collapse rather than stack: the gap between two
-	// adjacent siblings is the larger of their facing margins (not the sum), so
-	// every channel is one uniform margin wide. A bordered parent additionally
-	// reserves a perimeter (the edge children's margins become padding inside the
-	// border) and stretches children to fill the cross axis; a transparent
-	// box:none parent (and the root) reserves no perimeter and does not stretch,
-	// bounding the children's border boxes plus the collapsed gaps only.
-	// Channel widening reserves extra space at the gaps an arrow routes along:
-	// gapExtra grows the main axis (at each between-children gap and the
-	// leading/trailing perimeter), railExtra grows the cross axis (the two
-	// perimeter rails). Both are zero unless the routing pass widened a channel,
-	// so an un-widened document is byte-identical.
-	rail := l.railExtra[0] + l.railExtra[1]
-	n := len(l.children)
-	if direction == ast.Horizontal {
-		main, cross := 0.0, 0.0
-		for i, c := range l.children {
-			if i > 0 {
-				main += math.Max(l.children[i-1].margin, c.margin) + gapExtraAt(l, i)
-			}
-			main += c.dim.width
-			ch := c.dim.height
-			if bordered {
-				ch += 2 * c.margin
-			}
-			cross = math.Max(cross, ch)
-		}
-		if bordered && n > 0 {
-			main += l.children[0].margin + l.children[n-1].margin
-		}
-		main += gapExtraAt(l, 0) + gapExtraAt(l, n)
-		// The band is a full-width strip stacked above/below the children area
-		// (cross); the label must also fit across the main (width) axis.
-		l.dim.width = math.Max(main, labelW)
-		l.dim.height = cross + band + rail
-		if bordered {
-			for _, c := range l.children {
-				c.dim.height = cross - 2*c.margin
-			}
-		}
-	} else {
-		main, cross := 0.0, 0.0
-		for i, c := range l.children {
-			if i > 0 {
-				main += math.Max(l.children[i-1].margin, c.margin) + gapExtraAt(l, i)
-			}
-			main += c.dim.height
-			cw := c.dim.width
-			if bordered {
-				cw += 2 * c.margin
-			}
-			cross = math.Max(cross, cw)
-		}
-		if bordered && n > 0 {
-			main += l.children[0].margin + l.children[n-1].margin
-		}
-		main += gapExtraAt(l, 0) + gapExtraAt(l, n)
-		// The band is a full-width strip stacked above/below the children stack
-		// (main); the label must also fit across the cross (width) axis.
-		contentW := math.Max(cross, labelW)
-		l.dim.height = main + band
-		l.dim.width = contentW + rail
-		if bordered {
-			for _, c := range l.children {
-				c.dim.width = contentW - 2*c.margin
-			}
-		}
-	}
+	// Every arranging node lays its children out as a grid: `direction` is sugar for
+	// a single-track grid (vertical ≡ cols:1, horizontal ≡ rows:1), so a stack and a
+	// grid are one engine. The grid carries the margin-collapse box model, label
+	// bands, box:none transparency, and (for single-track stacks) the orthogonal
+	// channel widening, so it reproduces the former 1-D packing exactly.
+	calcGrid(l, fontSize, ownMargin, bordered, bw)
 }
 
-// positionNodes places l's border box at (x, y) and lays out its children with
-// collapsed channels (mirroring calcDimensions). A bordered parent insets the
-// first child by its margin (perimeter) and insets each child on the cross axis
-// by its margin; a transparent box:none parent (and the root) places children at
-// its own origin. Between two siblings the gap is the larger of their facing
-// margins — margins collapse, they do not stack.
+// positionNodes places l's border box at (x, y) and lays its children out via the
+// grid engine (every arranging node is a grid — see calcDimensions). A leaf has no
+// grid and nothing to place.
 func positionNodes(l *layoutNode, x, y float64) {
 	l.dim.x, l.dim.y = x, y
-	direction := directionOf(l.decls)
-	bordered := nodeBordered(l)
 
 	// A top label band shifts the child-layout origin down past the reserved
 	// strip; a bottom band leaves children at the top and sits below them.
@@ -341,44 +243,6 @@ func positionNodes(l *layoutNode, x, y float64) {
 
 	if l.grid != nil {
 		positionGrid(l, x, childY)
-		return
-	}
-
-	// Mirror calcDimensions' widening: the leading gap and each between-children
-	// gap advance the main-axis cursor by gapExtra; the low-side rail offsets every
-	// child on the cross axis by railExtra[0].
-	if direction == ast.Horizontal {
-		cursor := x + gapExtraAt(l, 0)
-		if bordered && len(l.children) > 0 {
-			cursor += l.children[0].margin
-		}
-		for i, c := range l.children {
-			if i > 0 {
-				cursor += math.Max(l.children[i-1].margin, c.margin) + gapExtraAt(l, i)
-			}
-			cy := childY + l.railExtra[0]
-			if bordered {
-				cy += c.margin
-			}
-			positionNodes(c, cursor, cy)
-			cursor += c.dim.width
-		}
-	} else {
-		cursor := childY + gapExtraAt(l, 0)
-		if bordered && len(l.children) > 0 {
-			cursor += l.children[0].margin
-		}
-		for i, c := range l.children {
-			if i > 0 {
-				cursor += math.Max(l.children[i-1].margin, c.margin) + gapExtraAt(l, i)
-			}
-			cx := x + l.railExtra[0]
-			if bordered {
-				cx += c.margin
-			}
-			positionNodes(c, cx, cursor)
-			cursor += c.dim.height
-		}
 	}
 }
 
@@ -503,23 +367,25 @@ func borderWidthOf(d *ast.Declarations, def float64) float64 {
 	return def
 }
 
-// needsGridEngine reports whether a node should be laid out by the grid engine
-// rather than 1-D packing. `direction: vertical|horizontal` is exactly sugar for a
-// single-track grid, so a plain dense stack could use either path (they are proven
-// byte-identical); we keep dense stacks on the 1-D path because it carries the
-// orthogonal-routing channel widening the grid engine does not yet apply. A node
-// goes to the grid engine when it declares explicit tracks (`cols`/`rows`) or any
-// child opts into grid placement (`col`/`row`/`colSpan`/`rowSpan`).
-func needsGridEngine(l *layoutNode) bool {
-	if d := l.decls; d != nil && (d.Cols != nil || d.Rows != nil) {
-		return true
-	}
+// hasChildPlacement reports whether any of a node's children opt into explicit
+// grid placement (`col`/`row`/`colSpan`/`rowSpan`). A node without it is a dense
+// auto-flow stack — the case the orthogonal router's 1-D channel widening maps to.
+func hasChildPlacement(l *layoutNode) bool {
 	for _, c := range l.children {
 		if d := c.decls; d != nil && (d.Col != nil || d.Row != nil || d.ColSpan != nil || d.RowSpan != nil) {
 			return true
 		}
 	}
 	return false
+}
+
+// mainHorizontalOf reports whether a node's children flow along the horizontal
+// (main) axis — true for a row-primary arrangement (`rows: M` or `direction:
+// horizontal`), false for col-primary (`cols: N` or `direction: vertical`). It is
+// the grid-aware replacement for a bare direction check.
+func mainHorizontalOf(d *ast.Declarations) bool {
+	_, _, rowPrimary := arrangementOf(d)
+	return rowPrimary
 }
 
 func directionOf(d *ast.Declarations) ast.Direction {

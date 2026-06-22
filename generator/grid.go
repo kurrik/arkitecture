@@ -10,15 +10,18 @@ import (
 // consumed in positionGrid. colW/rowH are 1-based track sizes (index 0 unused);
 // colGap[c]/rowGap[c] are the collapsed channel between track c and c+1 (1-based,
 // the larger facing margin of the children adjacent across that boundary);
-// leftPerim/topPerim are the bordered grid's low-edge perimeter insets; placed[i]
-// is the resolved placement of children[i].
+// leftPerim/topPerim are the bordered grid's low-edge perimeter insets;
+// xLeadExtra/yLeadExtra are orthogonal-route channel-widening offsets at the low
+// edges (the boxes have been spread to hold the lines); placed[i] is the resolved
+// placement of children[i].
 type gridInfo struct {
-	cols, rows          int
-	colW, rowH          []float64
-	colGap, rowGap      []float64
-	leftPerim, topPerim float64
-	bordered            bool
-	placed              []ast.PlacedCell
+	cols, rows             int
+	colW, rowH             []float64
+	colGap, rowGap         []float64
+	leftPerim, topPerim    float64
+	xLeadExtra, yLeadExtra float64
+	bordered               bool
+	placed                 []ast.PlacedCell
 }
 
 // calcGrid sizes a grid node and its tracks using the same margin-collapse box
@@ -113,17 +116,61 @@ func calcGrid(l *layoutNode, fontSize, ownMargin float64, bordered bool, bw floa
 		}
 	}
 
+	// Orthogonal-route channel widening (route: orthogonal): the router reserves a
+	// lane at a channel and the boxes spread to hold it. It applies only to a dense
+	// single-track stack — the case the router's 1-D channel model addresses, where
+	// the growing axis holds one child per track in source order. gapExtra indexes
+	// the main-axis boundaries (0 = leading perimeter … n = trailing), railExtra the
+	// two cross perimeters; both are zero unless the routing pass widened a channel,
+	// so an un-widened (or multi-track) grid is unaffected. The widening sits outside
+	// the box border (a wall in its own channel), so it is added unconditionally,
+	// independent of the bordered margin perimeter.
+	var wXLow, wXHigh, wYLow, wYHigh float64
+	if primary, _, rowPrimary := arrangementOf(l.decls); primary == 1 && !hasChildPlacement(l) {
+		n := len(l.children)
+		if rowPrimary { // main axis = columns (horizontal); cross = rows
+			for i := 1; i < cols; i++ {
+				colGap[i] += gapExtraAt(l, i)
+			}
+			wXLow, wXHigh = gapExtraAt(l, 0), gapExtraAt(l, n)
+			wYLow, wYHigh = l.railExtra[0], l.railExtra[1]
+		} else { // main axis = rows (vertical); cross = columns
+			for i := 1; i < rows; i++ {
+				rowGap[i] += gapExtraAt(l, i)
+			}
+			wYLow, wYHigh = gapExtraAt(l, 0), gapExtraAt(l, n)
+			wXLow, wXHigh = l.railExtra[0], l.railExtra[1]
+		}
+	}
+
 	contentW := sumTracks(colW, 1, cols) + sumTracks(colGap, 1, cols-1)
 	contentH := sumTracks(rowH, 1, rows) + sumTracks(rowGap, 1, rows-1)
 	if bordered {
 		contentW += leftPerim + rightPerim
 		contentH += topPerim + botPerim
 	}
+	contentW += wXLow + wXHigh
+	contentH += wYLow + wYHigh
+
+	// A label wider than the content widens the box. For a **bordered col-primary**
+	// grid (width is the cross axis) the extra width is distributed into the columns
+	// so the stretched children fill the label-widened box, matching 1-D packing; a
+	// box:none grid leaves its children at natural size (the box is simply wider),
+	// and a row-primary grid's width is its main axis, so its children are not
+	// restretched either.
+	if _, _, rowPrimary := arrangementOf(l.decls); bordered && !rowPrimary && labelW > contentW {
+		add := (labelW - contentW) / float64(cols)
+		for c := 1; c <= cols; c++ {
+			colW[c] += add
+		}
+		contentW = labelW
+	}
 	l.dim.width = math.Max(contentW, labelW)
 	l.dim.height = contentH + band
 	l.grid = &gridInfo{
 		cols: cols, rows: rows, colW: colW, rowH: rowH, colGap: colGap, rowGap: rowGap,
-		leftPerim: leftPerim, topPerim: topPerim, bordered: bordered, placed: placed,
+		leftPerim: leftPerim, topPerim: topPerim, xLeadExtra: wXLow, yLeadExtra: wYLow,
+		bordered: bordered, placed: placed,
 	}
 }
 
@@ -132,7 +179,9 @@ func calcGrid(l *layoutNode, fontSize, ownMargin float64, bordered bool, bw floa
 // childY is already past any top label band.
 func positionGrid(l *layoutNode, x, childY float64) {
 	g := l.grid
-	x0, y0 := x, childY
+	// Channel-widening lead offset sits outside the box (added first), then the
+	// bordered margin perimeter — mirroring 1-D packing's cursor/offset order.
+	x0, y0 := x+g.xLeadExtra, childY+g.yLeadExtra
 	if g.bordered {
 		x0 += g.leftPerim
 		y0 += g.topPerim

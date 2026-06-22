@@ -126,9 +126,13 @@ func TestGenerateMarginSpacing(t *testing.T) {
 }
 
 func TestGenerateChannelsCollapseToMax(t *testing.T) {
-	// Adjacent margins collapse to the larger of the two, not their sum.
-	// p (vertical, default margin) with a (margin 4) over b (margin 12): the gap
-	// is max(4,12)=12, and each child is inset from the wall by its own margin.
+	// Along the stacking (main) axis, adjacent margins collapse to the larger of the
+	// two, not their sum, and an edge child sets its own perimeter. p (vertical,
+	// default margin) with a (margin 4) over b (margin 12): the gap is max(4,12)=12,
+	// the top perimeter is a's 4 (a bottom=28 → b at y=40). Across the stack (cross
+	// axis) the two share one column, so the unified grid model insets both by the
+	// collapsed max margin (12) at the shared track perimeter — a grid keeps its
+	// tracks aligned rather than insetting each child by its own cross margin.
 	doc := &ast.Document{
 		Nodes: []*ast.ContainerNode{{
 			ID: "p",
@@ -144,11 +148,9 @@ func TestGenerateChannelsCollapseToMax(t *testing.T) {
 		},
 	}
 	svg := render(t, doc, Options{})
-	// a inset by margin 4, b by margin 12; a bottom=28, gap max(4,12)=12 => b at
-	// y=40. (a's width stretches to the cross axis set by b's wider margin box.)
 	for _, want := range []string{
-		`<rect x="4" y="4" width="40" height="24"`,
-		`<rect x="12" y="40" width="24" height="24"`,
+		`<rect x="12" y="4" width="24" height="24"`,  // a: main gap/perimeter per-child (y=4)
+		`<rect x="12" y="40" width="24" height="24"`, // b: collapsed gap 12 → y=40
 	} {
 		if !strings.Contains(svg, want) {
 			t.Errorf("SVG missing %q:\n%s", want, svg)

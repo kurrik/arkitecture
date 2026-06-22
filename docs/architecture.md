@@ -172,11 +172,13 @@ semantic layer and a layout layer:
   approximation; `layout.go` builds a path-keyed tree (from a node's resolved
   `Arrangement` when present, otherwise semantic child order — a `@group` becomes a
   synthetic invisible node that adds no path segment, so its children keep their
-  real paths), reads each node's resolved declarations, sizes bottom-up applying
-  the 1-D vertical/horizontal packing rules for a dense stack, or `grid.go`'s joint
-  two-axis track sizing + per-cell placement/alignment when the node declares
-  `cols`/`rows` or a child opts into placement (`direction` is sugar for a
-  single-track grid, so the two paths are byte-identical), the label band a labelled
+  real paths), reads each node's resolved declarations, and sizes bottom-up through
+  a single engine — `grid.go`'s joint two-axis track sizing + per-cell placement/
+  alignment, with the margin-collapse box model, label bands, and (for a
+  single-track stack) the orthogonal-route channel widening. `direction` is sugar
+  for a single-track grid (`vertical` ≡ `cols: 1`, `horizontal` ≡ `rows: 1`), so a
+  stack is just a degenerate grid; there is no separate 1-D path. It also reserves
+  the label band a labelled
   parent reserves (a top/bottom strip — a wall in a bordered parent, flush-packed
   reserved space in a `box: none` one) — falling back to the document's
   `DefaultMargin` (else 8) for any node with no margin — positions top-down, sizes

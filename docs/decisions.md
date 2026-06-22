@@ -18,6 +18,33 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-22 — One layout engine: the 1-D packing path deleted
+**Choice:** Route *every* arranging node through the grid engine and delete the
+vertical/horizontal `calcDimensions`/`positionNodes` packing code. To preserve
+`route: orthogonal`, the grid engine learned to apply the channel widening
+(`gapExtra`/`railExtra`) for a **single-track stack**: gapExtra maps onto the
+growing axis's track boundaries (between-rows folded into `rowGap`, the lead/trail
+into the perimeter), railExtra onto the two cross perimeters — added
+unconditionally (a lane is a wall outside the box border). The application is gated
+on a dense single-track stack (`primary == 1 && !hasChildPlacement`), the only
+shape the router's 1-D channel model maps to. `widen.go` now takes the main axis
+from the grid arrangement (`mainHorizontalOf`) instead of a bare `direction` check.
+A bordered grid also distributes a label wider than its content across its columns,
+so stretched children fill the label-widened box exactly as 1-D did.
+**Why:** Completes the consolidation — a stack *is* a single-track grid, so keeping
+a parallel 1-D engine was redundant once the grid could reproduce it (including
+widening). One engine means one place for the box model, the label band, and future
+work. The single-track widening port is provably faithful: all five orthogonal
+goldens render byte-for-byte identical, and no golden changed.
+**Implications:** Channel widening through a **multi-track** grid is still
+unmodelled — `widen.go`'s `gapIndexAt`/`railSideAt`/`childrenCrossBand` assume
+children in a single line — so `route: orthogonal` across a true grid routes
+without widening (unchanged: grids never widened). Generalising the channel graph to
+grid tracks is the tracked follow-up. One generator unit test was updated for the
+cross-axis margin semantic established in the margin-collapse ADR (heterogeneous
+cross margins collapse to one track perimeter); the main (stacking) axis still
+insets per child exactly as before.
+
 ## 2026-06-22 — `direction` unified with the grid engine (sugar for a single-track grid)
 **Choice:** `direction: vertical | horizontal` is now formally sugar for a
 single-track grid — `vertical` ≡ `cols: 1` (rows grow), `horizontal` ≡ `rows: 1`

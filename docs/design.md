@@ -390,10 +390,12 @@ for the old lane-filling look.)
 
 Because a stack and a grid are one model, a node authored with `direction` (or
 nothing) **gains grid placement for free**: a child may set `col`/`row`/spans to
-place itself sparsely, and the node is routed through the grid engine the moment
-any child does. (Dense stacks with no placement still take the 1-D packing path,
-which is byte-identical and carries the orthogonal-route channel widening the grid
-engine does not yet apply — see the roadmap.)
+place itself sparsely. There is **one layout engine** — every arranging node runs
+through the grid path; the former 1-D packing code is gone. The grid carries the
+orthogonal-route channel widening for a single-track stack, so `route: orthogonal`
+through a stack is unchanged. (Channel widening through a *multi-track* grid is not
+yet modelled — the router's channel graph is still 1-D per container — so
+`route: orthogonal` across a true grid stays a follow-up; see the roadmap.)
 
 ### Both inline and standalone
 

@@ -169,7 +169,7 @@ func findChannel(roots []*layoutNode, p0, p1 point) (channelRef, bool) {
 				return channelRef{}, false // midpoint inside a leaf box — not a channel
 			}
 			children = c.children
-			mainHorizontal = directionOf(c.decls) == ast.Horizontal
+			mainHorizontal = mainHorizontalOf(c.decls)
 			path = c.path
 			continue
 		}
@@ -258,7 +258,7 @@ func gapCenterAt(roots []*layoutNode, path string, gi int) (float64, bool) {
 			return 0, false
 		}
 		children = c.children
-		mainHorizontal = directionOf(c.decls) == ast.Horizontal
+		mainHorizontal = mainHorizontalOf(c.decls)
 		b := 0.0
 		if nodeBordered(c) {
 			b = c.borderW
@@ -302,7 +302,7 @@ func railCenterAt(roots []*layoutNode, path string, side int) (float64, bool) {
 	if c == nil || len(c.children) == 0 {
 		return 0, false
 	}
-	mainHorizontal := directionOf(c.decls) == ast.Horizontal
+	mainHorizontal := mainHorizontalOf(c.decls)
 	b := 0.0
 	if nodeBordered(c) {
 		b = c.borderW
