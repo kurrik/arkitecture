@@ -95,6 +95,32 @@ func TestDirectionStackRoutesPlacementThroughGrid(t *testing.T) {
 	}
 }
 
+func TestGridEmptyTrackReservesSpacer(t *testing.T) {
+	// A child skipping a row leaves the empty row reserved at a minimum size, so a
+	// sparse placement shows a visible gap instead of collapsing. a is in row 1, b in
+	// row 3; the empty row 2 (min height fontSize*2 = 24) pushes b down to y=72
+	// instead of sitting flush below a (which would be ~y=40).
+	doc := &ast.Document{
+		Nodes: []*ast.ContainerNode{{ID: "col", Children: []*ast.ContainerNode{
+			{ID: "a", Label: ptr("A")}, {ID: "b", Label: ptr("B")},
+		}}},
+		Layout: []ast.LayoutRule{
+			rule("col", &ast.Declarations{Cols: iptr(1)}),
+			rule("col.a", &ast.Declarations{Col: iptr(1), Row: iptr(1)}),
+			rule("col.b", &ast.Declarations{Col: iptr(1), Row: iptr(3)}),
+		},
+	}
+	svg := render(t, doc, Options{})
+	for _, want := range []string{
+		`<rect x="8" y="8" width="24" height="24"`,  // a in row 1
+		`<rect x="8" y="72" width="24" height="24"`, // b in row 3, past the empty row-2 spacer
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("SVG missing %q (an empty row should reserve a spacer):\n%s", want, svg)
+		}
+	}
+}
+
 func TestGenerateMarginSpacing(t *testing.T) {
 	// A bordered vertical parent insets each child by the child's margin; two
 	// siblings are separated by the larger of their facing margins (collapsed,

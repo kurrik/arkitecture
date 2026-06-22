@@ -341,6 +341,13 @@ node is a grid when it sets `cols`. Like `@group` regrouping, the track def is
   the next free slot, scanning left→right then top→bottom (sparse — the cursor
   only moves forward, never backfilling). A skipped slot therefore needs **no
   placeholder**: placement is sparse by construction.
+- **Spacer tracks.** A track that *no* cell covers reserves a **minimum size** (a
+  leaf's minimum), so a deliberately sparse placement — a child skipping a row or
+  column — leaves a visible gap instead of collapsing to nothing. A populated track
+  is already sized by its content, so this only affects truly empty tracks. This is
+  what makes sparse placement on a stack (`direction`/`cols: 1`) observable: place
+  one child in row 1 and the next in row 3, and the empty row 2 becomes a blank
+  spacer between them.
 - **Cell alignment.** A track is as large as its biggest cell, so a smaller child
   is positioned within its (possibly spanning) cell by `justify` (horizontal) and
   `align` (vertical), each `start | end | stretch` (default `stretch`, which fills
@@ -364,8 +371,7 @@ cells as **flat children of one grid node**, so the grid is a single-level
 operation and no `@group` reparenting is needed — regrouping cannot cross the
 semantic tree, but a flat grid never needs to.
 
-> 🚧 **v1 limits** (tracked in the roadmap): an empty track collapses to zero
-> (no min-size spacer rows yet); `stretch` resizes a cell child after its own
+> 🚧 **v1 limits** (tracked in the roadmap): `stretch` resizes a cell child after its own
 > subtree was sized, so stretching a *container* child can misalign its interior
 > (leaves are fine); each inter-track channel is the *collapsed* (larger) facing
 > margin of its adjacent children — the same box model as 1-D packing, but with no

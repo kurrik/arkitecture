@@ -6,6 +6,15 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **Spacer tracks — sparse placement shows visible gaps** (2026-06-22): a grid
+  track that *no* cell covers now reserves a minimum size (`fontSize*2`, a leaf's
+  minimum) instead of collapsing to zero, so a deliberately sparse placement leaves
+  a visible gap. Place one child in row 1 and the next in row 3 and the empty row 2
+  becomes a blank spacer between them — the payoff that makes `direction`/`cols: 1`
+  stacks' new sparse placement observable. Populated tracks are unaffected (already
+  content-sized), so every existing golden is byte-identical; a `grid-spacer` golden
+  and a generator test lock it in. Completes the grid/direction consolidation arc.
+  See the ADR in [decisions.md](decisions.md).
 - **2-D channel widening — orthogonal routing through a grid** (2026-06-22): the
   router's channel-widening model is now unified on **track boundaries** instead of
   the 1-D "main-axis gap / cross-axis rail" split. A channel is a column boundary
@@ -304,9 +313,9 @@ land on top of this unified model rather than the old orthogonal-fraction hack.
 
 ### `@grid` follow-ups
 
-- **Min-size / spacer tracks:** an empty grid track currently collapses to zero —
-  add an optional minimum (or a `gap`/track-size knob) so an empty row can act as
-  deliberate vertical spacing.
+- ✅ **Min-size / spacer tracks** — *done* (see *Done* above). A grid track no cell
+  covers reserves a minimum size (`fontSize*2`), so a sparse placement leaves a
+  visible gap; an explicit per-track size knob could refine it later.
 - **`stretch` on a container child:** stretch resizes a cell child *after* its own
   subtree was laid out, so a stretched *container* can misalign its interior
   (leaves are unaffected) — re-layout the subtree at the stretched size.
