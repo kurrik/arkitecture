@@ -18,6 +18,35 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-22 — 2-D channel widening: unify the router on track boundaries
+**Choice:** Replace the router's 1-D "main-axis gap vs cross-axis rail" channel
+model with one keyed on **track boundaries**. A channel is a column boundary or a
+row boundary of a container, and a segment's *own orientation* picks which: a
+vertical run travels along a column boundary (it needs horizontal clearance), a
+horizontal run along a row boundary. `widen.go` collapses the old
+`gapIndexAt`/`railSideAt`/`gapCenterAt`/`railCenterAt`/`childrenCrossBand` into a
+single `axisInfo` (track near/far edges, content edges, perimeter and per-gap base
+margins) built by `colAxis`/`rowAxis`; `channelRef` carries `vertical`+`index`
+instead of `rail`+`index`; the demand becomes `colExtra`/`rowExtra` per track
+boundary (replacing `gapExtra`/`railExtra`), applied uniformly in `calcGrid` with
+no single-track gate.
+**Why:** Completes the consolidation. After the 1-D path was deleted, widening was
+still gated to single-track stacks because its channel indexing assumed children in
+a line. The track-boundary framing is the natural 2-D generalisation — a stack is
+just a grid with one axis a single track, so `colExtra[0]`/`colExtra[1]` are the
+old "rails" and `rowExtra` the old "gaps". Unifying removes the gate, the
+transpose-for-widening, and the orientation bookkeeping (`mainHorizontalOf`,
+`gapExtraAt`), and lets `route: orthogonal` widen channels *through a grid*.
+**Implications:** All six existing orthogonal goldens render byte-for-byte
+identical — the unified model provably reproduces the 1-D behaviour for stacks —
+and a new `orthogonal-grid` golden locks in the grid case (an arrow routing down an
+interior column gap spreads the grid's two columns from 16 to 32). `gridInfo` gained
+`rightPerim`/`botPerim` (the router reads all four perimeter bases). The geometric
+attribution derives track extents from child positions + the grid's collapsed
+margins, so it needs no new state on the first (un-widened) pass. Widening across a
+grid with **spanning** cells reads only single-span children for track edges (a
+column of only spanning cells is unhandled — not yet exercised).
+
 ## 2026-06-22 — One layout engine: the 1-D packing path deleted
 **Choice:** Route *every* arranging node through the grid engine and delete the
 vertical/horizontal `calcDimensions`/`positionNodes` packing code. To preserve

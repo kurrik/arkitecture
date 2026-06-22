@@ -18,7 +18,8 @@ type gridInfo struct {
 	cols, rows             int
 	colW, rowH             []float64
 	colGap, rowGap         []float64
-	leftPerim, topPerim    float64
+	leftPerim, rightPerim  float64
+	topPerim, botPerim     float64
 	xLeadExtra, yLeadExtra float64
 	bordered               bool
 	placed                 []ast.PlacedCell
@@ -116,32 +117,22 @@ func calcGrid(l *layoutNode, fontSize, ownMargin float64, bordered bool, bw floa
 		}
 	}
 
-	// Orthogonal-route channel widening (route: orthogonal): the router reserves a
-	// lane at a channel and the boxes spread to hold it. It applies only to a dense
-	// single-track stack — the case the router's 1-D channel model addresses, where
-	// the growing axis holds one child per track in source order. gapExtra indexes
-	// the main-axis boundaries (0 = leading perimeter … n = trailing), railExtra the
-	// two cross perimeters; both are zero unless the routing pass widened a channel,
-	// so an un-widened (or multi-track) grid is unaffected. The widening sits outside
-	// the box border (a wall in its own channel), so it is added unconditionally,
-	// independent of the bordered margin perimeter.
-	var wXLow, wXHigh, wYLow, wYHigh float64
-	if primary, _, rowPrimary := arrangementOf(l.decls); primary == 1 && !hasChildPlacement(l) {
-		n := len(l.children)
-		if rowPrimary { // main axis = columns (horizontal); cross = rows
-			for i := 1; i < cols; i++ {
-				colGap[i] += gapExtraAt(l, i)
-			}
-			wXLow, wXHigh = gapExtraAt(l, 0), gapExtraAt(l, n)
-			wYLow, wYHigh = l.railExtra[0], l.railExtra[1]
-		} else { // main axis = rows (vertical); cross = columns
-			for i := 1; i < rows; i++ {
-				rowGap[i] += gapExtraAt(l, i)
-			}
-			wYLow, wYHigh = gapExtraAt(l, 0), gapExtraAt(l, n)
-			wXLow, wXHigh = l.railExtra[0], l.railExtra[1]
-		}
+	// Orthogonal-route channel widening (route: orthogonal): colExtra/rowExtra index
+	// the track boundaries (0 = low perimeter … tracks = high) and hold the extra the
+	// arrows routing along them reserve. A between-track extra widens that collapsed
+	// channel (pushing the tracks apart); a perimeter extra sits *outside* the box
+	// border (a lane is a wall in its own channel), so it is added unconditionally,
+	// independent of the bordered margin perimeter. All zero unless the routing pass
+	// widened a boundary, so an un-widened grid is unaffected. This serves a 1-D
+	// stack (one axis a single track) and a 2-D grid uniformly.
+	for c := 1; c < cols; c++ {
+		colGap[c] += colExtraAt(l, c)
 	}
+	for r := 1; r < rows; r++ {
+		rowGap[r] += rowExtraAt(l, r)
+	}
+	wXLow, wXHigh := colExtraAt(l, 0), colExtraAt(l, cols)
+	wYLow, wYHigh := rowExtraAt(l, 0), rowExtraAt(l, rows)
 
 	contentW := sumTracks(colW, 1, cols) + sumTracks(colGap, 1, cols-1)
 	contentH := sumTracks(rowH, 1, rows) + sumTracks(rowGap, 1, rows-1)
@@ -169,8 +160,8 @@ func calcGrid(l *layoutNode, fontSize, ownMargin float64, bordered bool, bw floa
 	l.dim.height = contentH + band
 	l.grid = &gridInfo{
 		cols: cols, rows: rows, colW: colW, rowH: rowH, colGap: colGap, rowGap: rowGap,
-		leftPerim: leftPerim, topPerim: topPerim, xLeadExtra: wXLow, yLeadExtra: wYLow,
-		bordered: bordered, placed: placed,
+		leftPerim: leftPerim, rightPerim: rightPerim, topPerim: topPerim, botPerim: botPerim,
+		xLeadExtra: wXLow, yLeadExtra: wYLow, bordered: bordered, placed: placed,
 	}
 }
 

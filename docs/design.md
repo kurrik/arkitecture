@@ -391,11 +391,13 @@ for the old lane-filling look.)
 Because a stack and a grid are one model, a node authored with `direction` (or
 nothing) **gains grid placement for free**: a child may set `col`/`row`/spans to
 place itself sparsely. There is **one layout engine** — every arranging node runs
-through the grid path; the former 1-D packing code is gone. The grid carries the
-orthogonal-route channel widening for a single-track stack, so `route: orthogonal`
-through a stack is unchanged. (Channel widening through a *multi-track* grid is not
-yet modelled — the router's channel graph is still 1-D per container — so
-`route: orthogonal` across a true grid stays a follow-up; see the roadmap.)
+through the grid path; the former 1-D packing code is gone. Channel widening
+(`route: orthogonal`) is likewise unified: a channel is a **track boundary** of a
+container, and an arrow run's orientation alone picks the axis it widens — a
+vertical run reserves a lane at a *column* boundary (the columns spread to hold it),
+a horizontal run at a *row* boundary. This one rule serves a 1-D stack (one axis a
+single track) and a 2-D grid alike, so an arrow routing along a column gap *inside*
+a grid widens that gap exactly as one routing between stacked siblings always has.
 
 ### Both inline and standalone
 

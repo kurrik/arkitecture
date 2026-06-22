@@ -49,28 +49,40 @@ type layoutNode struct {
 	children  []*layoutNode
 	grid      *gridInfo // non-nil when this node lays its children out as a grid
 
-	// Channel widening (route: orthogonal). gapExtra[i] is extra main-axis space
-	// reserved at gap i (0 = leading perimeter … len(children) = trailing perimeter,
-	// i = before child i) for arrows routing along that gap; railExtra is the same
-	// for the two cross-axis perimeter rails (0 = low/left/top side, 1 = high). Both
-	// default to zero, so a document without widened channels lays out unchanged.
-	gapExtra  []float64
-	railExtra [2]float64
+	// Channel widening (route: orthogonal). colExtra[c] is extra width reserved at
+	// column boundary c (0 = left perimeter … cols = right perimeter, c = between
+	// column c and c+1) for the *vertical* arrow runs routing along it; rowExtra[r]
+	// is the same for row boundaries and *horizontal* runs. A segment's orientation
+	// alone picks the axis (a vertical run needs horizontal clearance), so this one
+	// pair serves both a 1-D stack (one axis a single track) and a 2-D grid. Both
+	// default to nil/zero, so a document without widened channels lays out unchanged.
+	colExtra []float64
+	rowExtra []float64
 }
 
-// widenDemand is the extra width each channel reserves for the arrows routing
-// along it, keyed by container dotted path ("" = the document root). It is the
-// output of the routing pass and the input to the second (widened) layout pass.
+// widenDemand is the extra space each track boundary reserves for the arrows
+// routing along it, keyed by container dotted path ("" = the document root). It is
+// the output of the routing pass and the input to the second (widened) layout pass.
+// cols holds per-column-boundary extra (vertical runs), rows per-row-boundary extra
+// (horizontal runs); root is the column boundaries between top-level nodes.
 type widenDemand struct {
-	gaps  map[string][]float64  // container path -> per-gap extra (len = children+1)
-	rails map[string][2]float64 // container path -> [low, high] cross-axis perimeter extra
-	root  []float64             // extra at each gap between top-level nodes (len = roots+1)
+	cols map[string][]float64
+	rows map[string][]float64
+	root []float64
 }
 
-// gapExtraAt returns the widening reserved at gap i of l (0 when none).
-func gapExtraAt(l *layoutNode, i int) float64 {
-	if i >= 0 && i < len(l.gapExtra) {
-		return l.gapExtra[i]
+// colExtraAt / rowExtraAt return the widening reserved at a track boundary (0 when
+// none).
+func colExtraAt(l *layoutNode, i int) float64 {
+	if i >= 0 && i < len(l.colExtra) {
+		return l.colExtra[i]
+	}
+	return 0
+}
+
+func rowExtraAt(l *layoutNode, i int) float64 {
+	if i >= 0 && i < len(l.rowExtra) {
+		return l.rowExtra[i]
 	}
 	return 0
 }
@@ -79,8 +91,8 @@ func gapExtraAt(l *layoutNode, i int) float64 {
 // layout tree (by path), so calcDimensions/positionNodes can reserve it.
 func annotateWidening(l *layoutNode, d *widenDemand) {
 	if d != nil && !l.isGroup {
-		l.gapExtra = d.gaps[l.path]
-		l.railExtra = d.rails[l.path]
+		l.colExtra = d.cols[l.path]
+		l.rowExtra = d.rows[l.path]
 	}
 	for _, c := range l.children {
 		annotateWidening(c, d)
@@ -365,27 +377,6 @@ func borderWidthOf(d *ast.Declarations, def float64) float64 {
 		return *d.BorderWidth
 	}
 	return def
-}
-
-// hasChildPlacement reports whether any of a node's children opt into explicit
-// grid placement (`col`/`row`/`colSpan`/`rowSpan`). A node without it is a dense
-// auto-flow stack — the case the orthogonal router's 1-D channel widening maps to.
-func hasChildPlacement(l *layoutNode) bool {
-	for _, c := range l.children {
-		if d := c.decls; d != nil && (d.Col != nil || d.Row != nil || d.ColSpan != nil || d.RowSpan != nil) {
-			return true
-		}
-	}
-	return false
-}
-
-// mainHorizontalOf reports whether a node's children flow along the horizontal
-// (main) axis — true for a row-primary arrangement (`rows: M` or `direction:
-// horizontal`), false for col-primary (`cols: N` or `direction: vertical`). It is
-// the grid-aware replacement for a bare direction check.
-func mainHorizontalOf(d *ast.Declarations) bool {
-	_, _, rowPrimary := arrangementOf(d)
-	return rowPrimary
 }
 
 func directionOf(d *ast.Declarations) ast.Direction {

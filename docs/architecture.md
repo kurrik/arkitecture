@@ -47,8 +47,8 @@ github.com/kurrik/arkitecture        (module)
                      layout, arrow routing, emit)
     route.go         arrow endpoint resolution + straight/orthogonal routing
     channel.go       channel-graph router: few-bend A* around an arrow's obstacles
-    widen.go         channel widening: attribute runs to gaps, widen, snap to lanes
-    grid.go          grid arrangement (cols/rows): joint two-axis track sizing + placement
+    widen.go         channel widening: attribute runs to column/row boundaries, widen, snap to lanes
+    grid.go          grid arrangement (cols/rows): joint two-axis track sizing + placement + widening
     testdata/golden/ .ark fixtures + .svg/.error references for the golden test
   cmd/arkitecture/   package main — the CLI (flags, file I/O, watch); imports the library
   wasm/              package main — js,wasm shim exposing ToSVG to JS (+ host stub)
