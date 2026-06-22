@@ -467,6 +467,30 @@ func TestValidateArrangementInBlockErrors(t *testing.T) {
 }
 
 func ptr(f float64) *float64 { return &f }
+func iptr(n int) *int        { return &n }
+
+func TestValidateGridConstraints(t *testing.T) {
+	// cols < 1 is a constraint error.
+	doc := &ast.Document{
+		Nodes:  []*ast.ContainerNode{{ID: "p", Children: []*ast.ContainerNode{{ID: "a"}}}},
+		Layout: []ast.LayoutRule{{Selector: "p", Decls: &ast.Declarations{Cols: iptr(0)}}},
+	}
+	if !containsMsg(Validate(doc), "Node 'p' cols 0 is out of range") {
+		t.Errorf("expected cols range error, got %+v", Validate(doc))
+	}
+
+	// A placement past the declared columns is an out-of-bounds constraint error.
+	doc2 := &ast.Document{
+		Nodes: []*ast.ContainerNode{{ID: "g", Children: []*ast.ContainerNode{{ID: "x"}}}},
+		Layout: []ast.LayoutRule{
+			{Selector: "g", Decls: &ast.Declarations{Cols: iptr(3)}},
+			{Selector: "g.x", Decls: &ast.Declarations{Col: iptr(4), Row: iptr(1)}},
+		},
+	}
+	if !containsMsg(Validate(doc2), "past the 3-column bound") {
+		t.Errorf("expected out-of-bounds grid error, got %+v", Validate(doc2))
+	}
+}
 
 func containsMsg(errs []ast.Error, sub string) bool {
 	for _, e := range errs {

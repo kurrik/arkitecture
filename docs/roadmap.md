@@ -6,6 +6,16 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **`@grid` block → `cols`/`rows` properties** (2026-06-22): the grid track
+  definition is now two plain `@layout` properties (`cols`, optional `rows`)
+  instead of an `@grid { … }` block — the only block-shaped layout property, now
+  uniform with `margin`/`direction`/… (its per-child `col`/`row`/span placement
+  were already plain properties). `ast.Declarations` carries `Cols *int`/`Rows
+  *int` (a node is a grid when `cols` is set); `GridSpec` is kept as the internal
+  `PlaceGrid` input. Behaviour-preserving — the two grid goldens render
+  byte-identically — and the canonical field shape that `direction` will desugar
+  into next. Second step of the direction/grid consolidation. See the ADR in
+  [decisions.md](decisions.md).
 - **Removed the `size` property** (2026-06-22): the `size: f` layout override —
   scaling a node's *orthogonal* dimension to a fraction of what its parent would
   give it — has been dropped from the language (parser, validator, resolver,
@@ -212,9 +222,9 @@ goal is **one arrangement engine** so a stack and a grid share placement
 vocabulary, and direction'd nodes gain sparse `col`/`row` placement, spans, and
 `justify`/`align` "for free". Concretely:
 
-- **Dissolve the `@grid { … }` block** into plain `cols`/`rows` `@layout`
-  properties (it is the only block-shaped layout property; its per-child
-  placement props are already plain properties).
+- ✅ **Dissolve the `@grid { … }` block** into plain `cols`/`rows` `@layout`
+  properties — *done* (see *Done* above); `ast.Declarations` now carries
+  `Cols`/`Rows`.
 - **`direction` becomes sugar** for `cols: 1` / `rows: 1`, kept as the readable
   everyday spelling.
 - **One engine.** The hard part: the grid engine (`generator/grid.go`) uses a

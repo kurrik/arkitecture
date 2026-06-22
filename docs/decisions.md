@@ -18,6 +18,32 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-22 — `@grid {}` block dissolved into `cols`/`rows` properties
+**Choice:** Replace the `@grid { cols: N; rows: M? }` block with two plain
+`@layout` properties, `cols` and (optional) `rows`. A node is a grid when it sets
+`cols`. `ast.Declarations.Grid *GridSpec` becomes `Cols *int` / `Rows *int`;
+`GridSpec` survives only as the value passed to `ast.PlaceGrid`, built from
+Cols/Rows at the validator and generator. `@grid` is no longer a recognised
+directive (it reports `Unknown directive '@grid'`).
+**Why:** `@grid` was the only **block-shaped** layout property — everything else
+(`margin`, `direction`, and the grid's own per-child `col`/`row`/`colSpan`/
+`rowSpan` placement) is a flat `property: value`. The block only ever wrapped two
+scalars, so it bought inconsistency for nothing. Flattening it makes the surface
+uniform, gives per-property duplicate detection for free (the validator counts
+`Cols`/`Rows` like any other field), and — the real motive — makes `cols`/`rows`
+the canonical track fields that `direction: vertical | horizontal` will **desugar
+into** (`cols: 1` / `rows: 1`) when the two arrangement modes merge into one
+engine. `@group` stays a block because it genuinely contains a child-arrangement
+list; `@grid` never did.
+**Implications:** A breaking syntax change. Behaviour is otherwise identical — the
+two grid goldens render byte-for-byte the same — so no SVG fixtures changed; only
+the two `.ark` fixtures were rewritten to `cols: N`. Added parser tests
+(`cols`/`rows` parse; `@grid` now rejected; duplicate/non-integer `cols`) and the
+first validator unit test for grid bounds. Next step of the consolidation: route
+`direction` through the grid engine (which needs the margin-collapse box model and
+the orthogonal-routing channel model generalised from 1-D to 2-D tracks — the
+`widen.go` gap/rail indexing is currently 1-D only).
+
 ## 2026-06-22 — Removed the `size` layout property
 **Choice:** Drop `size: f` from the language entirely — the `@layout` property,
 `ast.Declarations.Size`, the parser case, the validator's `0.0–1.0` range check,

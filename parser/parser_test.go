@@ -195,6 +195,23 @@ func TestParseLayoutSheet(t *testing.T) {
 	}
 }
 
+func TestParseGridProperties(t *testing.T) {
+	// `cols`/`rows` are plain @layout properties (no `@grid {}` block); per-child
+	// placement uses col/row/colSpan/rowSpan.
+	doc := parseOK(t, "g { a {} }\n@layout {\n  g { cols: 3; rows: 2 }\n  g.a { col: 1; row: 2; colSpan: 2 }\n}")
+	g := ruleFor(doc, "g")
+	if g == nil || g.Decls.Cols == nil || *g.Decls.Cols != 3 {
+		t.Fatalf("g cols = %+v, want 3", g)
+	}
+	if g.Decls.Rows == nil || *g.Decls.Rows != 2 {
+		t.Errorf("g rows = %v, want 2", g.Decls.Rows)
+	}
+	a := ruleFor(doc, "g.a")
+	if a == nil || a.Decls.Col == nil || *a.Decls.Col != 1 || a.Decls.ColSpan == nil || *a.Decls.ColSpan != 2 {
+		t.Errorf("g.a placement = %+v, want col 1 colSpan 2", a)
+	}
+}
+
 func TestParseAnchorPosition(t *testing.T) {
 	doc := parseOK(t, "a { anchors: [t, c] }\n@layout {\n  a { anchor t: [1.0, 0.0]; anchor c: [0.5, 0.5] }\n}")
 	r := ruleFor(doc, "a")
@@ -441,6 +458,9 @@ func TestParseErrors(t *testing.T) {
 		{"duplicate route", `@layout { route: orthogonal; route: straight }`, ast.ErrorSyntax, "Duplicate document property 'route'"},
 		{"unknown layout property", `a { @layout { foo: 1 } }`, ast.ErrorSyntax, "Unknown layout property 'foo'"},
 		{"duplicate layout property", `a { @layout { margin: 0.5; margin: 0.6 } }`, ast.ErrorSyntax, "Duplicate layout property 'margin'"},
+		{"removed @grid block", `a { @layout { @grid { cols: 2 } } }`, ast.ErrorSyntax, "Unknown directive '@grid'"},
+		{"non-integer cols", `a { @layout { cols: 2.5 } }`, ast.ErrorSyntax, "Invalid cols value '2.5'"},
+		{"duplicate cols", `a { @layout { cols: 2; cols: 3 } }`, ast.ErrorSyntax, "Duplicate layout property 'cols'"},
 		{"style property on node", `a { borderColor: #ff0000 }`, ast.ErrorSyntax, "Layout property 'borderColor' must be set inside an @layout block"},
 		{"non-colour border colour", `a { @layout { borderColor: 5 } }`, ast.ErrorSyntax, "Expected a hex colour (e.g. #ff0000) for borderColor"},
 		{"non-number border width", `a { @layout { borderWidth: thick } }`, ast.ErrorSyntax, "Expected number value for borderWidth"},

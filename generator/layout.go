@@ -223,7 +223,7 @@ func calcDimensions(l *layoutNode, fontSize, defMargin, defBW float64) {
 
 	// A grid node sizes its children's tracks jointly on both axes — the one
 	// thing 1-D packing can't do — instead of stacking along a single direction.
-	if l.decls != nil && l.decls.Grid != nil {
+	if isGrid(l.decls) {
 		calcGrid(l, fontSize, ownMargin, bordered, bw)
 		return
 	}
@@ -501,6 +501,13 @@ func borderWidthOf(d *ast.Declarations, def float64) float64 {
 		return *d.BorderWidth
 	}
 	return def
+}
+
+// isGrid reports whether a node arranges its children as a grid — true when its
+// resolved layout sets `cols` (the 2-D path), false for plain 1-D direction
+// packing.
+func isGrid(d *ast.Declarations) bool {
+	return d != nil && d.Cols != nil
 }
 
 func directionOf(d *ast.Declarations) ast.Direction {

@@ -1,4 +1,4 @@
-# A conventional sequence diagram on the @grid arrangement: 3 fixed columns
+# A conventional sequence diagram on the grid arrangement: 3 fixed columns
 # (participants), rows grow with time. One row per message; the labelled sender
 # and an invisible receiver share that row so the arrow is horizontal. Lanes a
 # message skips carry no cell — sparse placement, no alignment placeholders.
@@ -12,7 +12,7 @@ seq {
 
 @layout {
   margin: 14
-  seq { box: none; @grid { cols: 3 } }
+  seq { box: none; cols: 3 }
 
   seq.hC {col:1; row:1}  seq.hS {col:2; row:1}  seq.hD {col:3; row:1}
   seq.m1s {col:1; row:2}  seq.m1t {col:2; row:2}

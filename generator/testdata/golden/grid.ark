@@ -1,4 +1,4 @@
-# @grid mechanics: a colSpan title, explicit placement, an auto-placed cell
+# Grid mechanics: a colSpan title, explicit placement, an auto-placed cell
 # filling the next free slot, and a justify override (start) inside a span.
 g {
   title{label:"Grid demo"}
@@ -8,7 +8,7 @@ g {
 }
 @layout {
   margin: 8
-  g { @grid { cols: 3 } }
+  g { cols: 3 }
   g.title {col:1; row:1; colSpan:3}
   g.a {col:1; row:2}  g.b {col:2; row:2}  g.c {col:3; row:2}
   g.wide {col:1; row:3; colSpan:2; justify: start}

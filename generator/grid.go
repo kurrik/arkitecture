@@ -49,7 +49,7 @@ func calcGrid(l *layoutNode, fontSize, gap float64, bordered bool, bw float64) {
 		}
 	}
 
-	spec := *l.decls.Grid
+	spec := ast.GridSpec{Cols: *l.decls.Cols, Rows: l.decls.Rows}
 	placed, usedRows, _ := ast.PlaceGrid(spec, cells)
 	cols := spec.Cols
 	if cols < 1 {

@@ -92,9 +92,9 @@ choose controllable.
   margins; a `box: none` parent reserves the same strip but packs its children
   flush below it (it draws no border and adds no perimeter). A leaf needs no band
   (its box already fits its label). See *Box model & margins*.
-- **Grid** — a third child-arrangement mode (`@grid { cols: N; rows: M? }` in a
-  node's `@layout`), the 2-D generalisation of `direction`'s 1-D packing. Children
-  place themselves with `col`/`row` (1-based) and `colSpan`/`rowSpan`, or
+- **Grid** — a third child-arrangement mode (`cols: N` plus optional `rows: M` in
+  a node's `@layout`), the 2-D generalisation of `direction`'s 1-D packing.
+  Children place themselves with `col`/`row` (1-based) and `colSpan`/`rowSpan`, or
   auto-fill the next free slot; tracks are sized jointly on both axes. See *Grid
   arrangement*.
 
@@ -315,15 +315,17 @@ The arrangement is **direct-only**: it is authored on the node itself (inline or
 sheet) and is never imported through `@use` or `kind` (child ids are node-specific,
 so a reusable block carrying an arrangement makes no sense — and is an error).
 
-### Grid arrangement (`@grid`)
+### Grid arrangement (`cols` / `rows`)
 
 A node may arrange its children as a **2-D grid** instead of a 1-D stack — the
-generalisation of `direction`. It is declared in the node's `@layout` and, like
-`@group` regrouping, is **direct-only** (never imported via `@use`/`kind`):
+generalisation of `direction`. The grid is declared with two plain `@layout`
+properties, `cols` (and optional `rows`), alongside `direction`/`margin`/… — a
+node is a grid when it sets `cols`. Like `@group` regrouping, the track def is
+**direct-only** (never imported via `@use`/`kind`):
 
 ```
 @layout {
-  board { @grid { cols: 3 } }       # 3 fixed columns; rows grow with content
+  board { cols: 3 }                 # 3 fixed columns; rows grow with content
   board.title { col: 1; row: 1; colSpan: 3 }
   board.a { col: 1; row: 2 }  board.b { col: 2; row: 2 }  board.c { col: 3; row: 2 }
 }

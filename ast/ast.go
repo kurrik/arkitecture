@@ -121,10 +121,13 @@ type Declarations struct {
 	PathWidth       *float64 // width of arrows starting at this node (default 1)
 	PathColor       *string  // colour of arrows starting at this node, hex (default black)
 
-	// Grid, when set, makes this node arrange its children as a 2-D grid (the
-	// 2-D generalisation of Direction's 1-D packing). Like Arrangement it is
-	// direct-only — never imported via @use/kind.
-	Grid *GridSpec
+	// Cols/Rows make this node arrange its children as a grid: Cols is the fixed
+	// number of columns (rows grow implicitly) — the 2-D generalisation of
+	// Direction's 1-D packing. A node is a grid when Cols is set; Rows, when set,
+	// fixes the row count (a placement past it is an error). Like Arrangement,
+	// both are direct-only — never imported via @use/kind.
+	Cols *int
+	Rows *int
 
 	// Grid placement of *this* node within its parent's grid (meaningful only
 	// when the parent is a grid). Col/Row are 1-based grid lines; nil means
@@ -139,10 +142,10 @@ type Declarations struct {
 	Align   *GridAlign // vertical placement within the cell
 }
 
-// GridSpec is a node's grid track definition. Cols is the fixed number of
-// columns (required); Rows, when set, fixes the row count (a placement past it
-// is an error), otherwise rows grow implicitly to fit the placed children. Gap,
-// when set, overrides the default inter-track spacing.
+// GridSpec is the track definition passed to [PlaceGrid], built from a node's
+// Cols/Rows declarations. Cols is the fixed number of columns (required); Rows,
+// when set, fixes the row count (a placement past it is an error), otherwise rows
+// grow implicitly to fit the placed children.
 type GridSpec struct {
 	Cols int
 	Rows *int

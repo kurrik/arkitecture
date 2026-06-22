@@ -48,7 +48,7 @@ github.com/kurrik/arkitecture        (module)
     route.go         arrow endpoint resolution + straight/orthogonal routing
     channel.go       channel-graph router: few-bend A* around an arrow's obstacles
     widen.go         channel widening: attribute runs to gaps, widen, snap to lanes
-    grid.go          @grid arrangement: joint two-axis track sizing + placement
+    grid.go          grid arrangement (cols/rows): joint two-axis track sizing + placement
     testdata/golden/ .ark fixtures + .svg/.error references for the golden test
   cmd/arkitecture/   package main — the CLI (flags, file I/O, watch); imports the library
   wasm/              package main — js,wasm shim exposing ToSVG to JS (+ host stub)
@@ -131,7 +131,7 @@ semantic layer and a layout layer:
   a bare `margin:` at a sheet root (the document default, distinguished from a
   selector by the `:`), `@block` definitions, `@use` imports, `@group` child
   arrangements inside `@layout` (a bare identifier with no `:` is a child
-  reference), the `@grid { cols/rows }` arrangement and per-child `col`/`row`/
+  reference), the `cols`/`rows` grid track properties and per-child `col`/`row`/
   `colSpan`/`rowSpan`/`justify`/`align` placement, and arrows. Nodes,
   `@layout` sheets, and arrows may appear in **any order** at the top level — each
   statement is dispatched by lookahead (an identifier reaching `-->` is an arrow),
@@ -173,7 +173,7 @@ semantic layer and a layout layer:
   `Arrangement` when present, otherwise semantic child order — a `@group` becomes a
   synthetic invisible node that adds no path segment, so its children keep their
   real paths), reads each node's resolved declarations, sizes bottom-up applying
-  the vertical/horizontal rules (or, when a node sets `@grid`, `grid.go`'s joint
+  the vertical/horizontal rules (or, when a node sets `cols`, `grid.go`'s joint
   two-axis track sizing + per-cell placement/alignment), the label band a labelled
   parent reserves (a top/bottom strip — a wall in a bordered parent, flush-packed
   reserved space in a `box: none` one) — falling back to the document's
