@@ -47,6 +47,7 @@ type layoutNode struct {
 	borderW   float64            // effective border width (geometry inset + stroke width)
 	isGroup   bool               // true for an anonymous @group: invisible, unaddressable
 	children  []*layoutNode
+	grid      *gridInfo // non-nil when this node lays its children out as a grid
 
 	// Channel widening (route: orthogonal). gapExtra[i] is extra main-axis space
 	// reserved at gap i (0 = leading perimeter … len(children) = trailing perimeter,
@@ -220,6 +221,13 @@ func calcDimensions(l *layoutNode, fontSize, defMargin, defBW float64) {
 		return
 	}
 
+	// A grid node sizes its children's tracks jointly on both axes — the one
+	// thing 1-D packing can't do — instead of stacking along a single direction.
+	if l.decls != nil && l.decls.Grid != nil {
+		calcGrid(l, fontSize, ownMargin, bordered, bw)
+		return
+	}
+
 	// Effective margin: a transparent box:none group carries its children's
 	// margins outward (the larger of its own and theirs).
 	l.margin = ownMargin
@@ -339,6 +347,11 @@ func positionNodes(l *layoutNode, x, y float64) {
 	childY := y
 	if l.labelBand > 0 && labelPositionOf(l.decls) != ast.LabelBottom {
 		childY = y + l.labelBand
+	}
+
+	if l.grid != nil {
+		positionGrid(l, x, childY)
+		return
 	}
 
 	// Mirror calcDimensions' widening: the leading gap and each between-children

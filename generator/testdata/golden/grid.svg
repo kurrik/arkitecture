@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="123" height="105" viewBox="-0.5 -0.5 123 105">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+            refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <polygon points="0 0, 10 3.5, 0 7" fill="black" />
+    </marker>
+  </defs>
+
+  <!-- Node rectangles and labels -->
+  <rect x="0" y="0" width="122" height="104" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <rect x="8" y="8" width="106" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="61" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Grid demo</text>
+  <rect x="8" y="40" width="29.5" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="22.75" y="52" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">A</text>
+  <rect x="45.5" y="40" width="29.5" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="60.25" y="52" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">B</text>
+  <rect x="83" y="40" width="31" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="98.5" y="52" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">C</text>
+  <rect x="8" y="72" width="67" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="41.5" y="84" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">spans two</text>
+  <rect x="83" y="72" width="31" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="98.5" y="84" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">auto</text>
+</svg>

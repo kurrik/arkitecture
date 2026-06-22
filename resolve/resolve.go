@@ -84,6 +84,11 @@ func Resolve(doc *ast.Document) Layout {
 			if r.Decls != nil && r.Decls.Arrangement != nil {
 				merged.Arrangement = r.Decls.Arrangement
 			}
+			// The grid arrangement is direct-only too (mergeDecls leaves it
+			// untouched), so a later direct rule is the only thing that sets it.
+			if r.Decls != nil && r.Decls.Grid != nil {
+				merged.Grid = r.Decls.Grid
+			}
 		}
 
 		out[path] = merged
@@ -169,6 +174,24 @@ func mergeDecls(dst, src *ast.Declarations) {
 	}
 	if src.PathColor != nil {
 		dst.PathColor = src.PathColor
+	}
+	if src.Col != nil {
+		dst.Col = src.Col
+	}
+	if src.Row != nil {
+		dst.Row = src.Row
+	}
+	if src.ColSpan != nil {
+		dst.ColSpan = src.ColSpan
+	}
+	if src.RowSpan != nil {
+		dst.RowSpan = src.RowSpan
+	}
+	if src.Justify != nil {
+		dst.Justify = src.Justify
+	}
+	if src.Align != nil {
+		dst.Align = src.Align
 	}
 	for name, pos := range src.Anchors {
 		if dst.Anchors == nil {

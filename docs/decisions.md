@@ -18,6 +18,46 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-22 — `@grid` arrangement (2-D layout)
+**Choice:** Add a grid as a third arrangement mode alongside `direction:
+vertical|horizontal`. A node declares `@grid { cols: N; rows: M? }` in its
+`@layout` (direct-only, like `@group`); each child places itself with `col` /
+`row` (1-based grid lines) and `colSpan` / `rowSpan` (default 1), or omits them
+to **auto-place** into the next free slot (left→right, top→bottom, sparse —
+the cursor only advances). `cols` is fixed; `rows` grows implicitly when
+unset. Each child aligns within its (possibly spanning) cell via `justify`
+(horizontal) and `align` (vertical), each `start | end | stretch` (default
+`stretch`). The pure placement algorithm lives in `ast.PlaceGrid` (shared by
+the validator's bounds/overlap checks and the generator's geometry); track
+sizing is joint on both axes (single-track cells set their column width / row
+height; a spanning cell distributes any shortfall evenly across the tracks it
+covers) in `generator/grid.go`. A cell — or its span extent — outside the
+declared bounds, or two cells overlapping, is a **constraint** validation
+error.
+**Why:** Nested 1-D packing can align the stacking axis but never the
+orthogonal one (each row packs its cells at independent widths), so a table or
+sequence diagram could only be *emulated* by hand-padding every column to equal
+height with invisible placeholder cells — alignment by coincidence, not by
+rule. A grid sizes both track axes together, which is genuinely new capability,
+and explicit `col`/`row` make placement **sparse** (a skipped lane needs no
+placeholder). It stays inside *manual, deterministic layout*: placement is an
+explicit per-node property and auto-flow is a fixed, predictable, overridable
+rule — the 2-D generalisation of the auto-packing `direction` already does, not
+the forbidden force-directed/graph auto-*placement*. The recommended pattern
+(prototyped for sequence diagrams) is to keep the cells **flat children of one
+grid node** so the grid is a single-level operation and `@group` regrouping is
+never needed to build the lanes.
+**Implications:** `Declarations` gained `Grid *GridSpec` plus the placement/
+alignment fields (all pointers, so "unset" stays distinguishable; `Grid` is
+merged direct-only in resolve, like `Arrangement`). Two goldens lock it in
+(`grid`, `grid-sequence`). v1 limits, tracked as follow-ups: an empty track
+collapses to zero (no implicit min-size spacer rows yet); `stretch` resizes a
+cell child *after* its own subtree was sized, so stretching a *container* child
+can misalign its interior (leaves — the common case — are fine); inter-track
+gap reuses the grid node's margin rather than a dedicated `gap`; and a grid
+ignores any `@group` arrangement on the same node (grid wins). Arrows are
+unaffected — grid children are ordinary nodes with ordinary paths.
+
 ## 2026-06-21 — Grow the canvas `viewBox` to fit border strokes
 **Choice:** Size the SVG viewport to the content bounds *plus each border's stroke
 overflow* — half a border width, since an SVG stroke is centred on the box edge —

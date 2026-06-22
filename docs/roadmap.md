@@ -6,6 +6,21 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **`@grid` arrangement (2-D layout)** (2026-06-22): a third child-arrangement
+  mode beside `direction`, declared `@grid { cols: N; rows: M? }` in a node's
+  `@layout` (direct-only, like `@group`). Children place themselves with `col`/
+  `row` + `colSpan`/`rowSpan` or auto-fill the next free slot (sparse, l→r/t→b);
+  `cols` is fixed, `rows` grows implicitly. Tracks are sized jointly on both axes
+  (single-track cells set column width / row height; a spanning cell distributes
+  the shortfall) — the thing nested packing can't do — and each child aligns in
+  its cell via `justify`/`align` (`start`/`end`/`stretch`, default stretch). A
+  cell outside the declared bounds (including its span extent) or overlapping
+  another is a constraint error. The pure `ast.PlaceGrid` is shared by the
+  validator and the generator (`generator/grid.go`); two goldens lock it in
+  (`grid`, `grid-sequence` — a sequence diagram with sparse, placeholder-free
+  placement). Prototyped to make conventional sequence/table diagrams expressible
+  without the hand-padded-placeholder hack. Follow-ups below. See the ADR in
+  [decisions.md](decisions.md).
 - **Per-element styling + consistent line weight** (2026-06-21): `@layout` gained a
   visual layer — `borderWidth`/`borderColor`/`backgroundColor` (a node's box) and
   `pathWidth`/`pathColor` (the arrows that *start* at a node), as hex colours and
@@ -179,6 +194,19 @@ tracks below; each is independently shippable. The *model* lives in
 Auto edge routing — sized channels has **shipped** (see *Recently shipped* above);
 its only parked follow-ups are crossing-minimised lane ordering and a per-arrow
 `route:` override.
+
+### `@grid` follow-ups
+
+- **Min-size / spacer tracks:** an empty grid track currently collapses to zero —
+  add an optional minimum (or a `gap`/track-size knob) so an empty row can act as
+  deliberate vertical spacing.
+- **`stretch` on a container child:** stretch resizes a cell child *after* its own
+  subtree was laid out, so a stretched *container* can misalign its interior
+  (leaves are unaffected) — re-layout the subtree at the stretched size.
+- **Dedicated `gap`:** the inter-track gap reuses the grid node's `margin`; a
+  first-class `gap` (and possibly per-axis) would separate the two.
+- **Grid + `@group`:** a grid currently ignores any `@group` arrangement on the
+  same node — decide whether a group may occupy a cell.
 
 ### Other tracks (lower priority)
 

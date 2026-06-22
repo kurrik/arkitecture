@@ -94,6 +94,11 @@ choose controllable.
   margins; a `box: none` parent reserves the same strip but packs its children
   flush below it (it draws no border and adds no perimeter). A leaf needs no band
   (its box already fits its label). See *Box model & margins*.
+- **Grid** — a third child-arrangement mode (`@grid { cols: N; rows: M? }` in a
+  node's `@layout`), the 2-D generalisation of `direction`'s 1-D packing. Children
+  place themselves with `col`/`row` (1-based) and `colSpan`/`rowSpan`, or
+  auto-fill the next free slot; tracks are sized jointly on both axes. See *Grid
+  arrangement*.
 
 ## The workflow
 
@@ -314,6 +319,58 @@ The arrangement is **direct-only**: it is authored on the node itself (inline or
 sheet) and is never imported through `@use` or `kind` (child ids are node-specific,
 so a reusable block carrying an arrangement makes no sense — and is an error).
 
+### Grid arrangement (`@grid`)
+
+A node may arrange its children as a **2-D grid** instead of a 1-D stack — the
+generalisation of `direction`. It is declared in the node's `@layout` and, like
+`@group` regrouping, is **direct-only** (never imported via `@use`/`kind`):
+
+```
+@layout {
+  board { @grid { cols: 3 } }       # 3 fixed columns; rows grow with content
+  board.title { col: 1; row: 1; colSpan: 3 }
+  board.a { col: 1; row: 2 }  board.b { col: 2; row: 2 }  board.c { col: 3; row: 2 }
+}
+```
+
+- **Tracks.** `cols` is fixed; `rows` is optional and grows implicitly to fit the
+  placed children when omitted (so you fix one axis and let the other extend —
+  fixing columns and letting rows grow is the natural shape for a timeline).
+- **Placement.** A child sets `col`/`row` (1-based grid lines) and optional
+  `colSpan`/`rowSpan` (default 1). A child that sets neither **auto-places** into
+  the next free slot, scanning left→right then top→bottom (sparse — the cursor
+  only moves forward, never backfilling). A skipped slot therefore needs **no
+  placeholder**: placement is sparse by construction.
+- **Cell alignment.** A track is as large as its biggest cell, so a smaller child
+  is positioned within its (possibly spanning) cell by `justify` (horizontal) and
+  `align` (vertical), each `start | end | stretch` (default `stretch`, which fills
+  the cell — and so centres an arrow's endpoint on the track).
+- **Joint track sizing.** Unlike nested packing — which aligns the stacking axis
+  but lets the orthogonal one drift per row — a grid sizes **both** axes together:
+  each single-track cell grows its column to its width and its row to its height,
+  then a spanning cell distributes any shortfall evenly across the tracks it
+  covers. This is the capability packing cannot emulate without hand-padding every
+  column to equal height.
+- **Bounds are enforced.** A cell — or its `colSpan`/`rowSpan` extent — placed
+  outside the declared tracks, or two cells overlapping, is a **constraint** error
+  (the same no-silent-conflict stance as duplicate direct properties).
+
+This stays inside *manual, deterministic layout*: every position is an explicit
+per-node property, and auto-flow is a fixed, predictable, overridable rule — the
+2-D form of the auto-packing `direction` already performs, not auto-*placement*
+that moves the author's arrangement. The intended pattern for tabular diagrams
+(e.g. a sequence diagram: columns = participants, rows = time) is to keep the
+cells as **flat children of one grid node**, so the grid is a single-level
+operation and no `@group` reparenting is needed — regrouping cannot cross the
+semantic tree, but a flat grid never needs to.
+
+> 🚧 **v1 limits** (tracked in the roadmap): an empty track collapses to zero
+> (no min-size spacer rows yet); `stretch` resizes a cell child after its own
+> subtree was sized, so stretching a *container* child can misalign its interior
+> (leaves are fine); the inter-track gap reuses the grid node's `margin` (no
+> dedicated `gap` knob); and a grid ignores any `@group` arrangement on the same
+> node.
+
 ### Both inline and standalone
 
 `@layout { … }` may sit inside a node body (local presentation) or stand alone as
@@ -499,7 +556,9 @@ no-JavaScript fallback.
   force-directed or hierarchical auto-placement that moves the author's
   arrangement. (Auto *routing* — choosing arrow paths without disturbing the
   arrangement — is in scope: M2 cardinal endpoints today, sized-channel orthogonal
-  routing designed above.)
+  routing designed above. The grid's `col`/`row` auto-flow is *not* this: it is a
+  fixed, deterministic, overridable packing rule the author opts into — the 2-D
+  form of `direction`'s existing auto-packing, not engine-decided placement.)
 - **CSS-style cascade** — selectors are exact-path; no wildcards, specificity, or
   inheritance. A deliberate non-feature (see *Semantic vs. layout*).
 - **Parameterized layout blocks** — `@block`/`@use` is parameterless; no mixin
