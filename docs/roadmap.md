@@ -6,6 +6,19 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **Margin-collapse box model in the grid engine** (2026-06-22): `generator/grid.go`
+  now sizes a grid with the *same* box model as 1-D packing instead of a flat
+  uniform gap — each inter-track channel is the collapsed (larger) facing margin of
+  its adjacent children, a bordered grid reserves a perimeter from its edge
+  children's margins, and a `box: none` grid carries its children's margins outward
+  as its effective margin. A new generator test proves a `cols: 1` grid renders
+  **byte-for-byte identical** to a `direction: vertical` stack (label band,
+  perimeter, collapsed channels, cross-axis stretch all matched); the two existing
+  grid goldens are unchanged (uniform margins collapse to the old gap). This is the
+  engine groundwork for routing `direction` through the grid — step (a) of the
+  consolidation. Cross-axis heterogeneous margins now collapse to a track perimeter
+  (a grid keeps tracks aligned) — a deliberate, documented semantic. See the ADR in
+  [decisions.md](decisions.md).
 - **`@grid` block → `cols`/`rows` properties** (2026-06-22): the grid track
   definition is now two plain `@layout` properties (`cols`, optional `rows`)
   instead of an `@grid { … }` block — the only block-shaped layout property, now
@@ -227,14 +240,20 @@ vocabulary, and direction'd nodes gain sparse `col`/`row` placement, spans, and
   `Cols`/`Rows`.
 - **`direction` becomes sugar** for `cols: 1` / `rows: 1`, kept as the readable
   everyday spelling.
-- **One engine.** The hard part: the grid engine (`generator/grid.go`) uses a
-  uniform inter-track `gap`, while 1-D packing (`calcDimensions`) uses the
-  margin-collapse box model — collapsing channels, `box: none` effective-margin
-  propagation, label-band walls, and **channel widening for orthogonal routing**
-  (`gapExtra`/`railExtra`). Merging means teaching the grid engine that box model
-  so a single-track grid reproduces today's stack exactly (and orthogonal routing
-  keeps working). Stage carefully with golden review; uniform-margin grids should
-  stay byte-identical.
+- ✅ **(a) Margin-collapse box model in the grid engine** — *done* (see *Done*
+  above). The grid engine now uses collapsing channels, perimeters from edge
+  children's margins, and `box: none` propagation, with a test proving `cols: 1`
+  ≡ a vertical stack byte-for-byte. Remaining sub-steps:
+- **(b) `direction` becomes sugar** for `cols: 1` / `rows: 1` routed through the
+  grid engine; delete the old 1-D `calcDimensions`/`positionNodes` packing path.
+  Needs `PlaceGrid` to also auto-flow **column-major** (fixed rows, growing cols)
+  for the `rows: 1` (horizontal) case, and the right default cross-alignment
+  (a `box: none` stack does *not* stretch its children, unlike the grid default).
+- **(c) Channel widening for orthogonal routing** must go 2-D: `widen.go`'s
+  `gapIndexAt`/`railSideAt`/`childrenCrossBand` assume children in a single line
+  along one axis, so routing through a grid (or a desugared stack) needs the
+  channel model generalised from 1-D to grid tracks, or orthogonal routing breaks
+  for every stack. Stage carefully with golden review.
 - **Sparse needs spacer tracks.** Sparse 1-D placement only yields *visible* gaps
   once empty tracks have a size — see *Min-size / spacer tracks* below; pair the
   two or "sparse" is a no-op in a stack.

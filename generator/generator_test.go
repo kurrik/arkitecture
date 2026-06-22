@@ -9,6 +9,7 @@ import (
 )
 
 func ptr(s string) *string                        { return &s }
+func iptr(n int) *int                             { return &n }
 func fptr(f float64) *float64                     { return &f }
 func dirp(d ast.Direction) *ast.Direction         { return &d }
 func boxp(b ast.Box) *ast.Box                     { return &b }
@@ -26,6 +27,33 @@ func render(t *testing.T, doc *ast.Document, opts Options) string {
 		t.Fatalf("unexpected errors: %+v", errs)
 	}
 	return svg
+}
+
+func TestGridSingleColumnMatchesVerticalStack(t *testing.T) {
+	// A `cols: 1` grid runs through the grid engine; a `direction: vertical` parent
+	// runs through 1-D packing. With the margin-collapse box model ported into the
+	// grid engine, the two must produce byte-identical SVG (the single-track grid is
+	// the 2-D engine's faithful reproduction of a stack). Children carry a uniform
+	// margin and varied widths, and the parent has a label, so the band, perimeter,
+	// collapsed channels, and cross-axis stretch are all exercised.
+	children := func() []*ast.ContainerNode {
+		return []*ast.ContainerNode{
+			{ID: "a", Label: ptr("Alpha")},
+			{ID: "b", Label: ptr("Beta is wider")},
+			{ID: "c", Label: ptr("C")},
+		}
+	}
+	mk := func(parent *ast.Declarations) *ast.Document {
+		return &ast.Document{
+			Nodes:  []*ast.ContainerNode{{ID: "p", Label: ptr("Parent"), Children: children()}},
+			Layout: []ast.LayoutRule{rule("p", parent), rule("p.a", &ast.Declarations{Margin: fptr(10)}), rule("p.b", &ast.Declarations{Margin: fptr(10)}), rule("p.c", &ast.Declarations{Margin: fptr(10)})},
+		}
+	}
+	stack := render(t, mk(&ast.Declarations{Direction: dirp(ast.Vertical)}), Options{})
+	grid := render(t, mk(&ast.Declarations{Cols: iptr(1)}), Options{})
+	if stack != grid {
+		t.Errorf("cols:1 grid should match a vertical stack byte-for-byte.\n--- stack ---\n%s\n--- grid ---\n%s", stack, grid)
+	}
 }
 
 func TestGenerateMarginSpacing(t *testing.T) {

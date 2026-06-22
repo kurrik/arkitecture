@@ -365,9 +365,20 @@ semantic tree, but a flat grid never needs to.
 > 🚧 **v1 limits** (tracked in the roadmap): an empty track collapses to zero
 > (no min-size spacer rows yet); `stretch` resizes a cell child after its own
 > subtree was sized, so stretching a *container* child can misalign its interior
-> (leaves are fine); the inter-track gap reuses the grid node's `margin` (no
-> dedicated `gap` knob); and a grid ignores any `@group` arrangement on the same
+> (leaves are fine); each inter-track channel is the *collapsed* (larger) facing
+> margin of its adjacent children — the same box model as 1-D packing, but with no
+> dedicated `gap` knob yet; and a grid ignores any `@group` arrangement on the same
 > node.
+
+The grid uses the **same margin-collapse box model as 1-D packing**: an
+inter-track channel is the larger of the facing children's margins, a bordered
+grid reserves a perimeter sized from its edge children's margins, and a
+`box: none` grid carries its children's margins outward. A single-column grid
+therefore reproduces a `direction: vertical` stack exactly, and a single-row grid
+a `horizontal` one — the property the unified engine rests on. (One deliberate
+consequence: where heterogeneous per-child margins meet on the *cross* axis, a
+grid collapses them to one track perimeter rather than insetting each child
+individually as a 1-D stack does — a grid keeps its tracks aligned.)
 
 ### Both inline and standalone
 

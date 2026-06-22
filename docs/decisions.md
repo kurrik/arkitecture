@@ -18,6 +18,36 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-22 — Margin-collapse box model in the grid engine
+**Choice:** Rewrite `generator/grid.go` (`calcGrid`/`positionGrid`) to size a grid
+with the **same margin-collapse box model as 1-D packing** instead of a flat
+uniform `gap`. Each inter-track channel is the collapsed (larger) facing margin of
+the children adjacent across it (`colGap`/`rowGap`, computed per boundary from
+each child's effective margin); a bordered grid reserves a perimeter sized from
+its edge children's margins (`leftPerim`/`rightPerim`/`topPerim`/`botPerim`); a
+`box: none` grid adds no perimeter and carries its children's margins outward as
+its effective margin. Spanning cells distribute their shortfall over the tracks
+*and* the collapsed channels they swallow.
+**Why:** Step (a) of unifying `direction` and the grid into one engine. For the
+merge to be regression-free, a single-track grid must reproduce a `direction`
+stack *exactly* — same channels, perimeter, label band, and cross-axis stretch —
+which a uniform gap could not do (it ignored per-child margins, `box: none`
+transparency, and edge-margin perimeters). A new generator test
+(`TestGridSingleColumnMatchesVerticalStack`) asserts a `cols: 1` grid renders
+byte-for-byte identical to a vertical stack. The two existing grid goldens are
+unchanged because their margins are uniform, where the collapsed channel equals
+the old gap.
+**Implications:** One deliberate semantic shift falls out: where heterogeneous
+per-child margins meet on the **cross** axis, a grid collapses them to a single
+track perimeter rather than insetting each child by its own margin as a 1-D stack
+does — a grid keeps its tracks aligned. (Main-axis collapse is identical to 1-D.)
+This is only visible with differing cross-axis margins in a stack, and will become
+the behaviour of a `direction` stack once step (b) routes it through the grid
+engine. Still open for (b): `PlaceGrid` needs a column-major auto-flow for the
+`rows: 1` (horizontal) case, and the default cross-alignment must depend on
+bordered-ness (a `box: none` stack does not stretch its children). Orthogonal-route
+**widening** still does not apply to grids — step (c) generalises `widen.go` to 2-D.
+
 ## 2026-06-22 — `@grid {}` block dissolved into `cols`/`rows` properties
 **Choice:** Replace the `@grid { cols: N; rows: M? }` block with two plain
 `@layout` properties, `cols` and (optional) `rows`. A node is a grid when it sets
