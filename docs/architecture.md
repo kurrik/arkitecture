@@ -173,8 +173,10 @@ semantic layer and a layout layer:
   `Arrangement` when present, otherwise semantic child order — a `@group` becomes a
   synthetic invisible node that adds no path segment, so its children keep their
   real paths), reads each node's resolved declarations, sizes bottom-up applying
-  the vertical/horizontal rules (or, when a node sets `cols`, `grid.go`'s joint
-  two-axis track sizing + per-cell placement/alignment), the label band a labelled
+  the 1-D vertical/horizontal packing rules for a dense stack, or `grid.go`'s joint
+  two-axis track sizing + per-cell placement/alignment when the node declares
+  `cols`/`rows` or a child opts into placement (`direction` is sugar for a
+  single-track grid, so the two paths are byte-identical), the label band a labelled
   parent reserves (a top/bottom strip — a wall in a bordered parent, flush-packed
   reserved space in a `box: none` one) — falling back to the document's
   `DefaultMargin` (else 8) for any node with no margin — positions top-down, sizes

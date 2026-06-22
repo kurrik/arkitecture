@@ -29,13 +29,14 @@ func render(t *testing.T, doc *ast.Document, opts Options) string {
 	return svg
 }
 
-func TestGridSingleColumnMatchesVerticalStack(t *testing.T) {
-	// A `cols: 1` grid runs through the grid engine; a `direction: vertical` parent
-	// runs through 1-D packing. With the margin-collapse box model ported into the
-	// grid engine, the two must produce byte-identical SVG (the single-track grid is
-	// the 2-D engine's faithful reproduction of a stack). Children carry a uniform
-	// margin and varied widths, and the parent has a label, so the band, perimeter,
-	// collapsed channels, and cross-axis stretch are all exercised.
+func TestGridSingleTrackMatchesStack(t *testing.T) {
+	// `direction` is exactly sugar for a single-track grid: `vertical` ≡ `cols: 1`,
+	// `horizontal` ≡ `rows: 1`. A direction parent runs through 1-D packing; the
+	// equivalent grid runs through the grid engine (the rows:1 case via the
+	// transpose). With the shared margin-collapse box model — including box:none not
+	// stretching — the two must produce byte-identical SVG. Children carry a uniform
+	// margin and varied sizes, and the parent has a label, so band, perimeter,
+	// collapsed channels, and the cross-axis default are all exercised.
 	children := func() []*ast.ContainerNode {
 		return []*ast.ContainerNode{
 			{ID: "a", Label: ptr("Alpha")},
@@ -49,10 +50,48 @@ func TestGridSingleColumnMatchesVerticalStack(t *testing.T) {
 			Layout: []ast.LayoutRule{rule("p", parent), rule("p.a", &ast.Declarations{Margin: fptr(10)}), rule("p.b", &ast.Declarations{Margin: fptr(10)}), rule("p.c", &ast.Declarations{Margin: fptr(10)})},
 		}
 	}
-	stack := render(t, mk(&ast.Declarations{Direction: dirp(ast.Vertical)}), Options{})
-	grid := render(t, mk(&ast.Declarations{Cols: iptr(1)}), Options{})
-	if stack != grid {
-		t.Errorf("cols:1 grid should match a vertical stack byte-for-byte.\n--- stack ---\n%s\n--- grid ---\n%s", stack, grid)
+	none := func(d *ast.Declarations) *ast.Declarations { d.Box = boxp(ast.BoxNone); return d }
+	cases := []struct {
+		name        string
+		stack, grid *ast.Declarations
+	}{
+		{"vertical ≡ cols:1, bordered", &ast.Declarations{Direction: dirp(ast.Vertical)}, &ast.Declarations{Cols: iptr(1)}},
+		{"vertical ≡ cols:1, box:none", none(&ast.Declarations{Direction: dirp(ast.Vertical)}), none(&ast.Declarations{Cols: iptr(1)})},
+		{"horizontal ≡ rows:1, bordered", &ast.Declarations{Direction: dirp(ast.Horizontal)}, &ast.Declarations{Rows: iptr(1)}},
+		{"horizontal ≡ rows:1, box:none", none(&ast.Declarations{Direction: dirp(ast.Horizontal)}), none(&ast.Declarations{Rows: iptr(1)})},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stack := render(t, mk(tc.stack), Options{})
+			grid := render(t, mk(tc.grid), Options{})
+			if stack != grid {
+				t.Errorf("%s: grid should match the stack byte-for-byte.\n--- stack ---\n%s\n--- grid ---\n%s", tc.name, stack, grid)
+			}
+		})
+	}
+}
+
+func TestDirectionStackRoutesPlacementThroughGrid(t *testing.T) {
+	// A child opting into grid placement on a `direction` parent routes the parent
+	// through the grid engine, so explicit col/row are honored (sparse placement
+	// "for free") — and the result is identical to spelling the arrangement with
+	// explicit tracks. Here b (col 1) sits left of a (col 2), reversing source order.
+	mk := func(parent *ast.Declarations) *ast.Document {
+		return &ast.Document{
+			Nodes: []*ast.ContainerNode{{ID: "p", Children: []*ast.ContainerNode{
+				{ID: "a", Label: ptr("Alpha")}, {ID: "b", Label: ptr("Beta")},
+			}}},
+			Layout: []ast.LayoutRule{
+				rule("p", parent),
+				rule("p.a", &ast.Declarations{Col: iptr(2), Row: iptr(1)}),
+				rule("p.b", &ast.Declarations{Col: iptr(1), Row: iptr(1)}),
+			},
+		}
+	}
+	viaDirection := render(t, mk(&ast.Declarations{Direction: dirp(ast.Horizontal)}), Options{})
+	viaGrid := render(t, mk(&ast.Declarations{Rows: iptr(1)}), Options{})
+	if viaDirection != viaGrid {
+		t.Errorf("direction:horizontal + placement should equal rows:1 + placement.\n--- direction ---\n%s\n--- grid ---\n%s", viaDirection, viaGrid)
 	}
 }
 

@@ -223,7 +223,7 @@ func calcDimensions(l *layoutNode, fontSize, defMargin, defBW float64) {
 
 	// A grid node sizes its children's tracks jointly on both axes — the one
 	// thing 1-D packing can't do — instead of stacking along a single direction.
-	if isGrid(l.decls) {
+	if needsGridEngine(l) {
 		calcGrid(l, fontSize, ownMargin, bordered, bw)
 		return
 	}
@@ -503,11 +503,23 @@ func borderWidthOf(d *ast.Declarations, def float64) float64 {
 	return def
 }
 
-// isGrid reports whether a node arranges its children as a grid — true when its
-// resolved layout sets `cols` (the 2-D path), false for plain 1-D direction
-// packing.
-func isGrid(d *ast.Declarations) bool {
-	return d != nil && d.Cols != nil
+// needsGridEngine reports whether a node should be laid out by the grid engine
+// rather than 1-D packing. `direction: vertical|horizontal` is exactly sugar for a
+// single-track grid, so a plain dense stack could use either path (they are proven
+// byte-identical); we keep dense stacks on the 1-D path because it carries the
+// orthogonal-routing channel widening the grid engine does not yet apply. A node
+// goes to the grid engine when it declares explicit tracks (`cols`/`rows`) or any
+// child opts into grid placement (`col`/`row`/`colSpan`/`rowSpan`).
+func needsGridEngine(l *layoutNode) bool {
+	if d := l.decls; d != nil && (d.Cols != nil || d.Rows != nil) {
+		return true
+	}
+	for _, c := range l.children {
+		if d := c.decls; d != nil && (d.Col != nil || d.Row != nil || d.ColSpan != nil || d.RowSpan != nil) {
+			return true
+		}
+	}
+	return false
 }
 
 func directionOf(d *ast.Declarations) ast.Direction {

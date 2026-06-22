@@ -48,31 +48,7 @@ func calcGrid(l *layoutNode, fontSize, ownMargin float64, bordered bool, bw floa
 	}
 	l.labelBand = band
 
-	cells := make([]ast.GridCell, len(l.children))
-	for i, c := range l.children {
-		id := ""
-		if c.node != nil {
-			id = c.node.ID
-		}
-		cells[i] = ast.GridCell{
-			ChildID: id,
-			Col:     derefInt(placementCol(c)),
-			Row:     derefInt(placementRow(c)),
-			ColSpan: derefInt(placementColSpan(c)),
-			RowSpan: derefInt(placementRowSpan(c)),
-		}
-	}
-
-	spec := ast.GridSpec{Cols: *l.decls.Cols, Rows: l.decls.Rows}
-	placed, usedRows, _ := ast.PlaceGrid(spec, cells)
-	cols := spec.Cols
-	if cols < 1 {
-		cols = 1
-	}
-	rows := usedRows
-	if rows < 1 {
-		rows = 1
-	}
+	placed, cols, rows := gridPlacement(l)
 
 	colW := make([]float64, cols+1)
 	rowH := make([]float64, rows+1)
@@ -173,6 +149,15 @@ func positionGrid(l *layoutNode, x, childY float64) {
 		rowY[r] = rowY[r-1] + g.rowH[r-1] + sumTracks(g.rowGap, r-1, r-1)
 	}
 
+	// Default cell alignment follows the box model, uniformly with 1-D packing: a
+	// bordered parent stretches a child to fill its cross axis, while a transparent
+	// box:none parent leaves it at its natural size (start) — so a single-track grid
+	// reproduces a `direction` stack for box:none too, not just bordered. An explicit
+	// justify/align always overrides this default.
+	def := ast.GridStretch
+	if !g.bordered {
+		def = ast.GridStart
+	}
 	for i, pc := range g.placed {
 		ch := l.children[i]
 		cellX := colX[pc.Col]
@@ -180,10 +165,79 @@ func positionGrid(l *layoutNode, x, childY float64) {
 		cellY := rowY[pc.Row]
 		cellH := sumTracks(g.rowH, pc.Row, pc.Row+pc.RowSpan-1) + sumTracks(g.rowGap, pc.Row, pc.Row+pc.RowSpan-2)
 
-		px := alignWithin(cellX, cellW, &ch.dim.width, gridAlignOf(placementJustify(ch)))
-		py := alignWithin(cellY, cellH, &ch.dim.height, gridAlignOf(placementAlign(ch)))
+		px := alignWithin(cellX, cellW, &ch.dim.width, gridAlignOr(placementJustify(ch), def))
+		py := alignWithin(cellY, cellH, &ch.dim.height, gridAlignOr(placementAlign(ch), def))
 		positionNodes(ch, px, py)
 	}
+}
+
+// gridPlacement resolves a grid node's children to placed cells in real (col,row)
+// space, plus the used column and row counts. The arrangement is derived from the
+// node's cols/rows/direction: a col-primary grid (cols fixed, rows grow) runs
+// PlaceGrid directly; a row-primary grid (rows fixed, cols grow — the horizontal /
+// `rows: M` case) is handled by transposing the cells through PlaceGrid (which is
+// always col-fixed, row-major) and transposing the result back, so a single
+// algorithm serves both axes.
+func gridPlacement(l *layoutNode) (placed []ast.PlacedCell, cols, rows int) {
+	cells := make([]ast.GridCell, len(l.children))
+	for i, c := range l.children {
+		id := ""
+		if c.node != nil {
+			id = c.node.ID
+		}
+		cells[i] = ast.GridCell{
+			ChildID: id,
+			Col:     derefInt(placementCol(c)),
+			Row:     derefInt(placementRow(c)),
+			ColSpan: derefInt(placementColSpan(c)),
+			RowSpan: derefInt(placementRowSpan(c)),
+		}
+	}
+
+	primary, secondary, rowPrimary := arrangementOf(l.decls)
+	if rowPrimary {
+		for i := range cells {
+			cells[i].Col, cells[i].Row = cells[i].Row, cells[i].Col
+			cells[i].ColSpan, cells[i].RowSpan = cells[i].RowSpan, cells[i].ColSpan
+		}
+		tplaced, usedT, _ := ast.PlaceGrid(ast.GridSpec{Cols: primary, Rows: secondary}, cells)
+		placed = make([]ast.PlacedCell, len(tplaced))
+		for i, pc := range tplaced {
+			placed[i] = ast.PlacedCell{ChildID: pc.ChildID, Col: pc.Row, Row: pc.Col, ColSpan: pc.RowSpan, RowSpan: pc.ColSpan}
+		}
+		cols, rows = usedT, primary
+	} else {
+		p, usedR, _ := ast.PlaceGrid(ast.GridSpec{Cols: primary, Rows: secondary}, cells)
+		placed, cols, rows = p, primary, usedR
+	}
+	if cols < 1 {
+		cols = 1
+	}
+	if rows < 1 {
+		rows = 1
+	}
+	return placed, cols, rows
+}
+
+// arrangementOf derives a node's grid arrangement from its resolved layout. The
+// primary axis is the fixed one we wrap on; secondary is its optional bound:
+//
+//   - `cols: N` (and optional `rows`) → N fixed columns, rows grow (col-primary).
+//   - `rows: M` (no cols) → M fixed rows, columns grow (row-primary).
+//   - otherwise `direction` decides: vertical ≡ `cols: 1`, horizontal ≡ `rows: 1`.
+//
+// So `direction` is exactly sugar for a single-track grid.
+func arrangementOf(d *ast.Declarations) (primary int, secondary *int, rowPrimary bool) {
+	if d != nil && d.Cols != nil {
+		return *d.Cols, d.Rows, false
+	}
+	if d != nil && d.Rows != nil {
+		return *d.Rows, d.Cols, true
+	}
+	if directionOf(d) == ast.Horizontal {
+		return 1, nil, true
+	}
+	return 1, nil, false
 }
 
 // alignWithin positions a child of size *size within a cell of size cellSize at
@@ -232,9 +286,10 @@ func derefInt(p *int) int {
 	return *p
 }
 
-func gridAlignOf(p *ast.GridAlign) ast.GridAlign {
+// gridAlignOr returns an explicit alignment, or def when the child set none.
+func gridAlignOr(p *ast.GridAlign, def ast.GridAlign) ast.GridAlign {
 	if p == nil {
-		return ast.GridStretch
+		return def
 	}
 	return *p
 }

@@ -6,6 +6,19 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **`direction` unified with the grid engine** (2026-06-22): `direction` is now
+  formally sugar for a single-track grid — `vertical` ≡ `cols: 1`, `horizontal` ≡
+  `rows: 1` — proven byte-for-byte for bordered *and* `box: none`, both axes (a
+  generator test covers all four). `PlaceGrid` gained column-major (row-primary)
+  auto-flow via a transpose, so `rows: M` / horizontal grids work; the default cell
+  alignment now follows the box model (bordered stretches, `box: none` does not),
+  uniformly with stacks. A node authored with `direction` is routed through the grid
+  engine the moment any child opts into placement (`col`/`row`/spans), so stacks
+  gain **sparse placement for free**. Dense stacks stay on the 1-D packing path
+  (byte-identical, and it carries the orthogonal-route widening the grid engine does
+  not yet apply). One golden changed: `grid-sequence` (a `box: none` grid) no longer
+  stretches its cells. Step (b) of the consolidation. See the ADR in
+  [decisions.md](decisions.md).
 - **Margin-collapse box model in the grid engine** (2026-06-22): `generator/grid.go`
   now sizes a grid with the *same* box model as 1-D packing instead of a flat
   uniform gap — each inter-track channel is the collapsed (larger) facing margin of
@@ -244,16 +257,19 @@ vocabulary, and direction'd nodes gain sparse `col`/`row` placement, spans, and
   above). The grid engine now uses collapsing channels, perimeters from edge
   children's margins, and `box: none` propagation, with a test proving `cols: 1`
   ≡ a vertical stack byte-for-byte. Remaining sub-steps:
-- **(b) `direction` becomes sugar** for `cols: 1` / `rows: 1` routed through the
-  grid engine; delete the old 1-D `calcDimensions`/`positionNodes` packing path.
-  Needs `PlaceGrid` to also auto-flow **column-major** (fixed rows, growing cols)
-  for the `rows: 1` (horizontal) case, and the right default cross-alignment
-  (a `box: none` stack does *not* stretch its children, unlike the grid default).
-- **(c) Channel widening for orthogonal routing** must go 2-D: `widen.go`'s
-  `gapIndexAt`/`railSideAt`/`childrenCrossBand` assume children in a single line
-  along one axis, so routing through a grid (or a desugared stack) needs the
-  channel model generalised from 1-D to grid tracks, or orthogonal routing breaks
-  for every stack. Stage carefully with golden review.
+- ✅ **(b) `direction` unified with the grid engine** — *done* (see *Done*
+  above). `direction` is sugar for `cols: 1` / `rows: 1`; `PlaceGrid` auto-flows
+  column-major (via a transpose) for the horizontal case; the cross-alignment
+  default follows the box model. Stacks gain sparse placement, routed to the grid
+  engine when a child opts in.
+- **(c) Delete the 1-D path + 2-D channel widening.** Dense stacks still take the
+  1-D `calcDimensions`/`positionNodes` packing path, kept *only* because it carries
+  the orthogonal-route channel widening the grid engine cannot yet apply:
+  `widen.go`'s `gapIndexAt`/`railSideAt`/`childrenCrossBand` assume children in a
+  single line along one axis. Generalising the channel model from 1-D to grid
+  tracks lets the grid engine widen too — at which point the 1-D path can be
+  deleted and there is a single engine. Until then, `route: orthogonal` through a
+  multi-track grid is unsupported. Stage carefully with golden review.
 - **Sparse needs spacer tracks.** Sparse 1-D placement only yields *visible* gaps
   once empty tracks have a size — see *Min-size / spacer tracks* below; pair the
   two or "sparse" is a no-op in a stack.

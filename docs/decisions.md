@@ -18,6 +18,37 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-22 — `direction` unified with the grid engine (sugar for a single-track grid)
+**Choice:** `direction: vertical | horizontal` is now formally sugar for a
+single-track grid — `vertical` ≡ `cols: 1` (rows grow), `horizontal` ≡ `rows: 1`
+(columns grow) — and a node is routed through the grid engine (`generator/grid.go`)
+when it declares explicit tracks **or** any child opts into placement
+(`col`/`row`/`colSpan`/`rowSpan`). `PlaceGrid` gained column-major (row-primary)
+auto-flow by transposing cells through the existing col-fixed/row-major algorithm
+(`gridPlacement`/`arrangementOf`), so `rows: M` and horizontal grids work with one
+algorithm. The default cell alignment now follows the box model: a **bordered**
+parent stretches a child to fill its cross axis, a **`box: none`** parent leaves it
+at its natural size (`start`) — an explicit `justify`/`align` still overrides. A
+generator test proves all four single-track cases (`vertical`/`horizontal` ×
+bordered/`box: none`) render byte-for-byte identical to the equivalent `direction`
+stack.
+**Why:** This is the payoff of the consolidation: one arrangement model, so a stack
+*is* a degenerate grid and a `direction` node gains sparse `col`/`row` placement and
+spans "for free". Tying the cross-stretch default to bordered-ness (rather than
+"explicit grids stretch, stacks don't") is what makes the equivalence hold for
+`box: none` too, giving one consistent rule — a transparent container never
+stretches its children, in a stack or a grid alike — instead of two.
+**Implications:** A **hybrid** for now, not yet a single code path: *dense* stacks
+(no per-child placement) stay on the 1-D `calcDimensions`/`positionNodes` path
+because it carries the orthogonal-route channel widening (`gapExtra`/`railExtra`)
+the grid engine does not yet apply (`widen.go` is 1-D-only). The two paths are
+proven byte-identical, so this is invisible — it just defers "delete the 1-D path"
+to step (c) (the 2-D widening generalisation), which is the honest home for it. One
+golden changed: `grid-sequence` (a `box: none` grid) no longer stretches its cells
+to lane width — author `justify: stretch` (or a bordered box) for that look. The
+validator still bounds-checks only explicit-`cols` grids; validating placement on a
+`rows`/`direction` node is a follow-up (the generator clamps safely meanwhile).
+
 ## 2026-06-22 — Margin-collapse box model in the grid engine
 **Choice:** Rewrite `generator/grid.go` (`calcGrid`/`positionGrid`) to size a grid
 with the **same margin-collapse box model as 1-D packing** instead of a flat

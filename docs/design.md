@@ -50,7 +50,9 @@ choose controllable.
   inside a node's arrangement, with no ID and no path segment. See *Presentational
   regrouping* below.
 - **Direction** — `vertical` or `horizontal`: how a node stacks its children, set
-  in `@layout`. Defaults to `vertical`.
+  in `@layout`. Defaults to `vertical`. It is exactly **sugar for a single-track
+  grid**: `vertical` ≡ `cols: 1` (rows grow), `horizontal` ≡ `rows: 1` (columns
+  grow). The two spellings are interchangeable — a stack and a grid are one model.
 - **Anchor** — a named point on a node in relative `[x, y]` coordinates (`[0, 0]`
   top-left … `[1, 1]` bottom-right), used as an arrow endpoint. Every node has an
   implicit centre anchor at `[0.5, 0.5]`.
@@ -373,12 +375,25 @@ semantic tree, but a flat grid never needs to.
 The grid uses the **same margin-collapse box model as 1-D packing**: an
 inter-track channel is the larger of the facing children's margins, a bordered
 grid reserves a perimeter sized from its edge children's margins, and a
-`box: none` grid carries its children's margins outward. A single-column grid
-therefore reproduces a `direction: vertical` stack exactly, and a single-row grid
-a `horizontal` one — the property the unified engine rests on. (One deliberate
+`box: none` grid carries its children's margins outward. The default cell
+alignment follows the box model too — a **bordered** parent stretches a child to
+fill its cross axis, a **`box: none`** parent leaves it at its natural size
+(`start`) — uniformly with how stacks behave; an explicit `justify`/`align`
+overrides it. As a result a single-track grid reproduces a `direction` stack
+**exactly** (bordered *and* `box: none`), which is the property the unified engine
+rests on, and `direction` is just sugar for `cols: 1` / `rows: 1`. (One deliberate
 consequence: where heterogeneous per-child margins meet on the *cross* axis, a
 grid collapses them to one track perimeter rather than insetting each child
-individually as a 1-D stack does — a grid keeps its tracks aligned.)
+individually — a grid keeps its tracks aligned. Another: a `box: none` grid no
+longer stretches its cells, matching `box: none` stacks; author `justify: stretch`
+for the old lane-filling look.)
+
+Because a stack and a grid are one model, a node authored with `direction` (or
+nothing) **gains grid placement for free**: a child may set `col`/`row`/spans to
+place itself sparsely, and the node is routed through the grid engine the moment
+any child does. (Dense stacks with no placement still take the 1-D packing path,
+which is byte-identical and carries the orthogonal-route channel widening the grid
+engine does not yet apply — see the roadmap.)
 
 ### Both inline and standalone
 
