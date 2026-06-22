@@ -94,7 +94,8 @@ worker {}</code></pre>
     <table class="proptable">
       <thead><tr><th>Declaration</th><th>Value</th><th>Meaning</th></tr></thead>
       <tbody>
-        <tr><td><code>direction</code></td><td><code>vertical</code> &middot; <code>horizontal</code></td><td>How children are stacked. Defaults to <code>vertical</code>.</td></tr>
+        <tr><td><code>direction</code></td><td><code>vertical</code> &middot; <code>horizontal</code></td><td>How children are stacked. Defaults to <code>vertical</code>. Sugar for a single-track grid (see <a href="#grid">Grid arrangement</a>).</td></tr>
+        <tr><td><code>cols</code> &middot; <code>rows</code></td><td>number <code>&ge; 1</code></td><td>Arrange children as a 2-D grid: <code>cols</code> fixes the columns (rows grow to fit), <code>rows</code> fixes the rows (columns grow). See <a href="#grid">Grid arrangement</a>.</td></tr>
         <tr><td><code>margin</code></td><td>number <code>&ge; 0</code></td><td>Uniform blank space reserved around the node's border box. Defaults to <code>8</code>; set <code>0</code> to pack flush against siblings.</td></tr>
         <tr><td><code>box</code></td><td><code>none</code> &middot; <code>default</code></td><td>Whether the node draws its border. <code>none</code> makes it invisible — no rectangle — while keeping its id, label, and anchors. Defaults to <code>default</code>.</td></tr>
         <tr><td><code>label</code></td><td><code>top</code> &middot; <code>bottom</code></td><td>Which end of a parent reserves the strip for its label, so the label never overlaps the children. In a bordered parent the strip acts as an inner wall; a <code>box: none</code> parent reserves the same strip and packs its children flush below it. Defaults to <code>top</code>.</td></tr>
@@ -277,6 +278,39 @@ worker {}</code></pre>
       and is never imported through <code>@use</code> or <code>kind</code> (child ids are
       node-specific). In v1 a group can't be bordered or labelled, and <code>@use</code>
       is not allowed inside one.
+    </p>
+
+    <h2 id="grid">Grid arrangement (<code>cols</code> / <code>rows</code>)</h2>
+    <p>
+      For a 2-D layout, give a node <code>cols</code> (and optional <code>rows</code>)
+      instead of a direction: its children place themselves in a grid. This is the
+      generalisation of <code>direction</code> — in fact <code>direction</code> is just
+      <strong>sugar for a single-track grid</strong>: <code>vertical</code> is
+      <code>cols: 1</code> (rows grow), <code>horizontal</code> is <code>rows: 1</code>
+      (columns grow), so a stack and a grid are one model.
+    </p>
+<pre><code>@layout {
+  board { cols: 3 }                            # 3 fixed columns; rows grow with content
+  board.title { col: 1; row: 1; colSpan: 3 }   # a full-width header spanning all three
+  board.web { col: 1; row: 2 }  board.api { col: 2; row: 2 }  board.db { col: 3; row: 2 }
+}</code></pre>
+    <table class="proptable">
+      <thead><tr><th>Per-child placement</th><th>Value</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>col</code> &middot; <code>row</code></td><td>number <code>&ge; 1</code></td><td>The child's 1-based grid line. A child that sets neither <strong>auto-fills</strong> the next free slot (left to right, then top to bottom).</td></tr>
+        <tr><td><code>colSpan</code> &middot; <code>rowSpan</code></td><td>number <code>&ge; 1</code></td><td>How many columns / rows the cell spans. Defaults to <code>1</code>.</td></tr>
+        <tr><td><code>justify</code> &middot; <code>align</code></td><td><code>start</code> &middot; <code>end</code> &middot; <code>stretch</code></td><td>Where a smaller child sits within its (possibly spanning) cell, horizontally / vertically. Defaults to <code>stretch</code> (fills the cell).</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Tracks are sized <strong>jointly on both axes</strong> — each column grows to its
+      widest cell and each row to its tallest — so the grid stays aligned, the thing
+      nested stacks cannot do without hand-padding. Placement is <strong>sparse</strong>:
+      a skipped slot needs no placeholder, and a track that <em>no</em> cell covers
+      reserves a minimum size, so leaving a row empty makes a visible spacer. A cell
+      placed outside the declared tracks, or two cells overlapping, is a constraint
+      error. Like <code>@group</code>, the grid is <strong>direct-only</strong> — never
+      imported through <code>@use</code> or <code>kind</code>.
     </p>
 
     <h2>Arrows &amp; anchors</h2>

@@ -1,0 +1,21 @@
+# A grid arranges children in 2-D. `cols` fixes the columns; children place
+# themselves with col/row, and span tracks with colSpan. Columns and rows are
+# sized jointly, so the cells stay aligned in a tidy table.
+board {
+  label: "Service Map"
+
+  title  { label: "Platform" }
+  web    { label: "Web" }
+  api    { label: "API" }
+  worker { label: "Worker" }
+  store  { label: "Datastore" }
+}
+
+@layout {
+  board { cols: 3 }
+  board.title  { col: 1; row: 1; colSpan: 3 }   # full-width header
+  board.web    { col: 1; row: 2 }
+  board.api    { col: 2; row: 2 }
+  board.worker { col: 3; row: 2 }
+  board.store  { col: 1; row: 3; colSpan: 3 }    # full-width footer
+}

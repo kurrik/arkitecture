@@ -1,0 +1,44 @@
+# Arkitecture grid arrangement — a fully commented reference.
+#
+# A grid arranges a node's children in 2-D — the generalisation of `direction`,
+# which is just sugar for a single-track grid (`vertical` = `cols: 1`,
+# `horizontal` = `rows: 1`). Give the node `cols` (and optionally `rows`); its
+# children place themselves with `col`/`row` and may span tracks with
+# `colSpan`/`rowSpan`. Tracks are sized jointly on both axes, so columns and rows
+# stay aligned — the thing nested stacks can't do without hand-padding.
+
+dashboard {
+  label: "Service Dashboard"
+
+  # The cells. Order here is just the source list; the grid positions them below.
+  title  { label: "Production" }
+  web    { label: "Web" }
+  api    { label: "API" }
+  worker { label: "Worker" }
+  status { label: "All systems go" }
+}
+
+@layout {
+  # Three fixed columns; rows grow to fit the placed cells.
+  dashboard { cols: 3 }
+
+  # `col`/`row` are 1-based grid lines. `colSpan` makes a cell span tracks — here
+  # the title spans all three columns as a full-width header.
+  dashboard.title { col: 1; row: 1; colSpan: 3 }
+
+  # A row of three cells, one per column. Each column grows to its widest cell, so
+  # the three stay aligned in a tidy row.
+  dashboard.web    { col: 1; row: 2 }
+  dashboard.api    { col: 2; row: 2 }
+  dashboard.worker { col: 3; row: 2 }
+
+  # Row 3 is deliberately left empty — no cell is placed there. An empty track
+  # reserves a minimum size, so it becomes a blank spacer between the cells above
+  # and the footer below. (A child could instead auto-fill the next free slot by
+  # setting no col/row at all.)
+
+  # The footer spans the full width on row 4. `justify: start` parks it at the
+  # left of its (spanning) cell instead of stretching to fill it; justify (across)
+  # and align (down) each take start | end | stretch, defaulting to stretch.
+  dashboard.status { col: 1; row: 4; colSpan: 3; justify: start }
+}
