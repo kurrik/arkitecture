@@ -3,7 +3,7 @@
 # A diagram is authored in two layers:
 #   * the SEMANTIC layer — the node tree below: ids, labels, kinds, anchor
 #     NAMES, nesting, and arrows. This is "what the components are".
-#   * the LAYOUT layer — `@layout` blocks: direction, size, margin, box, anchor
+#   * the LAYOUT layer — `@layout` blocks: direction, margin, box, anchor
 #     POSITIONS, and child arrangement (`@group`). This is "where and how they're
 #     drawn".
 # Keeping them apart means layout can be retuned, reused, or swapped without
@@ -21,11 +21,9 @@ c1 {
     label: "Node 1"
 
     # Layout that belongs to just this node can be authored inline with an
-    # `@layout` block. `size` overrides the orthogonal dimension to a fraction
-    # of what the parent would otherwise give the node (0.5 = half), and
-    # `margin` reserves blank space around the node's border box.
+    # `@layout` block. `margin` reserves blank space around the node's border
+    # box (overriding the document default set in the sheet below).
     @layout {
-      size: 0.5
       margin: 12
     }
   }
@@ -94,7 +92,7 @@ row {
   # with `@use`. Unlike a CSS class it matches nothing on its own — importing is
   # explicit and opt-in. Blocks may compose (`@use` another block); cycles error.
   # A block can carry style too, so a whole look is one `@use`.
-  @block emphasis { size: 0.75 }
+  @block emphasis { margin: 4 }
   @block accent { borderColor: #2563eb; borderWidth: 2 }
 
   # `direction` is "vertical" (default) or "horizontal". A labelled parent (like
@@ -116,13 +114,13 @@ row {
   # Anchor positions are relative [x, y] in [0,1]: [0,0] is the top-left corner,
   # [1,1] the bottom-right. `anchor <name>: [x, y]` positions a declared name.
   c1.grp.n3 {
-    @use emphasis           # import emphasis's size (0.75) as a baseline
+    @use emphasis           # import emphasis's margin (4) as a baseline
     anchor a1: [1.0, 0.0]   # top-right corner of n3
     anchor c:  [0.5, 0.5]   # centre of n3 (same as the implicit center)
   }
   c1.grp.n4 {
     @use emphasis             # import the same baseline …
-    size: 1.0                 # … but a direct property overrides the import (no conflict)
+    margin: 16                # … but a direct property overrides the import (no conflict)
     backgroundColor: #fef9c3  # a per-node fill override (keeps the default border)
     anchor a1: [0.0, 0.0]     # top-left corner of n4
   }

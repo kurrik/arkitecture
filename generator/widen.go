@@ -21,24 +21,26 @@ import (
 // inside the node's margin — with lanes half a margin apart; a channel carrying N
 // arrows therefore reserves (N+1)·base/2 of extra width.
 
-// channelRef identifies a widening channel so demand and snapping treat gaps and
-// rails uniformly.
+// channelRef identifies a widening channel. A channel is a track boundary of a
+// container: a *vertical* arrow run travels along a column boundary (and needs
+// horizontal clearance there), a *horizontal* run along a row boundary. This one
+// scheme covers a 1-D stack (one axis a single track) and a 2-D grid uniformly.
 type channelRef struct {
-	path  string  // container dotted path ("" = document root)
-	rail  bool    // true = cross-axis perimeter rail; false = main-axis gap
-	index int     // gap index (0..len children), or rail side (0 = low, 1 = high)
-	base  float64 // base margin to widen from
+	path     string  // container dotted path ("" = document root)
+	vertical bool    // true = column boundary (a vertical run); false = row boundary
+	index    int     // boundary index along that axis (0 = low perimeter … count = high)
+	base     float64 // base margin to widen from
 }
 
 // channelKey identifies a channel without its (constant) base, for grouping the
 // arrows that share it.
 type channelKey struct {
-	path  string
-	rail  bool
-	index int
+	path     string
+	vertical bool
+	index    int
 }
 
-func (r channelRef) key() channelKey { return channelKey{r.path, r.rail, r.index} }
+func (r channelRef) key() channelKey { return channelKey{r.path, r.vertical, r.index} }
 
 // laneMap records, per channel, the lane each arrow occupies (0-based) and how
 // many lanes the channel carries. Several arrows running along one channel are
@@ -95,7 +97,7 @@ func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) 
 		return nil, laneMap{}
 	}
 
-	d := &widenDemand{gaps: map[string][]float64{}, rails: map[string][2]float64{}}
+	d := &widenDemand{cols: map[string][]float64{}, rows: map[string][]float64{}}
 	lm := laneMap{index: map[channelKey]map[int]int{}, count: map[channelKey]int{}}
 	for k, set := range uses {
 		arrowIdxs := make([]int, 0, len(set))
@@ -115,14 +117,12 @@ func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) 
 		// N lanes need (N+1)·base/2 of extra width (giving 2·base + (N−1)·base/2).
 		extra := float64(len(arrowIdxs)+1) * base[k] / 2
 		switch {
-		case k.rail:
-			r := d.rails[k.path]
-			r[k.index] = extra
-			d.rails[k.path] = r
-		case k.path == "":
-			d.root = setAt(d.root, k.index, extra)
+		case k.vertical && k.path == "":
+			d.root = setAt(d.root, k.index, extra) // column boundary between top-level nodes
+		case k.vertical:
+			d.cols[k.path] = setAt(d.cols[k.path], k.index, extra)
 		default:
-			d.gaps[k.path] = setAt(d.gaps[k.path], k.index, extra)
+			d.rows[k.path] = setAt(d.rows[k.path], k.index, extra)
 		}
 	}
 	return d, lm
@@ -144,11 +144,11 @@ func setAt(s []float64, i int, v float64) []float64 {
 // main-axis gap; one parallel to the main axis lies along a cross-axis perimeter
 // rail. The document root has no perimeter, so a run along it is not a channel.
 func findChannel(roots []*layoutNode, p0, p1 point) (channelRef, bool) {
-	horizontal := math.Abs(p0.y-p1.y) < epsilon // the segment runs along X
+	segHorizontal := math.Abs(p0.y-p1.y) < epsilon // the segment runs along X
 	mid := point{(p0.x + p1.x) / 2, (p0.y + p1.y) / 2}
 
+	var container *layoutNode // nil = the document root
 	children := roots
-	mainHorizontal := true // the document root lays top-level nodes out left-to-right
 	path := ""
 	for {
 		inside := -1
@@ -168,24 +168,20 @@ func findChannel(roots []*layoutNode, p0, p1 point) (channelRef, bool) {
 			if len(c.children) == 0 {
 				return channelRef{}, false // midpoint inside a leaf box — not a channel
 			}
+			container = c
 			children = c.children
-			mainHorizontal = directionOf(c.decls) == ast.Horizontal
 			path = c.path
 			continue
 		}
-		// The midpoint is in free space of this container.
-		if horizontal != mainHorizontal {
-			// Perpendicular to the main axis: a between-children gap or perimeter.
-			gi, b, ok := gapIndexAt(children, mainHorizontal, mid)
-			return channelRef{path: path, index: gi, base: b}, ok
+		// The midpoint is in free space of this container. A vertical run travels
+		// along a column boundary (it needs horizontal clearance); a horizontal run
+		// along a row boundary. The segment's own orientation picks the axis.
+		if segHorizontal {
+			idx, b, ok := rowAxis(container, children).boundaryAt(mid.y)
+			return channelRef{path: path, vertical: false, index: idx, base: b}, ok
 		}
-		// Parallel to the main axis: a cross-axis perimeter rail. The root has no
-		// perimeter to widen.
-		if path == "" {
-			return channelRef{}, false
-		}
-		side, b, ok := railSideAt(children, mainHorizontal, mid)
-		return channelRef{path: path, rail: true, index: side, base: b}, ok
+		idx, b, ok := colAxis(container, children).boundaryAt(mid.x)
+		return channelRef{path: path, vertical: true, index: idx, base: b}, ok
 	}
 }
 
@@ -228,119 +224,160 @@ func snapToLanes(pts []point, layout layoutResult, arrowIdx int, lanes laneMap) 
 }
 
 // channelCenterAt returns the centre coordinate of a channel — the lane a run
-// along it snaps to. For a gap it is on the container's main axis; for a rail, on
-// the cross axis.
+// along it snaps to. A column boundary's centre is on X, a row boundary's on Y.
 func channelCenterAt(roots []*layoutNode, ref channelRef) (float64, bool) {
-	if ref.rail {
-		return railCenterAt(roots, ref.path, ref.index)
-	}
-	return gapCenterAt(roots, ref.path, ref.index)
-}
-
-// gapCenterAt returns the centre of gap gi in the container at path, on that
-// container's main axis.
-func gapCenterAt(roots []*layoutNode, path string, gi int) (float64, bool) {
-	var children []*layoutNode
-	var mainHorizontal bool
-	var loEdge, hiEdge float64 // container content edges on the main axis (for perimeter gaps)
-	if path == "" {
-		children = roots
-		mainHorizontal = true
-		if len(children) == 0 {
+	var container *layoutNode
+	children := roots
+	if ref.path != "" {
+		container = nodeByPath(roots, ref.path)
+		if container == nil {
 			return 0, false
 		}
-		loEdge = children[0].dim.x
-		last := children[len(children)-1].dim
-		hiEdge = last.x + last.width
-	} else {
-		c := nodeByPath(roots, path)
-		if c == nil || len(c.children) == 0 {
-			return 0, false
-		}
-		children = c.children
-		mainHorizontal = directionOf(c.decls) == ast.Horizontal
-		b := 0.0
-		if nodeBordered(c) {
-			b = c.borderW
-		}
-		if mainHorizontal {
-			loEdge, hiEdge = c.dim.x+b, c.dim.x+c.dim.width-b
-		} else {
-			loEdge, hiEdge = c.dim.y+b+c.labelBand, c.dim.y+c.dim.height-b
-		}
+		children = container.children
 	}
-	mn := func(l *layoutNode) float64 {
-		if mainHorizontal {
-			return l.dim.x
-		}
-		return l.dim.y
+	if ref.vertical {
+		return colAxis(container, children).center(ref.index)
 	}
-	mf := func(l *layoutNode) float64 {
-		if mainHorizontal {
-			return l.dim.x + l.dim.width
-		}
-		return l.dim.y + l.dim.height
-	}
-	n := len(children)
-	var lo, hi float64
-	switch {
-	case gi <= 0:
-		lo, hi = loEdge, mn(children[0])
-	case gi >= n:
-		lo, hi = mf(children[n-1]), hiEdge
-	default:
-		lo, hi = mf(children[gi-1]), mn(children[gi])
-	}
-	return (lo + hi) / 2, true
+	return rowAxis(container, children).center(ref.index)
 }
 
-// railCenterAt returns the centre of a cross-axis perimeter rail (side 0 = low,
-// 1 = high) in the container at path: the midpoint between the children's cross
-// edge and the container's content edge on that side.
-func railCenterAt(roots []*layoutNode, path string, side int) (float64, bool) {
-	c := nodeByPath(roots, path)
-	if c == nil || len(c.children) == 0 {
+// axisInfo describes one axis (columns or rows) of a container for widening: the
+// number of tracks, each track's near/far edge (1-based; index 0 unused), the
+// container's content lo/hi edges on that axis, the perimeter base margins, and the
+// per-between-boundary base (the collapsed channel margin). It unifies a 1-D stack
+// (one axis a single track) and a 2-D grid. ok is false when the axis is absent
+// (e.g. the document root has no row axis).
+type axisInfo struct {
+	count             int
+	near, far         []float64
+	lo, hi            float64
+	baseLow, baseHigh float64
+	gapBase           []float64 // 1-based; gapBase[k] = base of the boundary between track k and k+1
+	ok                bool
+}
+
+// boundaryAt returns the track boundary (0 = low perimeter … count = high) the
+// coordinate falls in along this axis, plus that boundary's base margin. ok is
+// false when the axis is absent or the coordinate sits inside a track (not a lane).
+func (a axisInfo) boundaryAt(coord float64) (int, float64, bool) {
+	if !a.ok || a.count == 0 {
+		return 0, 0, false
+	}
+	if coord < a.near[1]-epsilon {
+		return 0, a.baseLow, true
+	}
+	for k := 1; k < a.count; k++ {
+		if coord > a.far[k]+epsilon && coord < a.near[k+1]-epsilon {
+			return k, a.gapBase[k], true
+		}
+	}
+	if coord > a.far[a.count]+epsilon {
+		return a.count, a.baseHigh, true
+	}
+	return 0, 0, false
+}
+
+// center returns the centre coordinate of a track boundary — the lane a run along
+// it snaps to.
+func (a axisInfo) center(index int) (float64, bool) {
+	if !a.ok || a.count == 0 {
 		return 0, false
 	}
-	mainHorizontal := directionOf(c.decls) == ast.Horizontal
-	b := 0.0
-	if nodeBordered(c) {
-		b = c.borderW
+	switch {
+	case index <= 0:
+		return (a.lo + a.near[1]) / 2, true
+	case index >= a.count:
+		return (a.far[a.count] + a.hi) / 2, true
+	default:
+		return (a.far[index] + a.near[index+1]) / 2, true
 	}
-	near, far := childrenCrossBand(c.children, mainHorizontal)
-	var contentNear, contentFar float64
-	if mainHorizontal {
-		// Cross axis is Y; the label band sits on it (top by default, bottom if set).
-		contentNear, contentFar = c.dim.y+b, c.dim.y+c.dim.height-b
-		if labelPositionOf(c.decls) == ast.LabelBottom {
-			contentFar -= c.labelBand
-		} else {
-			contentNear += c.labelBand
-		}
-	} else {
-		// Cross axis is X; no band here.
-		contentNear, contentFar = c.dim.x+b, c.dim.x+c.dim.width-b
-	}
-	if side == 0 {
-		return (contentNear + near) / 2, true
-	}
-	return (far + contentFar) / 2, true
 }
 
-// childrenCrossBand returns the span the children collectively occupy on the
-// container's cross axis (min near edge, max far edge).
-func childrenCrossBand(children []*layoutNode, mainHorizontal bool) (near, far float64) {
-	near, far = math.Inf(1), math.Inf(-1)
-	for _, c := range children {
-		var n, f float64
-		if mainHorizontal {
-			n, f = c.dim.y, c.dim.y+c.dim.height
-		} else {
-			n, f = c.dim.x, c.dim.x+c.dim.width
+// colAxis builds the column axis (the channels vertical runs travel along) of a
+// container; container == nil is the document root, a single horizontal row of
+// top-level nodes with no border perimeter.
+func colAxis(container *layoutNode, children []*layoutNode) axisInfo {
+	if container == nil {
+		n := len(children)
+		if n == 0 {
+			return axisInfo{}
 		}
-		near, far = math.Min(near, n), math.Max(far, f)
+		a := axisInfo{count: n, near: make([]float64, n+1), far: make([]float64, n+1), gapBase: make([]float64, n+1), ok: true}
+		for k := 1; k <= n; k++ {
+			a.near[k], a.far[k] = children[k-1].dim.x, children[k-1].dim.x+children[k-1].dim.width
+		}
+		a.lo, a.hi = a.near[1], a.far[n]
+		a.baseLow, a.baseHigh = children[0].margin, children[n-1].margin
+		for k := 1; k < n; k++ {
+			a.gapBase[k] = math.Max(children[k-1].margin, children[k].margin)
+		}
+		return a
 	}
-	return near, far
+	g := container.grid
+	if g == nil {
+		return axisInfo{}
+	}
+	a := trackExtents(g.cols, g.placed, container.children, true)
+	b := 0.0
+	if nodeBordered(container) {
+		b = container.borderW
+	}
+	a.lo, a.hi = container.dim.x+b, container.dim.x+container.dim.width-b
+	a.baseLow, a.baseHigh = g.leftPerim, g.rightPerim
+	a.gapBase = g.colGap
+	return a
+}
+
+// rowAxis builds the row axis (the channels horizontal runs travel along) of a
+// container; the document root has no row axis. The label band sits on this axis,
+// so it shifts the content lo (top band) or hi (bottom band).
+func rowAxis(container *layoutNode, children []*layoutNode) axisInfo {
+	if container == nil || container.grid == nil {
+		return axisInfo{}
+	}
+	g := container.grid
+	a := trackExtents(g.rows, g.placed, container.children, false)
+	b := 0.0
+	if nodeBordered(container) {
+		b = container.borderW
+	}
+	a.lo, a.hi = container.dim.y+b, container.dim.y+container.dim.height-b
+	if container.labelBand > 0 {
+		if labelPositionOf(container.decls) == ast.LabelBottom {
+			a.hi -= container.labelBand
+		} else {
+			a.lo += container.labelBand
+		}
+	}
+	a.baseLow, a.baseHigh = g.topPerim, g.botPerim
+	a.gapBase = g.rowGap
+	return a
+}
+
+// trackExtents computes each grid track's near/far edge on one axis (vertical =
+// columns/X, else rows/Y) from the single-span children placed in it.
+func trackExtents(count int, placed []ast.PlacedCell, children []*layoutNode, vertical bool) axisInfo {
+	a := axisInfo{count: count, near: make([]float64, count+1), far: make([]float64, count+1), ok: count > 0}
+	for k := 1; k <= count; k++ {
+		a.near[k], a.far[k] = math.Inf(1), math.Inf(-1)
+	}
+	for i, pc := range placed {
+		if i >= len(children) {
+			break
+		}
+		ch := children[i]
+		track, span := pc.Row, pc.RowSpan
+		near, far := ch.dim.y, ch.dim.y+ch.dim.height
+		if vertical {
+			track, span = pc.Col, pc.ColSpan
+			near, far = ch.dim.x, ch.dim.x+ch.dim.width
+		}
+		if span == 1 && track >= 1 && track <= count {
+			a.near[track] = math.Min(a.near[track], near)
+			a.far[track] = math.Max(a.far[track], far)
+		}
+	}
+	return a
 }
 
 // nodeByPath returns the layout node with the given dotted path, or nil.
@@ -354,54 +391,4 @@ func nodeByPath(roots []*layoutNode, path string) *layoutNode {
 		}
 	}
 	return nil
-}
-
-// gapIndexAt returns which main-axis gap the point sits in among children laid
-// out along the main axis, and that gap's base margin. ok is false when the point
-// is beside a child on the cross axis (a rail is handled separately).
-func gapIndexAt(children []*layoutNode, mainHorizontal bool, p point) (int, float64, bool) {
-	coord := p.y
-	if mainHorizontal {
-		coord = p.x
-	}
-	for i, c := range children {
-		near, far := c.dim.y, c.dim.y+c.dim.height
-		if mainHorizontal {
-			near, far = c.dim.x, c.dim.x+c.dim.width
-		}
-		if coord < near-epsilon {
-			b := c.margin
-			if i > 0 {
-				b = math.Max(children[i-1].margin, c.margin)
-			}
-			return i, b, true // leading or between-children gap before child i
-		}
-		if coord <= far+epsilon {
-			return 0, 0, false // within child i's main span but beside it — a rail
-		}
-	}
-	n := len(children)
-	return n, children[n-1].margin, true // trailing perimeter
-}
-
-// railSideAt returns which cross-axis rail (0 = low, 1 = high) the point sits in,
-// and the rail's base margin. ok is false when the point is within the children's
-// cross band (not in a perimeter rail).
-func railSideAt(children []*layoutNode, mainHorizontal bool, p point) (int, float64, bool) {
-	near, far := childrenCrossBand(children, mainHorizontal)
-	cross := p.y
-	if !mainHorizontal {
-		cross = p.x
-	}
-	base := 0.0
-	for _, c := range children {
-		base = math.Max(base, c.margin)
-	}
-	switch {
-	case cross < near-epsilon:
-		return 0, base, true // low-side rail (top / left perimeter)
-	case cross > far+epsilon:
-		return 1, base, true // high-side rail (bottom / right perimeter)
-	}
-	return 0, 0, false
 }

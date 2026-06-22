@@ -50,17 +50,17 @@ choose controllable.
   inside a node's arrangement, with no ID and no path segment. See *Presentational
   regrouping* below.
 - **Direction** — `vertical` or `horizontal`: how a node stacks its children, set
-  in `@layout`. Defaults to `vertical`.
+  in `@layout`. Defaults to `vertical`. It is exactly **sugar for a single-track
+  grid**: `vertical` ≡ `cols: 1` (rows grow), `horizontal` ≡ `rows: 1` (columns
+  grow). The two spellings are interchangeable — a stack and a grid are one model.
 - **Anchor** — a named point on a node in relative `[x, y]` coordinates (`[0, 0]`
   top-left … `[1, 1]` bottom-right), used as an arrow endpoint. Every node has an
   implicit centre anchor at `[0.5, 0.5]`.
 - **Arrow** — a directed connection `source --> target`, where each end is a
   (possibly dotted) node path with an optional `#anchor`.
-- **Size** — an override in `[0, 1]` for a node's *orthogonal* dimension, as a
-  fraction of what the parent would otherwise give it.
 - **Semantic vs. layout layers** *(M3)* — structure (`id`, `label`, `kind`,
   anchor *names*, nesting, arrows) is authored separately from presentation
-  (`@layout`: `direction`, `size`, anchor *positions*, `margin`, `box`, child
+  (`@layout`: `direction`, anchor *positions*, `margin`, `box`, child
   arrangement). See the section below.
 - **Kind** *(M4)* — an arbitrary semantic classification on a node
   (`kind: database`) that implicitly applies the layout block of the same name
@@ -94,9 +94,9 @@ choose controllable.
   margins; a `box: none` parent reserves the same strip but packs its children
   flush below it (it draws no border and adds no perimeter). A leaf needs no band
   (its box already fits its label). See *Box model & margins*.
-- **Grid** — a third child-arrangement mode (`@grid { cols: N; rows: M? }` in a
-  node's `@layout`), the 2-D generalisation of `direction`'s 1-D packing. Children
-  place themselves with `col`/`row` (1-based) and `colSpan`/`rowSpan`, or
+- **Grid** — a third child-arrangement mode (`cols: N` plus optional `rows: M` in
+  a node's `@layout`), the 2-D generalisation of `direction`'s 1-D packing.
+  Children place themselves with `col`/`row` (1-based) and `colSpan`/`rowSpan`, or
   auto-fill the next free slot; tracks are sized jointly on both axes. See *Grid
   arrangement*.
 
@@ -107,8 +107,8 @@ choose controllable.
    input with a `.svg` extension).
 3. Read the reported errors — syntax, bad references, out-of-range values — all at
    once, with line/column positions.
-4. Adjust `direction`, nesting, and `size` to shape the layout; add `anchors` to
-   steer arrows.
+4. Adjust `direction`, nesting, and grid placement to shape the layout; add
+   `anchors` to steer arrows.
 5. Re-run, or use `--watch` to regenerate on every save.
 6. Commit the `.ark` source alongside the code it documents.
 
@@ -129,11 +129,9 @@ Layout is bottom-up and deterministic:
   parent reserves the same strip but packs its children flush below it (it adds no
   perimeter of its own, consistent with how it packs them flush everywhere else).
 - A **vertical** parent stacks children top-to-bottom: its width is the widest
-  child; children span the full width unless they set `size`.
+  child; children span the full width.
 - A **horizontal** parent places children left-to-right: its height is the tallest
-  child; children span the full height unless they set `size`.
-- `size: f` scales only the orthogonal dimension to a fraction `f` of the parent;
-  it does not affect the parent's own size.
+  child; children span the full height.
 - Each node reserves a uniform **`margin`** (default 8, or the document's
   **default margin** if set — see below) around its border box. Margins
   **collapse** rather than stack: the channel between two adjacent siblings is the
@@ -170,7 +168,7 @@ Layout is bottom-up and deterministic:
 > ✅ The full `@layout` model has shipped: the **split** (two-layer authoring,
 > `@layout` blocks, exact-path selectors, no-cascade resolution) in M3, **reuse**
 > (`@block`/`@use` and `kind` hooking a layout block) in M4, and presentational
-> **`@group` regrouping** in M5. In M3 the inline `size`/`direction`/`anchors:{pos}`
+> **`@group` regrouping** in M5. In M3 the inline `direction`/`anchors:{pos}`
 > shorthand was **dropped**: a node body is purely semantic and all presentation
 > lives in `@layout`.
 
@@ -182,7 +180,7 @@ principle rejects.
   `id`, optional `label`, its `kind`, the named anchors it exposes, containment
   (nesting = "is part of"), and arrows (relations). The stable part.
 - **Layout layer** (`@layout`) — *where and how* things are drawn: `direction`,
-  `size`, anchor *positions*, whether a node draws a box, and how a node's
+  anchor *positions*, whether a node draws a box, and how a node's
   children are arranged. The frequently-tweaked part, editable without touching
   semantics.
 
@@ -200,7 +198,7 @@ draw a border just sets `box: none` in layout — the spiritual twin of CSS
 
 | Semantic (in the `.ark` structure)  | Layout (in `@layout`)             |
 | ----------------------------------- | --------------------------------- |
-| node `id`, `label` **text**         | `direction`, `size`, `label` **position** |
+| node `id`, `label` **text**         | `direction`, `label` **position**         |
 | `kind` (e.g. `database`)            | implicit `@use database` baseline |
 | anchor **names** (`db`, `north`)    | anchor **positions** (`[x, y]`)   |
 | containment (nesting)               | child **arrangement** + regroup   |
@@ -236,10 +234,10 @@ that matches at a distance:
 
 ```
 @layout {
-  @block service { size: 0.75 }
+  @block service { margin: 16 }
 
   services.userService  { @use service }
-  services.orderService { @use service; size: 0.5 }   # local override (last wins)
+  services.orderService { @use service; margin: 8 }   # local override (last wins)
 }
 ```
 
@@ -279,7 +277,7 @@ Rules:
   `kind` is a semantic tag, so a node may carry one without a matching layout
   block. An explicit **`@use` of an undefined block *is* an error**, because that
   is a layout import the author asked for that cannot be satisfied. (M4 decision.)
-- v1 layout is structural (box, size, direction, anchors), so built-in kinds can
+- v1 layout is structural (box, direction, anchors), so built-in kinds can
   only touch those for now. `kind` is the natural hook for visual styling (colour,
   fonts) if/when that layer lands — part of why the bridge is worth building now.
 
@@ -300,7 +298,7 @@ layout-layer equivalent of an HTML wrapper `<div>`:
 ```
 
 A bare identifier (no `:`) is a child reference; `@group { … }` is a wrapper with
-its own `direction`/`size`/`margin` and nested arrangement. A `@group` is always
+its own `direction`/`margin` and nested arrangement. A `@group` is always
 **invisible** (it renders as `box: none`) and **anonymous** — it has no id and
 adds no path segment, so a child inside a group keeps its real dotted path and
 arrows/anchors are unaffected. (v1: a group can't be bordered or labelled, and
@@ -319,15 +317,17 @@ The arrangement is **direct-only**: it is authored on the node itself (inline or
 sheet) and is never imported through `@use` or `kind` (child ids are node-specific,
 so a reusable block carrying an arrangement makes no sense — and is an error).
 
-### Grid arrangement (`@grid`)
+### Grid arrangement (`cols` / `rows`)
 
 A node may arrange its children as a **2-D grid** instead of a 1-D stack — the
-generalisation of `direction`. It is declared in the node's `@layout` and, like
-`@group` regrouping, is **direct-only** (never imported via `@use`/`kind`):
+generalisation of `direction`. The grid is declared with two plain `@layout`
+properties, `cols` (and optional `rows`), alongside `direction`/`margin`/… — a
+node is a grid when it sets `cols`. Like `@group` regrouping, the track def is
+**direct-only** (never imported via `@use`/`kind`):
 
 ```
 @layout {
-  board { @grid { cols: 3 } }       # 3 fixed columns; rows grow with content
+  board { cols: 3 }                 # 3 fixed columns; rows grow with content
   board.title { col: 1; row: 1; colSpan: 3 }
   board.a { col: 1; row: 2 }  board.b { col: 2; row: 2 }  board.c { col: 3; row: 2 }
 }
@@ -367,9 +367,37 @@ semantic tree, but a flat grid never needs to.
 > 🚧 **v1 limits** (tracked in the roadmap): an empty track collapses to zero
 > (no min-size spacer rows yet); `stretch` resizes a cell child after its own
 > subtree was sized, so stretching a *container* child can misalign its interior
-> (leaves are fine); the inter-track gap reuses the grid node's `margin` (no
-> dedicated `gap` knob); and a grid ignores any `@group` arrangement on the same
+> (leaves are fine); each inter-track channel is the *collapsed* (larger) facing
+> margin of its adjacent children — the same box model as 1-D packing, but with no
+> dedicated `gap` knob yet; and a grid ignores any `@group` arrangement on the same
 > node.
+
+The grid uses the **same margin-collapse box model as 1-D packing**: an
+inter-track channel is the larger of the facing children's margins, a bordered
+grid reserves a perimeter sized from its edge children's margins, and a
+`box: none` grid carries its children's margins outward. The default cell
+alignment follows the box model too — a **bordered** parent stretches a child to
+fill its cross axis, a **`box: none`** parent leaves it at its natural size
+(`start`) — uniformly with how stacks behave; an explicit `justify`/`align`
+overrides it. As a result a single-track grid reproduces a `direction` stack
+**exactly** (bordered *and* `box: none`), which is the property the unified engine
+rests on, and `direction` is just sugar for `cols: 1` / `rows: 1`. (One deliberate
+consequence: where heterogeneous per-child margins meet on the *cross* axis, a
+grid collapses them to one track perimeter rather than insetting each child
+individually — a grid keeps its tracks aligned. Another: a `box: none` grid no
+longer stretches its cells, matching `box: none` stacks; author `justify: stretch`
+for the old lane-filling look.)
+
+Because a stack and a grid are one model, a node authored with `direction` (or
+nothing) **gains grid placement for free**: a child may set `col`/`row`/spans to
+place itself sparsely. There is **one layout engine** — every arranging node runs
+through the grid path; the former 1-D packing code is gone. Channel widening
+(`route: orthogonal`) is likewise unified: a channel is a **track boundary** of a
+container, and an arrow run's orientation alone picks the axis it widens — a
+vertical run reserves a lane at a *column* boundary (the columns spread to hold it),
+a horizontal run at a *row* boundary. This one rule serves a 1-D stack (one axis a
+single track) and a 2-D grid alike, so an arrow routing along a column gap *inside*
+a grid widens that gap exactly as one routing between stacked siblings always has.
 
 ### Both inline and standalone
 

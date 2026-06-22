@@ -9,6 +9,7 @@ import (
 )
 
 func ptr(s string) *string                        { return &s }
+func iptr(n int) *int                             { return &n }
 func fptr(f float64) *float64                     { return &f }
 func dirp(d ast.Direction) *ast.Direction         { return &d }
 func boxp(b ast.Box) *ast.Box                     { return &b }
@@ -26,6 +27,72 @@ func render(t *testing.T, doc *ast.Document, opts Options) string {
 		t.Fatalf("unexpected errors: %+v", errs)
 	}
 	return svg
+}
+
+func TestGridSingleTrackMatchesStack(t *testing.T) {
+	// `direction` is exactly sugar for a single-track grid: `vertical` ≡ `cols: 1`,
+	// `horizontal` ≡ `rows: 1`. A direction parent runs through 1-D packing; the
+	// equivalent grid runs through the grid engine (the rows:1 case via the
+	// transpose). With the shared margin-collapse box model — including box:none not
+	// stretching — the two must produce byte-identical SVG. Children carry a uniform
+	// margin and varied sizes, and the parent has a label, so band, perimeter,
+	// collapsed channels, and the cross-axis default are all exercised.
+	children := func() []*ast.ContainerNode {
+		return []*ast.ContainerNode{
+			{ID: "a", Label: ptr("Alpha")},
+			{ID: "b", Label: ptr("Beta is wider")},
+			{ID: "c", Label: ptr("C")},
+		}
+	}
+	mk := func(parent *ast.Declarations) *ast.Document {
+		return &ast.Document{
+			Nodes:  []*ast.ContainerNode{{ID: "p", Label: ptr("Parent"), Children: children()}},
+			Layout: []ast.LayoutRule{rule("p", parent), rule("p.a", &ast.Declarations{Margin: fptr(10)}), rule("p.b", &ast.Declarations{Margin: fptr(10)}), rule("p.c", &ast.Declarations{Margin: fptr(10)})},
+		}
+	}
+	none := func(d *ast.Declarations) *ast.Declarations { d.Box = boxp(ast.BoxNone); return d }
+	cases := []struct {
+		name        string
+		stack, grid *ast.Declarations
+	}{
+		{"vertical ≡ cols:1, bordered", &ast.Declarations{Direction: dirp(ast.Vertical)}, &ast.Declarations{Cols: iptr(1)}},
+		{"vertical ≡ cols:1, box:none", none(&ast.Declarations{Direction: dirp(ast.Vertical)}), none(&ast.Declarations{Cols: iptr(1)})},
+		{"horizontal ≡ rows:1, bordered", &ast.Declarations{Direction: dirp(ast.Horizontal)}, &ast.Declarations{Rows: iptr(1)}},
+		{"horizontal ≡ rows:1, box:none", none(&ast.Declarations{Direction: dirp(ast.Horizontal)}), none(&ast.Declarations{Rows: iptr(1)})},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stack := render(t, mk(tc.stack), Options{})
+			grid := render(t, mk(tc.grid), Options{})
+			if stack != grid {
+				t.Errorf("%s: grid should match the stack byte-for-byte.\n--- stack ---\n%s\n--- grid ---\n%s", tc.name, stack, grid)
+			}
+		})
+	}
+}
+
+func TestDirectionStackRoutesPlacementThroughGrid(t *testing.T) {
+	// A child opting into grid placement on a `direction` parent routes the parent
+	// through the grid engine, so explicit col/row are honored (sparse placement
+	// "for free") — and the result is identical to spelling the arrangement with
+	// explicit tracks. Here b (col 1) sits left of a (col 2), reversing source order.
+	mk := func(parent *ast.Declarations) *ast.Document {
+		return &ast.Document{
+			Nodes: []*ast.ContainerNode{{ID: "p", Children: []*ast.ContainerNode{
+				{ID: "a", Label: ptr("Alpha")}, {ID: "b", Label: ptr("Beta")},
+			}}},
+			Layout: []ast.LayoutRule{
+				rule("p", parent),
+				rule("p.a", &ast.Declarations{Col: iptr(2), Row: iptr(1)}),
+				rule("p.b", &ast.Declarations{Col: iptr(1), Row: iptr(1)}),
+			},
+		}
+	}
+	viaDirection := render(t, mk(&ast.Declarations{Direction: dirp(ast.Horizontal)}), Options{})
+	viaGrid := render(t, mk(&ast.Declarations{Rows: iptr(1)}), Options{})
+	if viaDirection != viaGrid {
+		t.Errorf("direction:horizontal + placement should equal rows:1 + placement.\n--- direction ---\n%s\n--- grid ---\n%s", viaDirection, viaGrid)
+	}
 }
 
 func TestGenerateMarginSpacing(t *testing.T) {
@@ -59,9 +126,13 @@ func TestGenerateMarginSpacing(t *testing.T) {
 }
 
 func TestGenerateChannelsCollapseToMax(t *testing.T) {
-	// Adjacent margins collapse to the larger of the two, not their sum.
-	// p (vertical, default margin) with a (margin 4) over b (margin 12): the gap
-	// is max(4,12)=12, and each child is inset from the wall by its own margin.
+	// Along the stacking (main) axis, adjacent margins collapse to the larger of the
+	// two, not their sum, and an edge child sets its own perimeter. p (vertical,
+	// default margin) with a (margin 4) over b (margin 12): the gap is max(4,12)=12,
+	// the top perimeter is a's 4 (a bottom=28 → b at y=40). Across the stack (cross
+	// axis) the two share one column, so the unified grid model insets both by the
+	// collapsed max margin (12) at the shared track perimeter — a grid keeps its
+	// tracks aligned rather than insetting each child by its own cross margin.
 	doc := &ast.Document{
 		Nodes: []*ast.ContainerNode{{
 			ID: "p",
@@ -77,11 +148,9 @@ func TestGenerateChannelsCollapseToMax(t *testing.T) {
 		},
 	}
 	svg := render(t, doc, Options{})
-	// a inset by margin 4, b by margin 12; a bottom=28, gap max(4,12)=12 => b at
-	// y=40. (a's width stretches to the cross axis set by b's wider margin box.)
 	for _, want := range []string{
-		`<rect x="4" y="4" width="40" height="24"`,
-		`<rect x="12" y="40" width="24" height="24"`,
+		`<rect x="12" y="4" width="24" height="24"`,  // a: main gap/perimeter per-child (y=4)
+		`<rect x="12" y="40" width="24" height="24"`, // b: collapsed gap 12 → y=40
 	} {
 		if !strings.Contains(svg, want) {
 			t.Errorf("SVG missing %q:\n%s", want, svg)

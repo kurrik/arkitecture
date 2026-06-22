@@ -84,10 +84,13 @@ func Resolve(doc *ast.Document) Layout {
 			if r.Decls != nil && r.Decls.Arrangement != nil {
 				merged.Arrangement = r.Decls.Arrangement
 			}
-			// The grid arrangement is direct-only too (mergeDecls leaves it
-			// untouched), so a later direct rule is the only thing that sets it.
-			if r.Decls != nil && r.Decls.Grid != nil {
-				merged.Grid = r.Decls.Grid
+			// The grid track def (cols/rows) is direct-only too (mergeDecls leaves
+			// it untouched), so a later direct rule is the only thing that sets it.
+			if r.Decls != nil && r.Decls.Cols != nil {
+				merged.Cols = r.Decls.Cols
+			}
+			if r.Decls != nil && r.Decls.Rows != nil {
+				merged.Rows = r.Decls.Rows
 			}
 		}
 
@@ -147,9 +150,6 @@ func mergeDecls(dst, src *ast.Declarations) {
 	}
 	if src.Direction != nil {
 		dst.Direction = src.Direction
-	}
-	if src.Size != nil {
-		dst.Size = src.Size
 	}
 	if src.Margin != nil {
 		dst.Margin = src.Margin

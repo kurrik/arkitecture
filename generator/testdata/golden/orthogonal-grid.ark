@@ -1,0 +1,24 @@
+# Orthogonal routing through a multi-track grid. The arrow leaves B's left edge
+# into the column-1/column-2 gap, runs *down* that gap, and enters E's right edge.
+# A vertical run along a column boundary reserves a lane there, so the grid's two
+# columns spread to hold the line — the 2-D generalisation of channel widening
+# (which previously only widened single-track stacks).
+grid {
+  label: "Grid"
+  a { label: "A" }                b { label: "B" anchors: [out] }
+  c { label: "C" }                d { label: "D" }
+  e { label: "E" anchors: [in] }  f { label: "F" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  grid { cols: 2 }
+  grid.a {col:1; row:1}  grid.b {col:2; row:1}
+  grid.c {col:1; row:2}  grid.d {col:2; row:2}
+  grid.e {col:1; row:3}  grid.f {col:2; row:3}
+  grid.b { anchor out: [0.0, 0.5] }   # left edge of B (column 2, row 1)
+  grid.e { anchor in: [1.0, 0.5] }    # right edge of E (column 1, row 3)
+}
+
+grid.b#out --> grid.e#in

@@ -18,6 +18,172 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-22 — 2-D channel widening: unify the router on track boundaries
+**Choice:** Replace the router's 1-D "main-axis gap vs cross-axis rail" channel
+model with one keyed on **track boundaries**. A channel is a column boundary or a
+row boundary of a container, and a segment's *own orientation* picks which: a
+vertical run travels along a column boundary (it needs horizontal clearance), a
+horizontal run along a row boundary. `widen.go` collapses the old
+`gapIndexAt`/`railSideAt`/`gapCenterAt`/`railCenterAt`/`childrenCrossBand` into a
+single `axisInfo` (track near/far edges, content edges, perimeter and per-gap base
+margins) built by `colAxis`/`rowAxis`; `channelRef` carries `vertical`+`index`
+instead of `rail`+`index`; the demand becomes `colExtra`/`rowExtra` per track
+boundary (replacing `gapExtra`/`railExtra`), applied uniformly in `calcGrid` with
+no single-track gate.
+**Why:** Completes the consolidation. After the 1-D path was deleted, widening was
+still gated to single-track stacks because its channel indexing assumed children in
+a line. The track-boundary framing is the natural 2-D generalisation — a stack is
+just a grid with one axis a single track, so `colExtra[0]`/`colExtra[1]` are the
+old "rails" and `rowExtra` the old "gaps". Unifying removes the gate, the
+transpose-for-widening, and the orientation bookkeeping (`mainHorizontalOf`,
+`gapExtraAt`), and lets `route: orthogonal` widen channels *through a grid*.
+**Implications:** All six existing orthogonal goldens render byte-for-byte
+identical — the unified model provably reproduces the 1-D behaviour for stacks —
+and a new `orthogonal-grid` golden locks in the grid case (an arrow routing down an
+interior column gap spreads the grid's two columns from 16 to 32). `gridInfo` gained
+`rightPerim`/`botPerim` (the router reads all four perimeter bases). The geometric
+attribution derives track extents from child positions + the grid's collapsed
+margins, so it needs no new state on the first (un-widened) pass. Widening across a
+grid with **spanning** cells reads only single-span children for track edges (a
+column of only spanning cells is unhandled — not yet exercised).
+
+## 2026-06-22 — One layout engine: the 1-D packing path deleted
+**Choice:** Route *every* arranging node through the grid engine and delete the
+vertical/horizontal `calcDimensions`/`positionNodes` packing code. To preserve
+`route: orthogonal`, the grid engine learned to apply the channel widening
+(`gapExtra`/`railExtra`) for a **single-track stack**: gapExtra maps onto the
+growing axis's track boundaries (between-rows folded into `rowGap`, the lead/trail
+into the perimeter), railExtra onto the two cross perimeters — added
+unconditionally (a lane is a wall outside the box border). The application is gated
+on a dense single-track stack (`primary == 1 && !hasChildPlacement`), the only
+shape the router's 1-D channel model maps to. `widen.go` now takes the main axis
+from the grid arrangement (`mainHorizontalOf`) instead of a bare `direction` check.
+A bordered grid also distributes a label wider than its content across its columns,
+so stretched children fill the label-widened box exactly as 1-D did.
+**Why:** Completes the consolidation — a stack *is* a single-track grid, so keeping
+a parallel 1-D engine was redundant once the grid could reproduce it (including
+widening). One engine means one place for the box model, the label band, and future
+work. The single-track widening port is provably faithful: all five orthogonal
+goldens render byte-for-byte identical, and no golden changed.
+**Implications:** Channel widening through a **multi-track** grid is still
+unmodelled — `widen.go`'s `gapIndexAt`/`railSideAt`/`childrenCrossBand` assume
+children in a single line — so `route: orthogonal` across a true grid routes
+without widening (unchanged: grids never widened). Generalising the channel graph to
+grid tracks is the tracked follow-up. One generator unit test was updated for the
+cross-axis margin semantic established in the margin-collapse ADR (heterogeneous
+cross margins collapse to one track perimeter); the main (stacking) axis still
+insets per child exactly as before.
+
+## 2026-06-22 — `direction` unified with the grid engine (sugar for a single-track grid)
+**Choice:** `direction: vertical | horizontal` is now formally sugar for a
+single-track grid — `vertical` ≡ `cols: 1` (rows grow), `horizontal` ≡ `rows: 1`
+(columns grow) — and a node is routed through the grid engine (`generator/grid.go`)
+when it declares explicit tracks **or** any child opts into placement
+(`col`/`row`/`colSpan`/`rowSpan`). `PlaceGrid` gained column-major (row-primary)
+auto-flow by transposing cells through the existing col-fixed/row-major algorithm
+(`gridPlacement`/`arrangementOf`), so `rows: M` and horizontal grids work with one
+algorithm. The default cell alignment now follows the box model: a **bordered**
+parent stretches a child to fill its cross axis, a **`box: none`** parent leaves it
+at its natural size (`start`) — an explicit `justify`/`align` still overrides. A
+generator test proves all four single-track cases (`vertical`/`horizontal` ×
+bordered/`box: none`) render byte-for-byte identical to the equivalent `direction`
+stack.
+**Why:** This is the payoff of the consolidation: one arrangement model, so a stack
+*is* a degenerate grid and a `direction` node gains sparse `col`/`row` placement and
+spans "for free". Tying the cross-stretch default to bordered-ness (rather than
+"explicit grids stretch, stacks don't") is what makes the equivalence hold for
+`box: none` too, giving one consistent rule — a transparent container never
+stretches its children, in a stack or a grid alike — instead of two.
+**Implications:** A **hybrid** for now, not yet a single code path: *dense* stacks
+(no per-child placement) stay on the 1-D `calcDimensions`/`positionNodes` path
+because it carries the orthogonal-route channel widening (`gapExtra`/`railExtra`)
+the grid engine does not yet apply (`widen.go` is 1-D-only). The two paths are
+proven byte-identical, so this is invisible — it just defers "delete the 1-D path"
+to step (c) (the 2-D widening generalisation), which is the honest home for it. One
+golden changed: `grid-sequence` (a `box: none` grid) no longer stretches its cells
+to lane width — author `justify: stretch` (or a bordered box) for that look. The
+validator still bounds-checks only explicit-`cols` grids; validating placement on a
+`rows`/`direction` node is a follow-up (the generator clamps safely meanwhile).
+
+## 2026-06-22 — Margin-collapse box model in the grid engine
+**Choice:** Rewrite `generator/grid.go` (`calcGrid`/`positionGrid`) to size a grid
+with the **same margin-collapse box model as 1-D packing** instead of a flat
+uniform `gap`. Each inter-track channel is the collapsed (larger) facing margin of
+the children adjacent across it (`colGap`/`rowGap`, computed per boundary from
+each child's effective margin); a bordered grid reserves a perimeter sized from
+its edge children's margins (`leftPerim`/`rightPerim`/`topPerim`/`botPerim`); a
+`box: none` grid adds no perimeter and carries its children's margins outward as
+its effective margin. Spanning cells distribute their shortfall over the tracks
+*and* the collapsed channels they swallow.
+**Why:** Step (a) of unifying `direction` and the grid into one engine. For the
+merge to be regression-free, a single-track grid must reproduce a `direction`
+stack *exactly* — same channels, perimeter, label band, and cross-axis stretch —
+which a uniform gap could not do (it ignored per-child margins, `box: none`
+transparency, and edge-margin perimeters). A new generator test
+(`TestGridSingleColumnMatchesVerticalStack`) asserts a `cols: 1` grid renders
+byte-for-byte identical to a vertical stack. The two existing grid goldens are
+unchanged because their margins are uniform, where the collapsed channel equals
+the old gap.
+**Implications:** One deliberate semantic shift falls out: where heterogeneous
+per-child margins meet on the **cross** axis, a grid collapses them to a single
+track perimeter rather than insetting each child by its own margin as a 1-D stack
+does — a grid keeps its tracks aligned. (Main-axis collapse is identical to 1-D.)
+This is only visible with differing cross-axis margins in a stack, and will become
+the behaviour of a `direction` stack once step (b) routes it through the grid
+engine. Still open for (b): `PlaceGrid` needs a column-major auto-flow for the
+`rows: 1` (horizontal) case, and the default cross-alignment must depend on
+bordered-ness (a `box: none` stack does not stretch its children). Orthogonal-route
+**widening** still does not apply to grids — step (c) generalises `widen.go` to 2-D.
+
+## 2026-06-22 — `@grid {}` block dissolved into `cols`/`rows` properties
+**Choice:** Replace the `@grid { cols: N; rows: M? }` block with two plain
+`@layout` properties, `cols` and (optional) `rows`. A node is a grid when it sets
+`cols`. `ast.Declarations.Grid *GridSpec` becomes `Cols *int` / `Rows *int`;
+`GridSpec` survives only as the value passed to `ast.PlaceGrid`, built from
+Cols/Rows at the validator and generator. `@grid` is no longer a recognised
+directive (it reports `Unknown directive '@grid'`).
+**Why:** `@grid` was the only **block-shaped** layout property — everything else
+(`margin`, `direction`, and the grid's own per-child `col`/`row`/`colSpan`/
+`rowSpan` placement) is a flat `property: value`. The block only ever wrapped two
+scalars, so it bought inconsistency for nothing. Flattening it makes the surface
+uniform, gives per-property duplicate detection for free (the validator counts
+`Cols`/`Rows` like any other field), and — the real motive — makes `cols`/`rows`
+the canonical track fields that `direction: vertical | horizontal` will **desugar
+into** (`cols: 1` / `rows: 1`) when the two arrangement modes merge into one
+engine. `@group` stays a block because it genuinely contains a child-arrangement
+list; `@grid` never did.
+**Implications:** A breaking syntax change. Behaviour is otherwise identical — the
+two grid goldens render byte-for-byte the same — so no SVG fixtures changed; only
+the two `.ark` fixtures were rewritten to `cols: N`. Added parser tests
+(`cols`/`rows` parse; `@grid` now rejected; duplicate/non-integer `cols`) and the
+first validator unit test for grid bounds. Next step of the consolidation: route
+`direction` through the grid engine (which needs the margin-collapse box model and
+the orthogonal-routing channel model generalised from 1-D to 2-D tracks — the
+`widen.go` gap/rail indexing is currently 1-D only).
+
+## 2026-06-22 — Removed the `size` layout property
+**Choice:** Drop `size: f` from the language entirely — the `@layout` property,
+`ast.Declarations.Size`, the parser case, the validator's `0.0–1.0` range check,
+the resolver merge, and the generator's orthogonal-dimension scaling. A `.ark`
+that still sets `size:` now fails with `Unknown layout property 'size'`.
+**Why:** `size` scaled a node's *orthogonal* dimension to a fraction of "what the
+parent would otherwise give it" — an implicit, direction-dependent reference
+("orthogonal of what, exactly?", and the meaning flips with `direction`) that was
+hard to reason about and didn't generalise to a 2-D grid (which has no single
+orthogonal axis — it uses `justify`/`align` instead). Rather than carry an
+awkward 1-D-only knob into the unified arrangement engine (see below), remove it
+now and reintroduce **explicit** per-node sizing controls later, designed on top
+of the unified model. Considered keeping it as a direction-mode-only affordance;
+rejected because it is exactly the kind of implicit, hard-to-place property the
+cleanup is meant to retire.
+**Implications:** A breaking syntax change (called out in the roadmap). No golden
+fixture used `size`, so SVG output is unchanged and no fixtures were regenerated;
+tests that used `Size` as a representative `*float64` property now use `Margin` /
+`BorderWidth`. This is the first step of consolidating `direction` and `@grid`
+into one arrangement engine — supersedes the parts of the M3 label-band ADR that
+describe the band being applied "before the `size` override" (that override no
+longer exists). Explicit sizing is now a *Planned* item, not a shipped feature.
+
 ## 2026-06-22 — `@grid` arrangement (2-D layout)
 **Choice:** Add a grid as a third arrangement mode alongside `direction:
 vertical|horizontal`. A node declares `@grid { cols: N; rows: M? }` in its

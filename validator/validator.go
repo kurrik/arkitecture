@@ -161,14 +161,28 @@ func (v *validator) validateGrid(selector string, bySelector map[string][]*ast.D
 	}
 }
 
-// mergedGrid returns the grid spec set directly on a node (first non-nil), or nil.
+// mergedGrid returns the grid spec for a node built from its direct `cols`/`rows`
+// declarations, or nil when the node is not a grid (no `cols` set).
 func mergedGrid(decls []*ast.Declarations) *ast.GridSpec {
+	var spec *ast.GridSpec
 	for _, d := range decls {
-		if d != nil && d.Grid != nil {
-			return d.Grid
+		if d == nil {
+			continue
+		}
+		if d.Cols != nil && spec == nil {
+			spec = &ast.GridSpec{Cols: *d.Cols}
 		}
 	}
-	return nil
+	if spec == nil {
+		return nil
+	}
+	for _, d := range decls {
+		if d != nil && d.Rows != nil {
+			spec.Rows = d.Rows
+			break
+		}
+	}
+	return spec
 }
 
 // mergedPlacement gathers a node's direct grid-placement properties across its rules.
@@ -196,9 +210,9 @@ func mergedPlacement(decls []*ast.Declarations) (col, row, colSpan, rowSpan int)
 // validateNoConflicts reports a property set by more than one direct rule on the
 // same node. (A property repeated inside a single block is caught by the parser.)
 func (v *validator) validateNoConflicts(selector string, decls []*ast.Declarations) {
-	var direction, size, margin, box, labelPos, arrangement int
+	var direction, margin, box, labelPos, arrangement int
 	var borderWidth, borderColor, backgroundColor, pathWidth, pathColor int
-	var grid, col, row, colSpan, rowSpan, justify, align int
+	var cols, rows, col, row, colSpan, rowSpan, justify, align int
 	anchors := map[string]int{}
 	for _, d := range decls {
 		if d == nil {
@@ -206,9 +220,6 @@ func (v *validator) validateNoConflicts(selector string, decls []*ast.Declaratio
 		}
 		if d.Direction != nil {
 			direction++
-		}
-		if d.Size != nil {
-			size++
 		}
 		if d.Margin != nil {
 			margin++
@@ -237,8 +248,11 @@ func (v *validator) validateNoConflicts(selector string, decls []*ast.Declaratio
 		if d.PathColor != nil {
 			pathColor++
 		}
-		if d.Grid != nil {
-			grid++
+		if d.Cols != nil {
+			cols++
+		}
+		if d.Rows != nil {
+			rows++
 		}
 		if d.Col != nil {
 			col++
@@ -265,9 +279,9 @@ func (v *validator) validateNoConflicts(selector string, decls []*ast.Declaratio
 	for _, c := range []struct {
 		name  string
 		count int
-	}{{"direction", direction}, {"size", size}, {"margin", margin}, {"box", box}, {"label", labelPos}, {"arrangement", arrangement},
+	}{{"direction", direction}, {"margin", margin}, {"box", box}, {"label", labelPos}, {"arrangement", arrangement},
 		{"borderWidth", borderWidth}, {"borderColor", borderColor}, {"backgroundColor", backgroundColor}, {"pathWidth", pathWidth}, {"pathColor", pathColor},
-		{"grid", grid}, {"col", col}, {"row", row}, {"colSpan", colSpan}, {"rowSpan", rowSpan}, {"justify", justify}, {"align", align}} {
+		{"cols", cols}, {"rows", rows}, {"col", col}, {"row", row}, {"colSpan", colSpan}, {"rowSpan", rowSpan}, {"justify", justify}, {"align", align}} {
 		if c.count > 1 {
 			v.addError(ast.ErrorReference, fmt.Sprintf("Conflicting layout property '%s' on node '%s'", c.name, selector))
 		}
@@ -283,9 +297,6 @@ func (v *validator) validateDeclRanges(selector string, d *ast.Declarations) {
 	if d == nil {
 		return
 	}
-	if d.Size != nil && (*d.Size < 0.0 || *d.Size > 1.0) {
-		v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' size %s is out of range, expected 0.0-1.0", selector, formatNum(*d.Size)))
-	}
 	if d.Margin != nil && *d.Margin < 0.0 {
 		v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' margin %s is out of range, expected >= 0.0", selector, formatNum(*d.Margin)))
 	}
@@ -299,16 +310,10 @@ func (v *validator) validateDeclRanges(selector string, d *ast.Declarations) {
 		name string
 		p    *int
 		min  int
-	}{{"col", d.Col, 1}, {"row", d.Row, 1}, {"colSpan", d.ColSpan, 1}, {"rowSpan", d.RowSpan, 1}} {
+	}{{"cols", d.Cols, 1}, {"rows", d.Rows, 1}, {"col", d.Col, 1}, {"row", d.Row, 1}, {"colSpan", d.ColSpan, 1}, {"rowSpan", d.RowSpan, 1}} {
 		if f.p != nil && *f.p < f.min {
 			v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' %s %d is out of range, expected >= %d", selector, f.name, *f.p, f.min))
 		}
-	}
-	if d.Grid != nil && d.Grid.Cols < 1 {
-		v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' grid cols %d is out of range, expected >= 1", selector, d.Grid.Cols))
-	}
-	if d.Grid != nil && d.Grid.Rows != nil && *d.Grid.Rows < 1 {
-		v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' grid rows %d is out of range, expected >= 1", selector, *d.Grid.Rows))
 	}
 	v.validateColor(fmt.Sprintf("Node '%s' borderColor", selector), d.BorderColor)
 	v.validateColor(fmt.Sprintf("Node '%s' backgroundColor", selector), d.BackgroundColor)
@@ -322,7 +327,7 @@ func (v *validator) validateDeclRanges(selector string, d *ast.Declarations) {
 			v.addError(ast.ErrorConstraint, fmt.Sprintf("Node '%s' anchor '%s' Y coordinate %s is out of range, expected 0.0-1.0", selector, name, formatNum(y)))
 		}
 	}
-	// Group declarations carry their own size/margin; range-check them too.
+	// Group declarations carry their own margin; range-check them too.
 	for _, it := range d.Arrangement {
 		if it.Group != nil {
 			v.validateDeclRanges(selector, it.Group)

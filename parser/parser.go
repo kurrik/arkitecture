@@ -5,7 +5,7 @@
 // The grammar has three kinds of top-level item: semantic nodes, standalone
 // `@layout { … }` sheets, and arrows. A node body holds only semantics (label,
 // kind, anchor names, child nodes) plus an inline `@layout {…}`; layout
-// properties (direction, size, margin, box, anchor positions) live exclusively
+// properties (direction, margin, box, anchor positions) live exclusively
 // inside `@layout` blocks. An inline block is desugared into a LayoutRule
 // selecting the enclosing node's full path, so the resolver and validator treat
 // inline and standalone layout identically. Inside an `@layout` sheet a
@@ -187,7 +187,7 @@ func (p *parser) parseSemanticProperty(node *ast.ContainerNode) {
 		p.parseKind(node)
 	case "anchors":
 		p.parseAnchorNames(node)
-	case "direction", "size", "margin", "box", "borderWidth", "borderColor", "backgroundColor", "pathWidth", "pathColor":
+	case "direction", "margin", "box", "borderWidth", "borderColor", "backgroundColor", "pathWidth", "pathColor":
 		p.addError(ast.ErrorSyntax, fmt.Sprintf("Layout property '%s' must be set inside an @layout block, not on the node", name), propTok.Line, propTok.Column)
 		if !p.check(TokenRBrace) && !p.isAtEnd() {
 			p.advance()
@@ -488,7 +488,7 @@ func (p *parser) parseSelectorBlock() (ast.LayoutRule, bool) {
 }
 
 // parseDeclarations reads the body of an @layout block: `@use` imports plus the
-// direct properties direction, size, margin, box, label position, the style
+// direct properties direction, margin, box, label position, the style
 // properties (border/background/path colour and width), and anchor positions. It
 // returns the `@use` directives in source order. A property set twice in the
 // same block is a syntax error (across-rule duplicates are the validator's job).
@@ -500,16 +500,11 @@ func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
 			continue
 		}
 		if p.check(TokenAt) {
-			// @group is an arrangement entry; @grid is a grid arrangement; any
-			// other @ directive (@use) imports.
+			// @group is an arrangement entry; any other @ directive (@use) imports.
 			if nx := p.peekNext(); nx != nil && nx.Type == TokenIdentifier && nx.Value == "group" {
 				if grp, gtok, ok := p.parseGroup(); ok {
 					d.Arrangement = append(d.Arrangement, ast.ArrangementItem{Group: grp, Line: gtok.Line, Column: gtok.Column})
 				}
-				continue
-			}
-			if nx := p.peekNext(); nx != nil && nx.Type == TokenIdentifier && nx.Value == "grid" {
-				p.parseGrid(d)
 				continue
 			}
 			if u, ok := p.parseUse(); ok {
@@ -542,8 +537,6 @@ func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
 		switch name {
 		case "direction":
 			p.parseDirectionDecl(d, propTok)
-		case "size":
-			p.parseNumberDecl(&d.Size, "size", propTok)
 		case "margin":
 			p.parseNumberDecl(&d.Margin, "margin", propTok)
 		case "box":
@@ -552,6 +545,10 @@ func (p *parser) parseDeclarations(d *ast.Declarations) []ast.Use {
 			p.parseLabelPosDecl(d, propTok)
 		case "borderWidth", "borderColor", "backgroundColor", "pathWidth", "pathColor":
 			p.parseStyleDecl(d, name, propTok)
+		case "cols":
+			p.parseIntDecl(&d.Cols, "cols", propTok)
+		case "rows":
+			p.parseIntDecl(&d.Rows, "rows", propTok)
 		case "col":
 			p.parseIntDecl(&d.Col, "col", propTok)
 		case "row":
@@ -628,64 +625,6 @@ func (p *parser) parseGroup() (*ast.Declarations, Token, bool) {
 		p.addError(ast.ErrorSyntax, "@use is not allowed inside @group", dirTok.Line, dirTok.Column)
 	}
 	return g, dirTok, true
-}
-
-// parseGrid parses an `@grid { cols: N; rows: M }` arrangement directive and
-// stores it on d.Grid. `cols` is required; `rows` is optional (rows grow
-// implicitly when omitted). The caller has confirmed the directive is `@grid`.
-func (p *parser) parseGrid(d *ast.Declarations) {
-	dirTok, ok := p.parseDirective() // consume @grid
-	if !ok {
-		return
-	}
-	if d.Grid != nil {
-		p.addError(ast.ErrorSyntax, "Duplicate layout property 'grid'", dirTok.Line, dirTok.Column)
-	}
-	if !p.check(TokenLBrace) {
-		tok := p.peek()
-		p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected '{' after @grid, got %s", tok.Type), tok.Line, tok.Column)
-		return
-	}
-	p.advance() // consume '{'
-
-	spec := &ast.GridSpec{}
-	for !p.check(TokenRBrace) && !p.isAtEnd() {
-		if p.check(TokenNewline) {
-			p.advance()
-			continue
-		}
-		if !p.check(TokenIdentifier) {
-			tok := p.peek()
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected 'cols' or 'rows' in @grid, got %s", tok.Type), tok.Line, tok.Column)
-			p.advance()
-			continue
-		}
-		key := p.advance()
-		if !p.check(TokenColon) {
-			tok := p.peek()
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected ':' after '%s' in @grid, got %s", key.Value, tok.Type), tok.Line, tok.Column)
-			continue
-		}
-		p.advance() // ':'
-		switch key.Value {
-		case "cols":
-			if n, ok := p.parseIntValue("cols"); ok {
-				spec.Cols = n
-			}
-		case "rows":
-			if n, ok := p.parseIntValue("rows"); ok {
-				spec.Rows = &n
-			}
-		default:
-			p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown @grid property '%s', expected 'cols' or 'rows'", key.Value), key.Line, key.Column)
-		}
-	}
-	if p.check(TokenRBrace) {
-		p.advance()
-	}
-	if d.Grid == nil {
-		d.Grid = spec
-	}
 }
 
 // parseIntValue reads a non-negative integer token (numbers are lexed as

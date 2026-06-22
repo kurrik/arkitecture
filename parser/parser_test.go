@@ -64,7 +64,7 @@ func TestParseSemanticProperties(t *testing.T) {
 }
 
 func TestParseInlineLayout(t *testing.T) {
-	doc := parseOK(t, `a { label: "x" @layout { direction: horizontal; size: 0.5; margin: 12; box: none } }`)
+	doc := parseOK(t, `a { label: "x" @layout { direction: horizontal; margin: 12; box: none } }`)
 	rule := ruleFor(doc, "a")
 	if rule == nil {
 		t.Fatalf("no inline layout rule for 'a': %+v", doc.Layout)
@@ -72,9 +72,6 @@ func TestParseInlineLayout(t *testing.T) {
 	d := rule.Decls
 	if d.Direction == nil || *d.Direction != ast.Horizontal {
 		t.Errorf("direction = %v, want horizontal", d.Direction)
-	}
-	if d.Size == nil || *d.Size != 0.5 {
-		t.Errorf("size = %v, want 0.5", d.Size)
 	}
 	if d.Margin == nil || *d.Margin != 12 {
 		t.Errorf("margin = %v, want 12", d.Margin)
@@ -186,15 +183,32 @@ func TestParseDocumentRoute(t *testing.T) {
 }
 
 func TestParseLayoutSheet(t *testing.T) {
-	doc := parseOK(t, "p { c {} }\n@layout {\n  p { direction: vertical }\n  p.c { size: 0.5 }\n}")
+	doc := parseOK(t, "p { c {} }\n@layout {\n  p { direction: vertical }\n  p.c { margin: 0.5 }\n}")
 	if len(doc.Layout) != 2 {
 		t.Fatalf("got %d rules, want 2: %+v", len(doc.Layout), doc.Layout)
 	}
 	if r := ruleFor(doc, "p"); r == nil || r.Decls.Direction == nil || *r.Decls.Direction != ast.Vertical {
 		t.Errorf("p rule = %+v, want direction vertical", r)
 	}
-	if r := ruleFor(doc, "p.c"); r == nil || r.Decls.Size == nil || *r.Decls.Size != 0.5 {
-		t.Errorf("p.c rule = %+v, want size 0.5", r)
+	if r := ruleFor(doc, "p.c"); r == nil || r.Decls.Margin == nil || *r.Decls.Margin != 0.5 {
+		t.Errorf("p.c rule = %+v, want margin 0.5", r)
+	}
+}
+
+func TestParseGridProperties(t *testing.T) {
+	// `cols`/`rows` are plain @layout properties (no `@grid {}` block); per-child
+	// placement uses col/row/colSpan/rowSpan.
+	doc := parseOK(t, "g { a {} }\n@layout {\n  g { cols: 3; rows: 2 }\n  g.a { col: 1; row: 2; colSpan: 2 }\n}")
+	g := ruleFor(doc, "g")
+	if g == nil || g.Decls.Cols == nil || *g.Decls.Cols != 3 {
+		t.Fatalf("g cols = %+v, want 3", g)
+	}
+	if g.Decls.Rows == nil || *g.Decls.Rows != 2 {
+		t.Errorf("g rows = %v, want 2", g.Decls.Rows)
+	}
+	a := ruleFor(doc, "g.a")
+	if a == nil || a.Decls.Col == nil || *a.Decls.Col != 1 || a.Decls.ColSpan == nil || *a.Decls.ColSpan != 2 {
+		t.Errorf("g.a placement = %+v, want col 1 colSpan 2", a)
 	}
 }
 
@@ -274,7 +288,7 @@ func TestParseFullExample(t *testing.T) {
 
   n2 {
     label: "Node 1"
-    @layout { size: 0.5 }
+    @layout { margin: 0.5 }
   }
 
   grp {
@@ -305,9 +319,9 @@ c1.n2 --> c1.grp.n3#a1`
 func TestParseBlockAndUse(t *testing.T) {
 	doc := parseOK(t, `s { web {} api {} }
 @layout {
-  @block half { size: 0.5 }
+  @block half { margin: 0.5 }
   s.web { @use half }
-  s.api { @use half; size: 0.75 }
+  s.api { @use half; margin: 0.75 }
 }`)
 
 	if len(doc.Blocks) != 1 {
@@ -317,8 +331,8 @@ func TestParseBlockAndUse(t *testing.T) {
 	if b.Name != "half" {
 		t.Errorf("block name = %q, want half", b.Name)
 	}
-	if b.Decls == nil || b.Decls.Size == nil || *b.Decls.Size != 0.5 {
-		t.Errorf("block decls = %+v, want size 0.5", b.Decls)
+	if b.Decls == nil || b.Decls.Margin == nil || *b.Decls.Margin != 0.5 {
+		t.Errorf("block decls = %+v, want margin 0.5", b.Decls)
 	}
 
 	web := ruleFor(doc, "s.web")
@@ -330,26 +344,26 @@ func TestParseBlockAndUse(t *testing.T) {
 	if api == nil || len(api.Uses) != 1 || api.Uses[0].Block != "half" {
 		t.Fatalf("s.api rule = %+v, want one @use half", api)
 	}
-	if api.Decls == nil || api.Decls.Size == nil || *api.Decls.Size != 0.75 {
-		t.Errorf("s.api direct size = %+v, want 0.75", api.Decls)
+	if api.Decls == nil || api.Decls.Margin == nil || *api.Decls.Margin != 0.75 {
+		t.Errorf("s.api direct margin = %+v, want 0.75", api.Decls)
 	}
 }
 
 func TestParseInlineUse(t *testing.T) {
-	doc := parseOK(t, `a { @layout { @use service; size: 0.5 } }`)
+	doc := parseOK(t, `a { @layout { @use service; margin: 0.5 } }`)
 	r := ruleFor(doc, "a")
 	if r == nil || len(r.Uses) != 1 || r.Uses[0].Block != "service" {
 		t.Fatalf("inline rule = %+v, want one @use service", r)
 	}
-	if r.Decls == nil || r.Decls.Size == nil || *r.Decls.Size != 0.5 {
-		t.Errorf("inline direct size = %+v, want 0.5", r.Decls)
+	if r.Decls == nil || r.Decls.Margin == nil || *r.Decls.Margin != 0.5 {
+		t.Errorf("inline direct margin = %+v, want 0.5", r.Decls)
 	}
 }
 
 func TestParseBlockComposition(t *testing.T) {
 	doc := parseOK(t, `@layout {
   @block base { margin: 4 }
-  @block wide { @use base; size: 0.9 }
+  @block wide { @use base; borderWidth: 0.9 }
 }`)
 	if len(doc.Blocks) != 2 {
 		t.Fatalf("got %d blocks, want 2", len(doc.Blocks))
@@ -432,26 +446,28 @@ func TestParseErrors(t *testing.T) {
 		{"unknown property", `a { foo: 1 }`, ast.ErrorSyntax, "Unknown property 'foo'"},
 		{"layout property on node", `a { direction: vertical }`, ast.ErrorSyntax, "Layout property 'direction' must be set inside an @layout block"},
 		{"bad direction", `a { @layout { direction: diagonal } }`, ast.ErrorSyntax, "Invalid direction 'diagonal'"},
-		{"non-number size", `a { @layout { size: x } }`, ast.ErrorSyntax, "Expected number value for size"},
 		{"non-number margin", `a { @layout { margin: "x" } }`, ast.ErrorSyntax, "Expected number value for margin"},
 		{"bad box", `a { @layout { box: solid } }`, ast.ErrorSyntax, "Invalid box 'solid'"},
 		{"bad label position", `a { @layout { label: middle } }`, ast.ErrorSyntax, "Invalid label position 'middle'"},
 		{"duplicate label position", `a { @layout { label: top; label: bottom } }`, ast.ErrorSyntax, "Duplicate layout property 'label'"},
-		{"unknown document default", `@layout { size: 0.5 }`, ast.ErrorSyntax, "Unknown document default 'size'"},
+		{"unknown document default", `@layout { direction: vertical }`, ast.ErrorSyntax, "Unknown document default 'direction'"},
 		{"non-number document default", `@layout { margin: wide }`, ast.ErrorSyntax, "Expected number value for margin"},
 		{"duplicate document default", `@layout { margin: 8; margin: 9 }`, ast.ErrorSyntax, "Duplicate layout property 'margin'"},
 		{"bad route", `@layout { route: curved }`, ast.ErrorSyntax, "Invalid route 'curved'"},
 		{"non-identifier route", `@layout { route: 3 }`, ast.ErrorSyntax, "Expected 'straight' or 'orthogonal' for route"},
 		{"duplicate route", `@layout { route: orthogonal; route: straight }`, ast.ErrorSyntax, "Duplicate document property 'route'"},
 		{"unknown layout property", `a { @layout { foo: 1 } }`, ast.ErrorSyntax, "Unknown layout property 'foo'"},
-		{"duplicate layout property", `a { @layout { size: 0.5; size: 0.6 } }`, ast.ErrorSyntax, "Duplicate layout property 'size'"},
+		{"duplicate layout property", `a { @layout { margin: 0.5; margin: 0.6 } }`, ast.ErrorSyntax, "Duplicate layout property 'margin'"},
+		{"removed @grid block", `a { @layout { @grid { cols: 2 } } }`, ast.ErrorSyntax, "Unknown directive '@grid'"},
+		{"non-integer cols", `a { @layout { cols: 2.5 } }`, ast.ErrorSyntax, "Invalid cols value '2.5'"},
+		{"duplicate cols", `a { @layout { cols: 2; cols: 3 } }`, ast.ErrorSyntax, "Duplicate layout property 'cols'"},
 		{"style property on node", `a { borderColor: #ff0000 }`, ast.ErrorSyntax, "Layout property 'borderColor' must be set inside an @layout block"},
 		{"non-colour border colour", `a { @layout { borderColor: 5 } }`, ast.ErrorSyntax, "Expected a hex colour (e.g. #ff0000) for borderColor"},
 		{"non-number border width", `a { @layout { borderWidth: thick } }`, ast.ErrorSyntax, "Expected number value for borderWidth"},
 		{"duplicate path colour", `a { @layout { pathColor: #fff; pathColor: #000 } }`, ast.ErrorSyntax, "Duplicate layout property 'pathColor'"},
 		{"duplicate document default colour", `@layout { borderColor: #fff; borderColor: #000 }`, ast.ErrorSyntax, "Duplicate layout property 'borderColor'"},
 		{"unknown top-level directive", `@block { }`, ast.ErrorSyntax, "Unknown directive '@block'"},
-		{"block without name", `@layout { @block { size: 0.5 } }`, ast.ErrorSyntax, "Expected block name after @block"},
+		{"block without name", `@layout { @block { margin: 0.5 } }`, ast.ErrorSyntax, "Expected block name after @block"},
 		{"use without name", `a { @layout { @use } }`, ast.ErrorSyntax, "Expected block name after @use"},
 		{"use at sheet top level", `@layout { @use svc }`, ast.ErrorSyntax, "Unknown directive '@use' inside @layout, expected @block or a selector"},
 		{"unknown directive in block", `a { @layout { @nope x } }`, ast.ErrorSyntax, "Unknown directive '@nope' in layout block, expected @use"},
@@ -483,7 +499,7 @@ func TestParseErrors(t *testing.T) {
 // Out-of-range values now parse cleanly; the validator flags them.
 func TestParseDoesNotRangeCheck(t *testing.T) {
 	for _, input := range []string{
-		`a { @layout { size: 1.5 } }`,
+		`a { @layout { margin: 1.5 } }`,
 		`a { anchors: [c] }` + "\n@layout { a { anchor c: [2, 0] } }",
 	} {
 		if r := Parse(input); !r.Success {

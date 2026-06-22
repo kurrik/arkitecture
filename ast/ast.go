@@ -9,7 +9,7 @@
 //
 //   - a semantic tree of [ContainerNode]s carrying id, label, kind, anchor
 //     *names*, and children;
-//   - a layout layer of [Declarations] — direction, size, margin, box, and
+//   - a layout layer of [Declarations] — direction, margin, box, and
 //     anchor *positions* — authored in `@layout` blocks, either inline on a
 //     node or as standalone sheet rules ([Document.Layout]). Layout can be
 //     bundled into reusable named [Block]s and imported with [Use]; a node's
@@ -82,7 +82,7 @@ const (
 
 // ContainerNode is the single node type: a component identified by ID, with an
 // optional label, an optional semantic kind, the named anchors it exposes, and
-// nested children. Layout (direction, size, margin, box, anchor positions) is
+// nested children. Layout (direction, margin, box, anchor positions) is
 // not stored on the node — it lives in the document's layout rules, which the
 // resolve stage merges onto the node by exact path. An inline `@layout {…}` in
 // a node body is desugared by the parser into a [LayoutRule] whose selector is
@@ -109,7 +109,6 @@ type ContainerNode struct {
 // the plain look (white fill, 1px black border, 1px black arrows) when unset.
 type Declarations struct {
 	Direction   *Direction
-	Size        *float64
 	Margin      *float64
 	Box         *Box
 	LabelPos    *LabelPosition
@@ -122,10 +121,13 @@ type Declarations struct {
 	PathWidth       *float64 // width of arrows starting at this node (default 1)
 	PathColor       *string  // colour of arrows starting at this node, hex (default black)
 
-	// Grid, when set, makes this node arrange its children as a 2-D grid (the
-	// 2-D generalisation of Direction's 1-D packing). Like Arrangement it is
-	// direct-only — never imported via @use/kind.
-	Grid *GridSpec
+	// Cols/Rows make this node arrange its children as a grid: Cols is the fixed
+	// number of columns (rows grow implicitly) — the 2-D generalisation of
+	// Direction's 1-D packing. A node is a grid when Cols is set; Rows, when set,
+	// fixes the row count (a placement past it is an error). Like Arrangement,
+	// both are direct-only — never imported via @use/kind.
+	Cols *int
+	Rows *int
 
 	// Grid placement of *this* node within its parent's grid (meaningful only
 	// when the parent is a grid). Col/Row are 1-based grid lines; nil means
@@ -140,10 +142,10 @@ type Declarations struct {
 	Align   *GridAlign // vertical placement within the cell
 }
 
-// GridSpec is a node's grid track definition. Cols is the fixed number of
-// columns (required); Rows, when set, fixes the row count (a placement past it
-// is an error), otherwise rows grow implicitly to fit the placed children. Gap,
-// when set, overrides the default inter-track spacing.
+// GridSpec is the track definition passed to [PlaceGrid], built from a node's
+// Cols/Rows declarations. Cols is the fixed number of columns (required); Rows,
+// when set, fixes the row count (a placement past it is an error), otherwise rows
+// grow implicitly to fit the placed children.
 type GridSpec struct {
 	Cols int
 	Rows *int
@@ -293,7 +295,7 @@ type GridProblem struct {
 // to a direct child (by id) or an anonymous `@group` wrapper. Exactly one of
 // ChildID / Group is set. A group is itself a [Declarations] whose own
 // Arrangement holds its nested items — an invisible (`box: none`) layout
-// sub-container with its own direction/size/margin. Line/Column point at the
+// sub-container with its own direction/margin. Line/Column point at the
 // entry for arrangement diagnostics.
 type ArrangementItem struct {
 	ChildID string
@@ -400,7 +402,7 @@ const (
 	ErrorSyntax ErrorType = "syntax"
 	// ErrorReference is an unresolved node, anchor, or selector reference.
 	ErrorReference ErrorType = "reference"
-	// ErrorConstraint is an out-of-range value (size, margin, or coordinate).
+	// ErrorConstraint is an out-of-range value (margin or coordinate).
 	ErrorConstraint ErrorType = "constraint"
 )
 

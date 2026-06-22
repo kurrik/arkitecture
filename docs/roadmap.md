@@ -6,6 +6,77 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **2-D channel widening — orthogonal routing through a grid** (2026-06-22): the
+  router's channel-widening model is now unified on **track boundaries** instead of
+  the 1-D "main-axis gap / cross-axis rail" split. A channel is a column boundary
+  (a *vertical* arrow run, which needs horizontal clearance) or a row boundary (a
+  *horizontal* run) — the segment's orientation alone picks the axis. `widen.go`
+  carries a single `axisInfo` helper for both, the demand is `colExtra`/`rowExtra`
+  per track boundary (replacing `gapExtra`/`railExtra`), and the gate that limited
+  widening to single-track stacks is gone. So `route: orthogonal` now widens
+  channels *through a multi-track grid* (an arrow routing along an interior column
+  gap spreads the columns), the 2-D generalisation that completes the consolidation.
+  All existing orthogonal goldens are byte-identical (the unified model reproduces
+  the 1-D behaviour exactly for stacks); a new `orthogonal-grid` golden locks in the
+  grid case. See the ADR in [decisions.md](decisions.md).
+- **One layout engine — 1-D packing path deleted** (2026-06-22): every arranging
+  node now runs through the grid engine; the former vertical/horizontal
+  `calcDimensions`/`positionNodes` packing code is gone. The grid engine learned to
+  apply the orthogonal-route channel widening (`gapExtra`/`railExtra`) for a
+  single-track stack — the case the router's 1-D channel model addresses — so all
+  five orthogonal-routing goldens stay **byte-identical**; `widen.go` now derives
+  the main axis from the grid arrangement (`mainHorizontalOf`) rather than a bare
+  direction check. A bordered grid distributes a label wider than its content into
+  its columns so stretched children fill it (matching 1-D). No golden changed; one
+  unit test updated for the documented cross-axis margin semantic. Step (c) of the
+  consolidation. **Still open:** channel widening through a *multi-track* grid (the
+  router's channel graph is 1-D per container), so `route: orthogonal` across a true
+  grid is a follow-up. See the ADR in [decisions.md](decisions.md).
+- **`direction` unified with the grid engine** (2026-06-22): `direction` is now
+  formally sugar for a single-track grid — `vertical` ≡ `cols: 1`, `horizontal` ≡
+  `rows: 1` — proven byte-for-byte for bordered *and* `box: none`, both axes (a
+  generator test covers all four). `PlaceGrid` gained column-major (row-primary)
+  auto-flow via a transpose, so `rows: M` / horizontal grids work; the default cell
+  alignment now follows the box model (bordered stretches, `box: none` does not),
+  uniformly with stacks. A node authored with `direction` is routed through the grid
+  engine the moment any child opts into placement (`col`/`row`/spans), so stacks
+  gain **sparse placement for free**. Dense stacks stay on the 1-D packing path
+  (byte-identical, and it carries the orthogonal-route widening the grid engine does
+  not yet apply). One golden changed: `grid-sequence` (a `box: none` grid) no longer
+  stretches its cells. Step (b) of the consolidation. See the ADR in
+  [decisions.md](decisions.md).
+- **Margin-collapse box model in the grid engine** (2026-06-22): `generator/grid.go`
+  now sizes a grid with the *same* box model as 1-D packing instead of a flat
+  uniform gap — each inter-track channel is the collapsed (larger) facing margin of
+  its adjacent children, a bordered grid reserves a perimeter from its edge
+  children's margins, and a `box: none` grid carries its children's margins outward
+  as its effective margin. A new generator test proves a `cols: 1` grid renders
+  **byte-for-byte identical** to a `direction: vertical` stack (label band,
+  perimeter, collapsed channels, cross-axis stretch all matched); the two existing
+  grid goldens are unchanged (uniform margins collapse to the old gap). This is the
+  engine groundwork for routing `direction` through the grid — step (a) of the
+  consolidation. Cross-axis heterogeneous margins now collapse to a track perimeter
+  (a grid keeps tracks aligned) — a deliberate, documented semantic. See the ADR in
+  [decisions.md](decisions.md).
+- **`@grid` block → `cols`/`rows` properties** (2026-06-22): the grid track
+  definition is now two plain `@layout` properties (`cols`, optional `rows`)
+  instead of an `@grid { … }` block — the only block-shaped layout property, now
+  uniform with `margin`/`direction`/… (its per-child `col`/`row`/span placement
+  were already plain properties). `ast.Declarations` carries `Cols *int`/`Rows
+  *int` (a node is a grid when `cols` is set); `GridSpec` is kept as the internal
+  `PlaceGrid` input. Behaviour-preserving — the two grid goldens render
+  byte-identically — and the canonical field shape that `direction` will desugar
+  into next. Second step of the direction/grid consolidation. See the ADR in
+  [decisions.md](decisions.md).
+- **Removed the `size` property** (2026-06-22): the `size: f` layout override —
+  scaling a node's *orthogonal* dimension to a fraction of what its parent would
+  give it — has been dropped from the language (parser, validator, resolver,
+  generator, and `ast.Declarations.Size`). It was implicit and hard to reason
+  about ("orthogonal of what, exactly?"); explicit per-node sizing controls will
+  replace it later (see *Planned*). A breaking change: a `.ark` using `size:` now
+  reports `Unknown layout property 'size'`. No golden fixture used it, so SVG
+  output is unchanged. First step of the direction/grid consolidation below. See
+  the ADR in [decisions.md](decisions.md).
 - **`@grid` arrangement (2-D layout)** (2026-06-22): a third child-arrangement
   mode beside `direction`, declared `@grid { cols: N; rows: M? }` in a node's
   `@layout` (direct-only, like `@group`). Children place themselves with `col`/
@@ -55,7 +126,7 @@ for "where is this project at?". Move items between sections as work progresses:
   site samples were regenerated. See the ADR in [decisions.md](decisions.md).
 - **M5 — `@layout` regrouping** (2026-06-18): an anonymous `@group { … }` inside a
   node's `@layout` block wraps sibling children into an invisible layout
-  sub-container (its own `direction`/`size`/`margin`, no border, no path segment),
+  sub-container (its own `direction`/`margin`, no border, no path segment),
   and a node's children can be reordered by listing them. The arrangement is
   modelled on `Declarations` (a group is itself a nested `Declarations`) and is
   **direct-only** — never imported via `@use`/`kind`. The validator enforces
@@ -87,7 +158,7 @@ for "where is this project at?". Move items between sections as work progresses:
   unchanged; a new `kind-and-use` golden locks the behaviour in.
 - **M3 — `@layout`, the split** (2026-06-18): semantics and presentation are now
   separate layers. A node body holds only semantics (`label`, `kind`, anchor
-  *names*, children); all presentation — `direction`, `size`, `margin`, `box`,
+  *names*, children); all presentation — `direction`, `margin`, `box`,
   anchor *positions* — moves into `@layout` blocks, either inline on a node or as
   a standalone sheet of exact-path selectors. The tokenizer recognises `@`
   directives; the `group` keyword is gone (a `box: none` node replaces it and now
@@ -117,8 +188,8 @@ for "where is this project at?". Move items between sections as work progresses:
     `wasm/`); tokenizer + recursive-descent parser
   - validator: scoped ID uniqueness, arrow/anchor reference resolution, range
     constraints (non-fail-fast)
-  - generator: deterministic text measurement, bottom-up layout with `size`
-    overrides + anchor resolution, byte-for-byte-stable SVG emission
+  - generator: deterministic text measurement, bottom-up layout + anchor
+    resolution, byte-for-byte-stable SVG emission
   - CLI (parse/validate/generate + `--watch` via a stdlib polling watcher) and a
     `GOOS=js GOARCH=wasm` shim, both thin wrappers over the library
   - golden tests reproducing the TypeScript SVG/error fixtures exactly; Go CI
@@ -194,6 +265,42 @@ tracks below; each is independently shippable. The *model* lives in
 Auto edge routing — sized channels has **shipped** (see *Recently shipped* above);
 its only parked follow-ups are crossing-minimised lane ordering and a per-arrow
 `route:` override.
+
+### Unify `direction` and `@grid` into one arrangement engine
+
+The agreed direction (2026-06-22): `direction: vertical | horizontal` are just
+degenerate grids — a single column (rows grow) and a single row (cols grow). The
+goal is **one arrangement engine** so a stack and a grid share placement
+vocabulary, and direction'd nodes gain sparse `col`/`row` placement, spans, and
+`justify`/`align` "for free". Concretely:
+
+- ✅ **Dissolve the `@grid { … }` block** into plain `cols`/`rows` `@layout`
+  properties — *done* (see *Done* above); `ast.Declarations` now carries
+  `Cols`/`Rows`.
+- **`direction` becomes sugar** for `cols: 1` / `rows: 1`, kept as the readable
+  everyday spelling.
+- ✅ **(a) Margin-collapse box model in the grid engine** — *done* (see *Done*
+  above). The grid engine now uses collapsing channels, perimeters from edge
+  children's margins, and `box: none` propagation, with a test proving `cols: 1`
+  ≡ a vertical stack byte-for-byte. Remaining sub-steps:
+- ✅ **(b) `direction` unified with the grid engine** — *done* (see *Done*
+  above). `direction` is sugar for `cols: 1` / `rows: 1`; `PlaceGrid` auto-flows
+  column-major (via a transpose) for the horizontal case; the cross-alignment
+  default follows the box model. Stacks gain sparse placement, routed to the grid
+  engine when a child opts in.
+- ✅ **(c) Delete the 1-D path** — *done* (see *Done* above). One engine; the grid
+  applies channel widening for single-track stacks, so the orthogonal goldens are
+  byte-identical and the 1-D packing code is gone.
+- ✅ **(c-follow-up) 2-D channel widening through a multi-track grid** — *done*
+  (see *Done* above). The channel model is unified on track boundaries
+  (`colExtra`/`rowExtra`), so `route: orthogonal` widens column/row gaps inside a
+  grid, not only single-track stacks.
+- **Sparse needs spacer tracks.** Sparse 1-D placement only yields *visible* gaps
+  once empty tracks have a size — see *Min-size / spacer tracks* below; pair the
+  two or "sparse" is a no-op in a stack.
+
+Explicit **per-node sizing controls** (the replacement for the removed `size`)
+land on top of this unified model rather than the old orthogonal-fraction hack.
 
 ### `@grid` follow-ups
 
