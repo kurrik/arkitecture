@@ -185,6 +185,27 @@ Once you arrange a node's children, reference each exactly once, and a group may
 contain only that node's own children — so the layout stays a faithful regrouping
 of the structure.
 
+### Grid arrangement — `cols` / `rows`
+
+For a 2-D layout, give a node `cols` (and optional `rows`) instead of a direction:
+its children place themselves with `col`/`row` (1-based) and span tracks with
+`colSpan`/`rowSpan`. Tracks are sized jointly on both axes, so columns and rows stay
+aligned. `direction` is just sugar for a single-track grid — `vertical` ≡ `cols: 1`,
+`horizontal` ≡ `rows: 1` — so a stack and a grid are one model.
+
+```
+@layout {
+  board { cols: 3 }                            # 3 fixed columns; rows grow with content
+  board.title { col: 1; row: 1; colSpan: 3 }   # a full-width header spanning all three
+  board.web { col: 1; row: 2 }  board.api { col: 2; row: 2 }  board.db { col: 3; row: 2 }
+}
+```
+
+A child sets `justify`/`align` (`start` · `end` · `stretch`, default `stretch`) to
+sit within its cell; one that sets no position auto-fills the next free slot. A track
+that no cell covers reserves a minimum size, so a sparse placement (skip a row) leaves
+a visible gap. See [the annotated grid example](examples/grid.ark).
+
 ### Arrows
 
 Connect nodes with `-->`, optionally naming an anchor with `#`. A bare endpoint
@@ -233,7 +254,11 @@ Semantic (in the node body):
 
 Layout (in `@layout`):
 
-- **`direction`** — `vertical` (default) or `horizontal`
+- **`direction`** — `vertical` (default) or `horizontal`; sugar for `cols: 1` / `rows: 1`
+- **`cols` / `rows`** — arrange children as a grid (N fixed columns, or N fixed rows)
+- **`col` / `row`** — a child's 1-based grid position (auto-fills the next slot if unset)
+- **`colSpan` / `rowSpan`** — tracks a child's cell spans (default 1)
+- **`justify` / `align`** — placement within the cell: `start` · `end` · `stretch`
 - **`margin`** — space around the node's border box (default 8; `0` packs flush)
 - **`box`** — `default` (bordered) or `none` (borderless grouping)
 - **`label`** — `top` (default) or `bottom`: which end of a parent reserves the

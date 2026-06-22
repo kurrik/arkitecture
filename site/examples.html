@@ -372,6 +372,44 @@ ordering.orders#db --&gt; inventory#api</code></pre>
     </article>
 
     <article class="example">
+      <h2>Grid arrangement (<code>cols</code> / <code>rows</code>)</h2>
+      <p>Give a node <code>cols</code> (and optionally <code>rows</code>) to arrange its children in 2-D: each child sets its <code>col</code>/<code>row</code> and can span tracks with <code>colSpan</code>. Columns and rows are sized jointly, so the cells stay aligned. <code>direction</code> is just sugar for a single-track grid (<code>vertical</code> is <code>cols: 1</code>).</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">grid.ark</div>
+<pre><code data-ark="examples/grid.ark"># A grid arranges children in 2-D. `cols` fixes the columns; children place
+# themselves with col/row, and span tracks with colSpan. Columns and rows are
+# sized jointly, so the cells stay aligned in a tidy table.
+board {
+  label: "Service Map"
+
+  title  { label: "Platform" }
+  web    { label: "Web" }
+  api    { label: "API" }
+  worker { label: "Worker" }
+  store  { label: "Datastore" }
+}
+
+@layout {
+  board { cols: 3 }
+  board.title  { col: 1; row: 1; colSpan: 3 }   # full-width header
+  board.web    { col: 1; row: 2 }
+  board.api    { col: 2; row: 2 }
+  board.worker { col: 3; row: 2 }
+  board.store  { col: 1; row: 3; colSpan: 3 }    # full-width footer
+}</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/grid.svg" alt="A Service Map box with a full-width Platform header above a row of aligned Web, API and Worker cells, above a full-width Datastore footer." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/grid.ark">grid.ark</a></p>
+    </article>
+
+    <article class="example">
       <h2>Styling (colour &amp; stroke width)</h2>
       <p>Hex colours and stroke widths live in <code>@layout</code> like any other property: <code>borderWidth</code>/<code>borderColor</code>/<code>backgroundColor</code> style a node's box, and <code>pathWidth</code>/<code>pathColor</code> style the arrows that <em>start</em> at it. Each is settable per node, document-wide (a bare property at the sheet root — the fallback here paints every box), or bundled in a <code>@block</code> (the blue border on <em>Web Tier</em> is one <code>@use accent</code>). Only <em>API</em> sets a path style, so just its arrow turns blue while <em>UI</em>'s keeps the default — and there is no cascade, so a child never inherits a parent's colour.</p>
       <div class="demo">

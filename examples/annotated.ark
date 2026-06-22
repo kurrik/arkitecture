@@ -10,6 +10,11 @@
 # touching the semantics. Layout can also be bundled into reusable `@block`s and
 # imported with `@use`, and a node's `kind` imports the block of the same name as
 # a baseline. Comments start with '#'.
+#
+# This file covers the 1-D stacking layout (`direction`). For 2-D layout — a node
+# arranging its children in a grid with `cols`/`rows` and per-cell placement — see
+# the companion reference in examples/grid.ark (`direction` is in fact just sugar
+# for a single-track grid).
 
 # A node with ID c1. A node body holds only semantics.
 c1 {
