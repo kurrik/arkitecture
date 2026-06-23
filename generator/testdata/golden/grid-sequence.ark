@@ -1,13 +1,20 @@
-# A conventional sequence diagram on the grid arrangement: 3 fixed columns
-# (participants), rows grow with time. One row per message; the labelled sender
-# and an invisible receiver share that row so the arrow is horizontal. Lanes a
-# message skips carry no cell — sparse placement, no alignment placeholders.
+# A conventional sequence diagram on the grid arrangement, updated for the
+# consolidated layout engine:
+#   * `cols: 3` is a plain layout property (no `@grid` block); rows grow with time.
+#   * message text is `box: none` — a label, not a boxed cell (the box:none grid
+#     no longer stretches its children, so each label keeps its natural width).
+#   * the empty rows 3/5/7 are spacer tracks: a track no cell covers reserves a
+#     minimum size, so the messages get vertical breathing room with no
+#     placeholder cells.
+# Each message is one row: a labelled sender and an invisible receiver that
+# stretches to fill its lane, so an arrow aimed at the receiver's #center lands on
+# the target participant's lane. Lanes a message skips carry no cell (sparse).
 seq {
   hC{label:"Client"} hS{label:"Server"} hD{label:"Database"}
-  m1s{label:"login()"} m1t{kind:invisible}
-  m2s{label:"SELECT"}  m2t{kind:invisible}
-  m3s{label:"rows"}    m3t{kind:invisible}
-  m4s{label:"200 OK"}  m4t{kind:invisible}
+  m1{label:"login()"}   m1t{kind:invisible}
+  m2{label:"SELECT id"} m2t{kind:invisible}
+  m3{label:"rows"}      m3t{kind:invisible}
+  m4{label:"200 OK"}    m4t{kind:invisible}
 }
 
 @layout {
@@ -15,16 +22,15 @@ seq {
   seq { box: none; cols: 3 }
 
   seq.hC {col:1; row:1}  seq.hS {col:2; row:1}  seq.hD {col:3; row:1}
-  seq.m1s {col:1; row:2}  seq.m1t {col:2; row:2}
-  seq.m2s {col:2; row:3}  seq.m2t {col:3; row:3}
-  seq.m3s {col:3; row:4}  seq.m3t {col:2; row:4}
-  seq.m4s {col:2; row:5}  seq.m4t {col:1; row:5}
 
-  seq.m3s { pathColor: #2563eb }
-  seq.m4s { pathColor: #2563eb }
+  seq.m1 {col:1; row:2; box:none}  seq.m1t {col:2; row:2; justify:stretch}
+  seq.m2 {col:2; row:4; box:none}  seq.m2t {col:3; row:4; justify:stretch}
+  seq.m3 {col:3; row:6; box:none; pathColor:#2563eb}  seq.m3t {col:2; row:6; justify:stretch}
+  seq.m4 {col:2; row:8; box:none; pathColor:#2563eb}  seq.m4t {col:1; row:8; justify:stretch}
 }
 
-seq.m1s --> seq.m1t
-seq.m2s --> seq.m2t
-seq.m3s --> seq.m3t
-seq.m4s --> seq.m4t
+# Returns (rows, 200 OK) are coloured blue — there is no dashed-stroke control.
+seq.m1 --> seq.m1t#center
+seq.m2 --> seq.m2t#center
+seq.m3 --> seq.m3t#center
+seq.m4 --> seq.m4t#center
