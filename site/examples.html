@@ -410,6 +410,59 @@ board {
     </article>
 
     <article class="example">
+      <h2>Sequence diagram (grid as lanes)</h2>
+      <p>The grid is enough to draw a UML-style sequence diagram: columns are participants and rows are time. Each message is one row with a <code>box: none</code> label for the sender and an invisible receiver stretched across its lane, so the arrow runs lane-to-lane. Lanes a message skips carry no cell (sparse placement), and the empty rows between messages are <em>spacer tracks</em> — a track no cell covers still reserves a minimum size, giving vertical rhythm with no placeholder cells. Returns are coloured because there is no dashed stroke, and the message text is the sender's label since arrows carry no labels of their own yet.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">sequence.ark</div>
+<pre><code data-ark="examples/sequence.ark"># A UML-style sequence diagram, built entirely from the grid arrangement.
+#
+# Columns are participants; rows are time. Each message is one row holding a
+# labelled sender and an invisible receiver, so the arrow runs across the lane.
+# Lanes a message skips carry no cell (sparse placement), and the empty rows in
+# between are spacer tracks — a track no cell covers reserves a minimum size, so
+# the messages get vertical breathing room with no placeholder cells.
+seq {
+  client { label: "Client" } server { label: "Server" } db { label: "Database" }
+
+  m1 { label: "login()" }   m1t { kind: invisible }
+  m2 { label: "SELECT id" } m2t { kind: invisible }
+  m3 { label: "rows" }      m3t { kind: invisible }
+  m4 { label: "200 OK" }    m4t { kind: invisible }
+}
+
+@layout {
+  margin: 14
+  seq { box: none; cols: 3 }   # three participant lanes; rows grow with time
+
+  seq.client { col: 1; row: 1 }  seq.server { col: 2; row: 1 }  seq.db { col: 3; row: 1 }
+
+  # One message per row; the sender is a box:none label, the receiver an
+  # invisible cell stretched across its lane so the arrow lands on its centre.
+  seq.m1 { col: 1; row: 2; box: none }  seq.m1t { col: 2; row: 2; justify: stretch }
+  seq.m2 { col: 2; row: 4; box: none }  seq.m2t { col: 3; row: 4; justify: stretch }
+  seq.m3 { col: 3; row: 6; box: none; pathColor: #2563eb }  seq.m3t { col: 2; row: 6; justify: stretch }
+  seq.m4 { col: 2; row: 8; box: none; pathColor: #2563eb }  seq.m4t { col: 1; row: 8; justify: stretch }
+}
+
+# Returns are coloured (there is no dashed-stroke control); the message text is
+# the sender's label (arrows carry no labels of their own yet).
+seq.m1 --&gt; seq.m1t#center
+seq.m2 --&gt; seq.m2t#center
+seq.m3 --&gt; seq.m3t#center
+seq.m4 --&gt; seq.m4t#center</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/sequence.svg" alt="A sequence diagram: Client, Server and Database headers in a row, with login() and SELECT id call arrows stepping down and to the right, then blue rows and 200 OK return arrows stepping back to the left, each on its own time row." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/sequence.ark">sequence.ark</a></p>
+    </article>
+
+    <article class="example">
       <h2>Styling (colour &amp; stroke width)</h2>
       <p>Hex colours and stroke widths live in <code>@layout</code> like any other property: <code>borderWidth</code>/<code>borderColor</code>/<code>backgroundColor</code> style a node's box, and <code>pathWidth</code>/<code>pathColor</code> style the arrows that <em>start</em> at it. Each is settable per node, document-wide (a bare property at the sheet root — the fallback here paints every box), or bundled in a <code>@block</code> (the blue border on <em>Web Tier</em> is one <code>@use accent</code>). Only <em>API</em> sets a path style, so just its arrow turns blue while <em>UI</em>'s keeps the default — and there is no cascade, so a child never inherits a parent's colour.</p>
       <div class="demo">
