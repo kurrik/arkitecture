@@ -2,9 +2,9 @@
 #
 # Columns are participants; rows are time. Each message is one row holding a
 # labelled sender and an invisible receiver, so the arrow runs across the lane.
-# Lanes a message skips carry no cell (sparse placement), and the empty rows in
-# between are spacer tracks — a track no cell covers reserves a minimum size, so
-# the messages get vertical breathing room with no placeholder cells.
+# Lanes a message skips carry no cell (sparse placement). Messages sit on
+# consecutive rows so they stack one margin apart; leave a row empty and it
+# becomes a spacer track (it still reserves a minimum size) if you want more air.
 seq {
   client { label: "Client" } server { label: "Server" } db { label: "Database" }
 
@@ -15,7 +15,7 @@ seq {
 }
 
 @layout {
-  margin: 14
+  margin: 8
   seq { box: none; cols: 3 }   # three participant lanes; rows grow with time
 
   seq.client { col: 1; row: 1 }  seq.server { col: 2; row: 1 }  seq.db { col: 3; row: 1 }
@@ -23,9 +23,9 @@ seq {
   # One message per row; the sender is a box:none label, the receiver an
   # invisible cell stretched across its lane so the arrow lands on its centre.
   seq.m1 { col: 1; row: 2; box: none }  seq.m1t { col: 2; row: 2; justify: stretch }
-  seq.m2 { col: 2; row: 4; box: none }  seq.m2t { col: 3; row: 4; justify: stretch }
-  seq.m3 { col: 3; row: 6; box: none; pathColor: #2563eb }  seq.m3t { col: 2; row: 6; justify: stretch }
-  seq.m4 { col: 2; row: 8; box: none; pathColor: #2563eb }  seq.m4t { col: 1; row: 8; justify: stretch }
+  seq.m2 { col: 2; row: 3; box: none }  seq.m2t { col: 3; row: 3; justify: stretch }
+  seq.m3 { col: 3; row: 4; box: none; pathColor: #2563eb }  seq.m3t { col: 2; row: 4; justify: stretch }
+  seq.m4 { col: 2; row: 5; box: none; pathColor: #2563eb }  seq.m4t { col: 1; row: 5; justify: stretch }
 }
 
 # Returns are coloured (there is no dashed-stroke control); the message text is

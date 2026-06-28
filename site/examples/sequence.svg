@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="208" height="290.5" viewBox="-0.5 -0.5 208 290.5">
+<svg xmlns="http://www.w3.org/2000/svg" width="196" height="152.5" viewBox="-0.5 -0.5 196 152.5">
   <defs>
     <marker id="arrowhead" markerWidth="10" markerHeight="7" 
             refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
@@ -13,18 +13,18 @@
   <!-- Node rectangles and labels -->
   <rect x="0" y="0" width="45" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
   <text x="22.5" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Client</text>
-  <rect x="66" y="0" width="45" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
-  <text x="88.5" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Server</text>
-  <rect x="147" y="0" width="60" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
-  <text x="177" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Database</text>
-  <text x="26" y="50" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">login()</text>
-  <text x="99.5" y="126" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">SELECT id</text>
-  <text x="162.5" y="202" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">rows</text>
-  <text x="88.5" y="278" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">200 OK</text>
+  <rect x="60" y="0" width="45" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="82.5" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Server</text>
+  <rect x="135" y="0" width="60" height="24" fill="white" stroke="black" stroke-width="1" shape-rendering="crispEdges" />
+  <text x="165" y="12" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">Database</text>
+  <text x="26" y="44" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">login()</text>
+  <text x="93.5" y="76" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">SELECT id</text>
+  <text x="150.5" y="108" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">rows</text>
+  <text x="82.5" y="140" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12">200 OK</text>
 
   <!-- Arrows -->
-  <line x1="52" y1="50" x2="99.5" y2="50" stroke="black" stroke-width="1" shape-rendering="crispEdges" marker-end="url(#arrowhead)" />
-  <line x1="133" y1="126" x2="177" y2="126" stroke="black" stroke-width="1" shape-rendering="crispEdges" marker-end="url(#arrowhead)" />
-  <line x1="147" y1="202" x2="99.5" y2="202" stroke="#2563eb" stroke-width="1" shape-rendering="crispEdges" marker-end="url(#arrowhead-2563eb)" />
-  <line x1="66" y1="278" x2="26" y2="278" stroke="#2563eb" stroke-width="1" shape-rendering="crispEdges" marker-end="url(#arrowhead-2563eb)" />
+  <line x1="52" y1="44" x2="93.5" y2="44" stroke="black" stroke-width="1" shape-rendering="crispEdges" marker-end="url(#arrowhead)" />
+  <line x1="127" y1="76" x2="165" y2="76" stroke="black" stroke-width="1" shape-rendering="crispEdges" marker-end="url(#arrowhead)" />
+  <line x1="135" y1="108" x2="93.5" y2="108" stroke="#2563eb" stroke-width="1" shape-rendering="crispEdges" marker-end="url(#arrowhead-2563eb)" />
+  <line x1="60" y1="140" x2="26" y2="140" stroke="#2563eb" stroke-width="1" shape-rendering="crispEdges" marker-end="url(#arrowhead-2563eb)" />
 </svg>
