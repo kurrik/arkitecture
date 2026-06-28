@@ -1,0 +1,23 @@
+# A label is treated as content of the channel its arrow routes through. In
+# route: orthogonal mode the vertical run travels the gap between the two
+# columns, so that gap widens to hold the text — the columns spread apart and
+# the label never overlaps a box (just as a long node label grows its box).
+grid {
+  label: "Request flow"
+  ui   { label: "UI" }                 api { label: "API" anchors: [out] }
+  page { label: "Page" }               svc { label: "Service" }
+  db   { label: "DB" anchors: [in] }   log { label: "Log" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  grid { cols: 2 }
+  grid.ui   {col:1; row:1}  grid.api {col:2; row:1}
+  grid.page {col:1; row:2}  grid.svc {col:2; row:2}
+  grid.db   {col:1; row:3}  grid.log {col:2; row:3}
+  grid.api { anchor out: [0.0, 0.5] }   # left edge of API
+  grid.db  { anchor in:  [1.0, 0.5] }   # right edge of DB
+}
+
+grid.api#out --> grid.db#in { label: "lookup user" }

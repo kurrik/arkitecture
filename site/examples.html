@@ -510,6 +510,114 @@ web.api --&gt; data.store
       <p class="dl"><a href="examples/styling.ark">styling.ark</a></p>
     </article>
 
+    <article class="example">
+      <h2>Arrow labels</h2>
+      <p>An arrow carries text with a body block — <code>a --&gt; b { label: "…" }</code> — the same <code>{ … }</code> shape a node uses. The label is drawn at the midpoint of the arrow's longest run, on an opaque plate so the line stays legible. In a vertical flow each label tucks beside its arrow and the canvas grows to fit it.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">labels.ark</div>
+<pre><code data-ark="examples/labels.ark"># Arrow labels: `a --&gt; b { label: "…" }` puts text on an arrow, using the same
+# `{ … }` body a node uses. The label is drawn at the midpoint of the arrow's
+# longest run; in a vertical flow like this each one tucks beside its arrow.
+flow {
+  browser { label: "Browser" }
+  api     { label: "API" }
+  db      { label: "Database" }
+}
+
+@layout {
+  margin: 30
+  flow { box: none; direction: vertical }
+}
+
+flow.browser --&gt; flow.api { label: "POST /order" }
+flow.api     --&gt; flow.db  { label: "INSERT row" }</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/labels.svg" alt="A vertical Browser → API → Database flow with 'POST /order' and 'INSERT row' labels beside the two arrows." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/labels.ark">labels.ark</a></p>
+    </article>
+
+    <article class="example">
+      <h2>Labels flow in the channel</h2>
+      <p>A label is treated as <em>content of the channel its arrow routes through</em>. With <code>route: orthogonal</code> the run travels the gap between the two columns, so that gap <strong>widens to hold the text</strong> — the columns spread apart and the label can never overlap a box, exactly as a long node label grows its own box.</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">labels-routed.ark</div>
+<pre><code data-ark="examples/labels-routed.ark"># A label is treated as content of the channel its arrow routes through. In
+# route: orthogonal mode the vertical run travels the gap between the two
+# columns, so that gap widens to hold the text — the columns spread apart and
+# the label never overlaps a box (just as a long node label grows its box).
+grid {
+  label: "Request flow"
+  ui   { label: "UI" }                 api { label: "API" anchors: [out] }
+  page { label: "Page" }               svc { label: "Service" }
+  db   { label: "DB" anchors: [in] }   log { label: "Log" }
+}
+
+@layout {
+  route: orthogonal
+  margin: 16
+  grid { cols: 2 }
+  grid.ui   {col:1; row:1}  grid.api {col:2; row:1}
+  grid.page {col:1; row:2}  grid.svc {col:2; row:2}
+  grid.db   {col:1; row:3}  grid.log {col:2; row:3}
+  grid.api { anchor out: [0.0, 0.5] }   # left edge of API
+  grid.db  { anchor in:  [1.0, 0.5] }   # right edge of DB
+}
+
+grid.api#out --&gt; grid.db#in { label: "lookup user" }</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/labels-routed.svg" alt="A two-column Request flow grid; an arrow routes down the gap between the columns carrying a 'lookup user' label, and the columns have spread apart to make room for it." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/labels-routed.ark">labels-routed.ark</a></p>
+    </article>
+
+    <article class="example">
+      <h2>Labels with line breaks &amp; styling</h2>
+      <p>A label is plain text, so it may span lines with <code>\n</code>, and it coexists with arrow styling: <code>pathColor</code> on a node colours the arrows that start there while the label stays on its plate. (Straight-mode labels need open space beside the line — a vertical flow gives them room; for a cramped horizontal layout use <code>route: orthogonal</code>, which makes room.)</p>
+      <div class="demo">
+        <div class="panel source">
+          <div class="panel-label">labels-styled.ark</div>
+<pre><code data-ark="examples/labels-styled.ark"># A label is plain text — it may span lines with `\n` — and coexists with arrow
+# styling: pathColor on a node colours the arrows that start there, while the
+# label stays on its own plate. Straight-mode labels need room beside the line,
+# so a vertical flow (open canvas to the side) shows them off well.
+checkout {
+  cart    { label: "Cart" }
+  payment { label: "Payment" }
+  email   { label: "Email" }
+}
+
+@layout {
+  margin: 28
+  checkout { box: none; direction: vertical }
+  checkout.payment { pathColor: #16a34a }   # arrows leaving Payment turn green
+}
+
+checkout.cart    --&gt; checkout.payment { label: "POST /charge\n(idempotent)" }
+checkout.payment --&gt; checkout.email   { label: "send receipt" }</code></pre>
+        </div>
+        <div class="panel render">
+          <div class="panel-label">rendered output</div>
+          <div class="render-area">
+            <img src="examples/labels-styled.svg" alt="A vertical Cart → Payment → Email flow; the first arrow has a two-line 'POST /charge (idempotent)' label, and the green arrow leaving Payment is labelled 'send receipt'." />
+          </div>
+        </div>
+      </div>
+      <p class="dl"><a href="examples/labels-styled.ark">labels-styled.ark</a></p>
+    </article>
+
     <p style="margin-top:40px">
       Want the full grammar? Head to the <a href="spec.html">syntax reference</a>.
     </p>

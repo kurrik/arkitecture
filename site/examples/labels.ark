@@ -1,0 +1,16 @@
+# Arrow labels: `a --> b { label: "…" }` puts text on an arrow, using the same
+# `{ … }` body a node uses. The label is drawn at the midpoint of the arrow's
+# longest run; in a vertical flow like this each one tucks beside its arrow.
+flow {
+  browser { label: "Browser" }
+  api     { label: "API" }
+  db      { label: "Database" }
+}
+
+@layout {
+  margin: 30
+  flow { box: none; direction: vertical }
+}
+
+flow.browser --> flow.api { label: "POST /order" }
+flow.api     --> flow.db  { label: "INSERT row" }
