@@ -491,6 +491,33 @@ Anchors and arrows attach to the **border box**; margins are the empty space
 around it — which is also what gives auto-routed arrows room to travel between
 otherwise-touching boxes.
 
+### Arrow labels — text that flows in the channel
+
+> ✅ Implemented. An arrow may carry text via a body block:
+> `a --> b { label: "login()" }` (the same `{ … }` shape a node uses, so it reads
+> consistently). `label` is the only arrow property in v1.
+
+A labelled arrow draws its text centred on the **midpoint of its longest segment**
+(the single span of a straight arrow, the dominant run of a bent one), on an
+opaque plate so the line beneath stays legible. The key idea is that **the label
+is channel content**, exactly like the line: in `route: orthogonal` mode the run
+travels along a channel, and the label's *cross-axis extent* (its width for a
+vertical run, its height for a horizontal one) is added to that channel's widening
+demand — so the channel grows to hold the text with a margin of clearance each
+side, the boxes spread, and the label can never overlap one. This is the same
+principle as a long node label growing its box, applied to arrows: a channel
+reserves space for everything it carries.
+
+In **straight** mode there is no channel to widen, so the label simply sits on the
+line and the viewport grows to include it (it is never clipped). A label still
+needs open space around the line, so straight-mode labels read best on arrows with
+room beside them (a vertical flow, or generous margins); a wide label on a short
+arrow between two adjacent boxes has nowhere to go and will overlap — use
+`route: orthogonal` (which makes room) or space the boxes out.
+
+Parked refinements: a label offset to one side of multi-lane channels, and label
+placement on diagonal straight arrows (today centred like any other).
+
 ### Arrow endpoints — an auto-cardinal default
 
 > ✅ Implemented (M2). Lives entirely in the generator's endpoint resolution and
@@ -626,6 +653,9 @@ no-JavaScript fallback.
 - Should a node be allowed *multiple* kinds later, and if so how do their blocks
   combine?
 - Cross-file layout sheets / an `@import` for sharing layout across diagrams?
-- Should arrows support labels, and if so where do they sit in the layout?
+- ~~Should arrows support labels, and if so where do they sit in the layout?~~
+  **Resolved:** yes — `a --> b { label: "…" }`, drawn at the longest segment's
+  midpoint and treated as channel content (it widens the channel in orthogonal
+  mode). See *Arrow labels* above.
 - How should very long labels behave — wrap, truncate, or keep requiring explicit
   `\n` line breaks (current behaviour)?

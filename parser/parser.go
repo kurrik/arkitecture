@@ -995,7 +995,58 @@ func (p *parser) parseArrow() (ast.Arrow, bool) {
 		return ast.Arrow{}, false
 	}
 
-	return ast.Arrow{Source: source, Target: target}, true
+	arrow := ast.Arrow{Source: source, Target: target}
+	// An optional `{ … }` body immediately after the target carries the arrow's
+	// own properties (v1: just `label`). A bare `{` here is unambiguous — a node
+	// would have started with its own identifier.
+	if p.check(TokenLBrace) {
+		p.parseArrowBody(&arrow)
+	}
+	return arrow, true
+}
+
+// parseArrowBody parses the `{ label: "…" }` block after an arrow's target. The
+// cursor is on the '{'. v1 accepts only `label`; any other property is an error.
+func (p *parser) parseArrowBody(arrow *ast.Arrow) {
+	p.advance() // consume '{'
+	for !p.check(TokenRBrace) && !p.isAtEnd() {
+		if p.check(TokenNewline) {
+			p.advance()
+			continue
+		}
+		if !p.check(TokenIdentifier) {
+			tok := p.peek()
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected 'label' in arrow body, got %s", tok.Type), tok.Line, tok.Column)
+			p.advance()
+			continue
+		}
+		propTok := p.advance()
+		if !p.check(TokenColon) {
+			tok := p.peek()
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected ':' after '%s' in arrow body, got %s", propTok.Value, tok.Type), tok.Line, tok.Column)
+			continue
+		}
+		p.advance() // consume ':'
+		switch propTok.Value {
+		case "label":
+			if !p.check(TokenString) {
+				tok := p.peek()
+				p.addError(ast.ErrorSyntax, fmt.Sprintf("Expected string value for label, got %s", tok.Type), tok.Line, tok.Column)
+				continue
+			}
+			val := p.advance().Value
+			if arrow.Label != nil {
+				p.addError(ast.ErrorSyntax, "Duplicate arrow property 'label'", propTok.Line, propTok.Column)
+				continue
+			}
+			arrow.Label = &val
+		default:
+			p.addError(ast.ErrorSyntax, fmt.Sprintf("Unknown arrow property '%s', expected 'label'", propTok.Value), propTok.Line, propTok.Column)
+		}
+	}
+	if p.check(TokenRBrace) {
+		p.advance()
+	}
 }
 
 // parseDottedPath reads IDENTIFIER (DOT IDENTIFIER)* and joins it with dots.
