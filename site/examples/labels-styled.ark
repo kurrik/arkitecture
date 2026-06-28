@@ -1,0 +1,18 @@
+# A label is plain text — it may span lines with `\n` — and coexists with arrow
+# styling: pathColor on a node colours the arrows that start there, while the
+# label stays on its own plate. Straight-mode labels need room beside the line,
+# so a vertical flow (open canvas to the side) shows them off well.
+checkout {
+  cart    { label: "Cart" }
+  payment { label: "Payment" }
+  email   { label: "Email" }
+}
+
+@layout {
+  margin: 28
+  checkout { box: none; direction: vertical }
+  checkout.payment { pathColor: #16a34a }   # arrows leaving Payment turn green
+}
+
+checkout.cart    --> checkout.payment { label: "POST /charge\n(idempotent)" }
+checkout.payment --> checkout.email   { label: "send receipt" }
