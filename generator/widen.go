@@ -69,9 +69,10 @@ func (m laneMap) lane(k channelKey, arrowIdx int) (idx, count int, ok bool) {
 // each channel reserves (lanes × margin/2) and a laneMap assigning each arrow a
 // distinct lane in every channel it shares. Returns (nil, empty) when nothing
 // needs widening. Lanes are ordered by arrow index, so the result is deterministic.
-func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) (*widenDemand, laneMap) {
+func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode, fontSize float64) (*widenDemand, laneMap) {
 	uses := map[channelKey]map[int]bool{} // channel -> set of arrow indices along it
 	base := map[channelKey]float64{}
+	labelExtra := map[channelKey]float64{} // channel -> extra width its label's text needs
 	for i, a := range arrows {
 		pts, ok := arrowPath(a, layout, mode)
 		if !ok {
@@ -91,6 +92,24 @@ func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) 
 			}
 			uses[k][i] = true
 			base[k] = ref.base
+		}
+		// A label flows in the channel its longest segment follows, so that
+		// channel must be wide enough to hold the text (plus a margin of clearance
+		// each side) — exactly as the line itself reserves a lane. A vertical run
+		// (column boundary) takes the label's width; a horizontal run its height.
+		if a.Label != nil {
+			if p0, p1, ok := longestSegment(pts); ok {
+				if ref, ok := findChannel(layout.roots, p0, p1); ok {
+					k := ref.key()
+					extent := textHeight(*a.Label, fontSize)
+					if k.vertical {
+						extent = textWidth(*a.Label, fontSize)
+					}
+					if d := extent + ref.base; d > labelExtra[k] {
+						labelExtra[k] = d
+					}
+				}
+			}
 		}
 	}
 	if len(uses) == 0 {
@@ -116,6 +135,10 @@ func channelDemand(arrows []ast.Arrow, layout layoutResult, mode ast.RouteMode) 
 		// node margin rather than inside it. With the base gap already one margin,
 		// N lanes need (N+1)·base/2 of extra width (giving 2·base + (N−1)·base/2).
 		extra := float64(len(arrowIdxs)+1) * base[k] / 2
+		// A label flowing in this channel may need it wider than the lanes alone do.
+		if le := labelExtra[k]; le > extra {
+			extra = le
+		}
 		switch {
 		case k.vertical && k.path == "":
 			d.root = setAt(d.root, k.index, extra) // column boundary between top-level nodes

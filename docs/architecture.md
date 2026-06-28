@@ -49,6 +49,7 @@ github.com/kurrik/arkitecture        (module)
     channel.go       channel-graph router: few-bend A* around an arrow's obstacles
     widen.go         channel widening: attribute runs to column/row boundaries, widen, snap to lanes
     grid.go          grid arrangement (cols/rows): joint two-axis track sizing + placement + widening
+    svg.go           emit rects/text/arrows; arrow labels (plate at the run midpoint)
     testdata/golden/ .ark fixtures + .svg/.error references for the golden test
   cmd/arkitecture/   package main — the CLI (flags, file I/O, watch); imports the library
   wasm/              package main — js,wasm shim exposing ToSVG to JS (+ host stub)
@@ -112,6 +113,9 @@ semantic layer and a layout layer:
   `box: none`); a user `Block` of the same name overrides a built-in.
 - **`Arrow`** — `Source` and `Target` strings, each a dotted node path with an
   optional `#anchor` suffix (e.g. `c1.n2 --> c1.n3#a1`). Resolved by the validator.
+  An optional `Label *string` (parsed from a `{ label: "…" }` body after the
+  target) is drawn on the arrow; in orthogonal mode it widens the channel its run
+  follows.
 - **`Error`** — `Line`, `Column`, `Message`, and `Type` (`syntax` | `reference` |
   `constraint`). Every failure is one of these; it also satisfies `error`.
 
@@ -132,7 +136,8 @@ semantic layer and a layout layer:
   selector by the `:`), `@block` definitions, `@use` imports, `@group` child
   arrangements inside `@layout` (a bare identifier with no `:` is a child
   reference), the `cols`/`rows` grid track properties and per-child `col`/`row`/
-  `colSpan`/`rowSpan`/`justify`/`align` placement, and arrows. Nodes,
+  `colSpan`/`rowSpan`/`justify`/`align` placement, and arrows (with an optional
+  `{ label: "…" }` body after the target). Nodes,
   `@layout` sheets, and arrows may appear in **any order** at the top level — each
   statement is dispatched by lookahead (an identifier reaching `-->` is an arrow),
   so an arrow can be colocated with the nodes it connects. An inline `@layout` is
@@ -204,7 +209,12 @@ semantic layer and a layout layer:
   `svg.go` walks the tree to emit `<rect>` + `<text>` per visible node (the label
   is centred in its reserved band when a parent has one; a `box: none` node and a
   `@group` render no rect) and, per arrow, a `<line>` (two points) or `<polyline>`
-  (a bent route) with the arrowhead `<marker>`. Each rect takes its resolved
+  (a bent route) with the arrowhead `<marker>`, plus — for a labelled arrow — a
+  `<rect>` plate and `<text>` centred on its longest segment (drawn after every
+  line so a label is never overcut; the viewport grows to include any label
+  bounds). In orthogonal mode a label's cross-axis extent is folded into
+  `widen.go`'s per-channel demand, so the channel its run follows widens to hold
+  the text. Each rect takes its resolved
   `fill`/`stroke`/`stroke-width` (node value → document `Defaults` → built-in
   white/black/1px); each arrow takes its **source** node's resolved
   `pathColor`/`pathWidth` and a colour-matched arrowhead — `buildDefs` emits one

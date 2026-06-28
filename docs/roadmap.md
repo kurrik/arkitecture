@@ -6,6 +6,18 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **Arrow labels — text that flows in the channel** (2026-06-28): an arrow may
+  carry text via `a --> b { label: "…" }` (the same body shape a node uses). It is
+  drawn centred on the midpoint of the arrow's longest segment, on an opaque plate.
+  The label is treated as **channel content**: in `route: orthogonal` mode its
+  cross-axis extent feeds `widen.go`'s per-channel demand, so the channel its run
+  follows widens to hold the text (a margin of clearance each side) and the boxes
+  spread — the label can never overlap a box. In straight mode the viewport grows
+  to include the label so it is not clipped. `Arrow` gained `Label *string`; the
+  parser learned the arrow body; `renderArrows` returns the label bounds so the
+  viewport can grow. Unlabelled diagrams are byte-identical. Two goldens lock it in
+  (`arrow-label`, `arrow-label-orthogonal`). Resolves the "should arrows support
+  labels" design open question. See the ADR in [decisions.md](decisions.md).
 - **Spacer tracks — sparse placement shows visible gaps** (2026-06-22): a grid
   track that *no* cell covers now reserves a minimum size (`fontSize*2`, a leaf's
   minimum) instead of collapsing to zero, so a deliberately sparse placement leaves
@@ -332,8 +344,9 @@ land on top of this unified model rather than the old orthogonal-fraction hack.
   published, versioned package is still open.)*
 - **Diagnostics & DX:** stable error codes; source positions on validator errors
   (the AST carries none today); large/deep-document performance tests.
-- **Rendering reach beyond the above:** arrow labels; non-straight routing; visual
-  styling (fill/stroke/per-node font) layered on the `@layout`/`kind` machinery.
+- **Rendering reach beyond the above:** non-straight routing; visual styling
+  (fill/stroke/per-node font) layered on the `@layout`/`kind` machinery. (Arrow
+  labels shipped — see *Done*.)
 
 ## Ideas / parking lot
 

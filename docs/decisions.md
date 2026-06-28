@@ -18,6 +18,37 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-06-28 — Arrow labels are channel content
+**Choice:** Arrows carry text via a `{ label: "…" }` body (`a --> b { label:
+"login()" }`), drawn centred on the midpoint of the arrow's longest segment on an
+opaque plate. Crucially, in `route: orthogonal` mode the label is treated as
+**content of the channel its run follows**: its cross-axis extent (width for a
+vertical run, height for a horizontal one) is added to that channel's widening
+demand in `widen.go`, so the channel grows to hold the text (a margin of clearance
+each side) and the boxes spread. In straight mode there is no channel, so the
+viewport simply grows to include the label.
+**Why:** The body-block syntax mirrors a node's `{ … }`, so the language stays
+consistent (no new label operator). For placement, the alternative — drop the
+label on the line wherever the arrow happens to run — overlaps boxes whenever the
+text is wider than the gap, the common case for a short arrow between adjacent
+boxes. Feeding the label into the channel-widening machinery reuses the exact
+invariant the routing model already enforces ("a channel reserves space for
+everything it carries and pushes boxes apart"), so a routed label provably never
+overlaps a box — the same way a long node label already grows its box. An offset
+(label beside the line) was prototyped and rejected: it reads well for a lone
+straight arrow but pushes a routed label *out* of its widened channel and over the
+adjacent track's boxes.
+**Implications:** `ast.Arrow` gained `Label *string`; the parser parses an arrow
+body (v1: only `label`); `channelDemand` takes `fontSize` and folds a per-channel
+label demand into each channel's extra width; `renderArrows` returns the label
+bounding box so `renderSVG` can grow the viewport. Unlabelled documents are
+byte-for-byte unchanged. Known limits (parked): a straight-mode label still needs
+open space beside the line (a wide label on a short arrow between adjacent boxes
+overlaps — use orthogonal mode or more margin); multi-lane channels centre the
+label on the run rather than its specific lane; diagonal straight arrows centre the
+label like any other. Two goldens lock it in (`arrow-label`,
+`arrow-label-orthogonal`).
+
 ## 2026-06-22 — Spacer tracks: empty grid tracks reserve a minimum size
 **Choice:** A grid track that no cell covers reserves a minimum size — `fontSize*2`,
 the same minimum a leaf box uses — instead of collapsing to zero. Applied in

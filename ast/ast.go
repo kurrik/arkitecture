@@ -343,10 +343,12 @@ type Block struct {
 
 // Arrow is a directed connection between two node paths. Source and Target are
 // the raw textual references (e.g. "c1.n2" or "c1.n3#a1"); the validator
-// resolves them.
+// resolves them. Label, when set (via `a --> b { label: "…" }`), is text drawn
+// on the arrow at the midpoint of its longest segment.
 type Arrow struct {
 	Source string
 	Target string
+	Label  *string // optional text drawn on the arrow; nil = no label
 }
 
 // Document is a whole parsed .ark file: the top-level semantic nodes, the

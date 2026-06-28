@@ -1,0 +1,19 @@
+# Arrow labels: `a --> b { label: "…" }` draws text beside the midpoint of the
+# arrow's longest segment — above a horizontal run, to the right of a vertical
+# one — on an opaque plate so it reads cleanly. In straight mode the label needs
+# open space beside the line (here a vertical flow leaves room to the right);
+# route: orthogonal makes room for it by widening the channel (see the other
+# golden).
+flow {
+  client { label: "Client" }
+  server { label: "Server" }
+  store  { label: "Store" }
+}
+
+@layout {
+  margin: 30
+  flow { box: none; direction: vertical }
+}
+
+flow.client --> flow.server { label: "login()" }
+flow.server --> flow.store  { label: "query" }

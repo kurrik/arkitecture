@@ -44,7 +44,7 @@ func GenerateSVG(doc *ast.Document, resolved map[string]*ast.Declarations, opts 
 	// in the boxes' margins.
 	var lanes laneMap
 	if routeMode(doc) == ast.RouteOrthogonal {
-		if demand, lm := channelDemand(doc.Arrows, layout, ast.RouteOrthogonal); demand != nil {
+		if demand, lm := channelDemand(doc.Arrows, layout, ast.RouteOrthogonal, fontSize); demand != nil {
 			layout = computeLayout(doc, resolved, fontSize, demand)
 			lanes = lm
 		}

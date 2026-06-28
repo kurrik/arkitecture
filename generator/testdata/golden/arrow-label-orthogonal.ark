@@ -1,0 +1,21 @@
+# An arrow label flows in the channel its run follows: in route: orthogonal mode
+# the vertical run travels the column-1/column-2 gap, so that channel widens to
+# hold the label's text (a full margin of clearance each side) — the columns
+# spread, and the text never overlaps a box.
+grid {
+  label: "Grid"
+  a { label: "A" }                b { label: "B" anchors: [out] }
+  c { label: "C" }                d { label: "D" }
+  e { label: "E" anchors: [in] }  f { label: "F" }
+}
+@layout {
+  route: orthogonal
+  margin: 16
+  grid { cols: 2 }
+  grid.a {col:1; row:1}  grid.b {col:2; row:1}
+  grid.c {col:1; row:2}  grid.d {col:2; row:2}
+  grid.e {col:1; row:3}  grid.f {col:2; row:3}
+  grid.b { anchor out: [0.0, 0.5] }
+  grid.e { anchor in: [1.0, 0.5] }
+}
+grid.b#out --> grid.e#in { label: "validateSession()" }
