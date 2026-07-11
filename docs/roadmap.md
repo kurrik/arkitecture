@@ -227,12 +227,13 @@ for "where is this project at?". Move items between sections as work progresses:
 - **Homebrew distribution** (2026-07-11). CI-side release automation is in place:
   `.github/workflows/release.yml` (manual `workflow_dispatch`; picks the version
   from Conventional Commits, tags, and releases) + `.goreleaser.yaml` (binaries,
-  grouped notes, formula push to `kurrik/homebrew-tap`). Rationale in
-  [decisions.md](decisions.md). Remaining manual steps before the first release:
-  create the `kurrik/homebrew-tap` repo, add a fine-grained PAT as the
-  `HOMEBREW_TAP_GITHUB_TOKEN` secret, and run the workflow once (use an explicit
-  version, e.g. `v0.1.0` — `auto` would pick v1.0.0 on first release because the
-  untagged history contains a `feat!` commit).
+  grouped notes, cask push to `kurrik/homebrew-tap`). Rationale in
+  [decisions.md](decisions.md). The tap repo and `HOMEBREW_TAP_GITHUB_TOKEN`
+  secret are set up (2026-07-11). Remaining: merge this to `main` (a
+  `workflow_dispatch` workflow is only triggerable once it exists on the default
+  branch) and run it once — use an explicit version, e.g. `v0.1.0`; `auto` would
+  pick v1.0.0 on first release because the untagged history contains a `feat!`
+  commit.
 
 ## Recently shipped — Auto edge routing (sized channels)
 

@@ -37,23 +37,22 @@ release:
   footer: |
     **Full changelog:** https://github.com/kurrik/arkitecture/compare/{{ .PreviousTag }}...{{ .Tag }}
 
-# Publishes/updates the formula in kurrik/homebrew-tap so users can
+# Publishes/updates the cask in kurrik/homebrew-tap so users can
 # `brew install kurrik/tap/arkitecture`. Needs HOMEBREW_TAP_GITHUB_TOKEN —
 # a fine-grained PAT with contents:write on the tap repo (the workflow's
 # GITHUB_TOKEN cannot push to a different repository).
-brews:
+homebrew_casks:
   - repository:
       owner: kurrik
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/kurrik/arkitecture
     description: Compile .ark text files into SVG architecture diagrams
-    license: MIT
-    test: |
-      (testpath/"simple.ark").write <<~ARK
-        node1 {
-          label: "Simple Node"
-        }
-      ARK
-      system bin/"arkitecture", testpath/"simple.ark", testpath/"simple.svg"
-      assert_match "<svg", (testpath/"simple.svg").read
+    # The release binaries aren't signed or notarized, so Gatekeeper quarantines
+    # them on download; strip the attribute or the binary won't run.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/arkitecture"]
+          end

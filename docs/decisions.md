@@ -24,8 +24,8 @@ kurrik/tap/arkitecture`), not homebrew-core. Releases are cut entirely in CI: a
 `workflow_dispatch` workflow (`release.yml`) computes the next version from
 Conventional Commits since the last tag (or takes an explicit bump/version), tags
 HEAD, and runs GoReleaser, which builds darwin/linux × amd64/arm64 binaries,
-generates grouped release notes, creates the GitHub release, and pushes the
-formula to the tap.
+generates grouped release notes, creates the GitHub release, and pushes a cask
+to the tap.
 **Why:** homebrew-core requires notability a new project doesn't have; a tap is
 self-serve and can graduate later. The tag-and-release logic lives in one workflow
 because tags pushed with the built-in `GITHUB_TOKEN` deliberately don't trigger
@@ -33,14 +33,17 @@ other workflows — a separate tag-triggered build would never fire. The version
 logic ports camphor's `scripts/release-github.sh` so both projects share release
 semantics, but runs in Actions instead of locally. GoReleaser's `changelog.groups`
 reproduces that script's Features/Fixes/Other notes, so no bespoke notes step.
-**Implications:** Publishing needs two one-time manual steps: the
-`kurrik/homebrew-tap` repo must exist, and a fine-grained PAT with contents:write
-on it stored as the `HOMEBREW_TAP_GITHUB_TOKEN` secret. GoReleaser's `brews`
-section is deprecated upstream in favour of `homebrew_casks` (macOS-only); we stay
-on `brews` while it works so Linuxbrew keeps working, and revisit if it's removed.
-With no prior tag, `auto` scans all history and the `feat!` M3 commit makes the
-first auto bump v1.0.0 — pass an explicit version for the first release if 0.x is
-wanted.
+**Implications:** Publishing needs two one-time manual steps (done 2026-07-11):
+the `kurrik/homebrew-tap` repo must exist, and a fine-grained PAT with
+contents:write on it stored as the `HOMEBREW_TAP_GITHUB_TOKEN` secret. We use
+`homebrew_casks` — GoReleaser's replacement for the deprecated `brews` section —
+which means: casks are macOS-only (Linuxbrew users fall back to the release
+tarballs or `go install`), there is no formula-style `test` block, and because the
+binaries are unsigned/un-notarized the cask carries a post-install hook that
+strips the Gatekeeper quarantine attribute (Apple could disable that bypass in a
+future macOS). With no prior tag, `auto` scans all history and the `feat!` M3
+commit makes the first auto bump v1.0.0 — pass an explicit version for the first
+release if 0.x is wanted.
 
 ## 2026-06-28 — Arrow labels are channel content
 **Choice:** Arrows carry text via a `{ label: "…" }` body (`a --> b { label:
