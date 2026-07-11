@@ -1,0 +1,59 @@
+# GoReleaser configuration — run by .github/workflows/release.yml.
+# Builds the CLI for macOS/Linux, creates the GitHub release with
+# Conventional-Commits-grouped notes, and pushes a formula to kurrik/homebrew-tap.
+version: 2
+
+project_name: arkitecture
+
+builds:
+  - main: ./cmd/arkitecture
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+
+archives:
+  - formats: [tar.gz]
+
+changelog:
+  sort: asc
+  use: git
+  filters:
+    exclude:
+      - "^Merge "
+  groups:
+    - title: Features
+      regexp: '^feat(\([^)]*\))?!?:'
+      order: 0
+    - title: Fixes
+      regexp: '^fix(\([^)]*\))?!?:'
+      order: 1
+    - title: Other changes
+      order: 999
+
+release:
+  footer: |
+    **Full changelog:** https://github.com/kurrik/arkitecture/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Publishes/updates the formula in kurrik/homebrew-tap so users can
+# `brew install kurrik/tap/arkitecture`. Needs HOMEBREW_TAP_GITHUB_TOKEN —
+# a fine-grained PAT with contents:write on the tap repo (the workflow's
+# GITHUB_TOKEN cannot push to a different repository).
+brews:
+  - repository:
+      owner: kurrik
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/kurrik/arkitecture
+    description: Compile .ark text files into SVG architecture diagrams
+    license: MIT
+    test: |
+      (testpath/"simple.ark").write <<~ARK
+        node1 {
+          label: "Simple Node"
+        }
+      ARK
+      system bin/"arkitecture", testpath/"simple.ark", testpath/"simple.svg"
+      assert_match "<svg", (testpath/"simple.svg").read
