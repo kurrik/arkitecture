@@ -5,14 +5,33 @@ version: 2
 
 project_name: arkitecture
 
+# darwin and linux are separate build ids so the signing hook only runs on the
+# mac binaries.
 builds:
-  - main: ./cmd/arkitecture
+  - id: linux
+    main: ./cmd/arkitecture
     env:
       - CGO_ENABLED=0
-    goos: [darwin, linux]
+    goos: [linux]
     goarch: [amd64, arm64]
     ldflags:
       - -s -w
+  - id: darwin
+    main: ./cmd/arkitecture
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+    hooks:
+      post:
+        # Sign + notarize with the Developer ID cert via quill — works from the
+        # Linux runner, no keychain or macOS needed. Credentials come from the
+        # QUILL_* env vars set in release.yml. Snapshot builds get an ad-hoc
+        # signature and skip notarization.
+        - cmd: quill sign-and-notarize "{{ .Path }}" --dry-run={{ .IsSnapshot }} --ad-hoc={{ .IsSnapshot }} -vv
+          output: true
 
 archives:
   - formats: [tar.gz]
@@ -48,11 +67,3 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/kurrik/arkitecture
     description: Compile .ark text files into SVG architecture diagrams
-    # The release binaries aren't signed or notarized, so Gatekeeper quarantines
-    # them on download; strip the attribute or the binary won't run.
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/arkitecture"]
-          end

@@ -33,16 +33,22 @@ other workflows — a separate tag-triggered build would never fire. The version
 logic ports camphor's `scripts/release-github.sh` so both projects share release
 semantics, but runs in Actions instead of locally. GoReleaser's `changelog.groups`
 reproduces that script's Features/Fixes/Other notes, so no bespoke notes step.
-**Implications:** Publishing needs two one-time manual steps (done 2026-07-11):
-the `kurrik/homebrew-tap` repo must exist, and a fine-grained PAT with
-contents:write on it stored as the `HOMEBREW_TAP_GITHUB_TOKEN` secret. We use
-`homebrew_casks` — GoReleaser's replacement for the deprecated `brews` section —
-which means: casks are macOS-only (Linuxbrew users fall back to the release
-tarballs or `go install`), there is no formula-style `test` block, and because the
-binaries are unsigned/un-notarized the cask carries a post-install hook that
-strips the Gatekeeper quarantine attribute (Apple could disable that bypass in a
-future macOS). With no prior tag, `auto` scans all history and the `feat!` M3
-commit makes the first auto bump v1.0.0 — pass an explicit version for the first
+**Implications:** Publishing needs one-time manual setup: the
+`kurrik/homebrew-tap` repo (done 2026-07-11), a fine-grained PAT with
+contents:write on it stored as the `HOMEBREW_TAP_GITHUB_TOKEN` secret (done
+2026-07-11), and the five signing/notarization secrets copied from camphor
+(`DEVELOPER_ID_CERT_P12_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `NOTARY_KEY_P8`,
+`NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`). We use `homebrew_casks` — GoReleaser's
+replacement for the deprecated `brews` section — which means casks are macOS-only
+(Linuxbrew users fall back to the release tarballs or `go install`) and there is
+no formula-style `test` block. The darwin binaries are signed and notarized with
+the same Developer ID certificate as camphor, but via **quill** rather than
+camphor's keychain + `codesign` + `notarytool` flow: quill runs on the Linux
+runner as a GoReleaser post-build hook on the darwin build id, so the release
+stays a single ubuntu job. Notarization tickets can't be stapled to bare
+executables, so Gatekeeper verifies them online on first run — normal for CLI
+tools. With no prior tag, `auto` scans all history and the `feat!` M3 commit
+makes the first auto bump v1.0.0 — pass an explicit version for the first
 release if 0.x is wanted.
 
 ## 2026-06-28 — Arrow labels are channel content

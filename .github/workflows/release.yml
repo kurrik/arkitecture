@@ -115,6 +115,23 @@ jobs:
         with:
           go-version: "1.24"
 
+      # quill signs + notarizes the darwin binaries from this Linux runner
+      # (invoked by the darwin build's post hook in .goreleaser.yaml).
+      - name: Install quill
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          curl -sSfL https://get.anchore.io/quill | sh -s -- -b "$RUNNER_TEMP/bin" v0.7.1
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # The .p8 secret is the raw key contents; quill wants a path (or base64),
+      # so stage it as a file.
+      - name: Write notarization key
+        if: ${{ !inputs.dry_run }}
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+        run: printf '%s' "$NOTARY_KEY_P8" > "$RUNNER_TEMP/notary_key.p8"
+
       - name: Run GoReleaser
         if: ${{ !inputs.dry_run }}
         uses: goreleaser/goreleaser-action@v6
@@ -124,3 +141,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # Signing + notarization credentials — same values as camphor's
+          # release secrets (see camphor's docs/release.md for how they were
+          # generated).
+          QUILL_SIGN_P12: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 }}
+          QUILL_SIGN_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+          QUILL_NOTARY_KEY: ${{ runner.temp }}/notary_key.p8
+          QUILL_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          QUILL_NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+
+      - name: Clean up notarization key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/notary_key.p8"

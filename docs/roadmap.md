@@ -228,10 +228,13 @@ for "where is this project at?". Move items between sections as work progresses:
   `.github/workflows/release.yml` (manual `workflow_dispatch`; picks the version
   from Conventional Commits, tags, and releases) + `.goreleaser.yaml` (binaries,
   grouped notes, cask push to `kurrik/homebrew-tap`). Rationale in
-  [decisions.md](decisions.md). The tap repo and `HOMEBREW_TAP_GITHUB_TOKEN`
-  secret are set up (2026-07-11). Remaining: merge this to `main` (a
+  [decisions.md](decisions.md). Darwin binaries are signed + notarized via quill
+  using camphor's Developer ID cert. The tap repo and `HOMEBREW_TAP_GITHUB_TOKEN`
+  secret are set up (2026-07-11). Remaining: copy the five signing secrets from
+  camphor (`DEVELOPER_ID_CERT_P12_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`,
+  `NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`), merge this to `main` (a
   `workflow_dispatch` workflow is only triggerable once it exists on the default
-  branch) and run it once — use an explicit version, e.g. `v0.1.0`; `auto` would
+  branch), and run it once — use an explicit version, e.g. `v0.1.0`; `auto` would
   pick v1.0.0 on first release because the untagged history contains a `feat!`
   commit.
 
