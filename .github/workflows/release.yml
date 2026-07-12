@@ -59,9 +59,14 @@ jobs:
 
               BUMP="$INPUT"
               if [ "$BUMP" = "auto" ] || [ -z "$BUMP" ]; then
-                if git log "$RANGE" --format='%s%n%b' | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:|BREAKING CHANGE'; then
+                # Capture the log instead of piping into grep -q: under
+                # pipefail, grep -q's early exit SIGPIPEs git log and the
+                # pipeline reads as no-match even when there is one.
+                COMMITS_FULL="$(git log "$RANGE" --format='%s%n%b')"
+                COMMITS_SUBJECTS="$(git log "$RANGE" --format='%s')"
+                if grep -qE '^[a-zA-Z]+(\([^)]*\))?!:|BREAKING CHANGE' <<< "$COMMITS_FULL"; then
                   BUMP=major
-                elif git log "$RANGE" --format='%s' | grep -qE '^feat(\([^)]*\))?:'; then
+                elif grep -qE '^feat(\([^)]*\))?:' <<< "$COMMITS_SUBJECTS"; then
                   BUMP=minor
                 else
                   BUMP=patch
