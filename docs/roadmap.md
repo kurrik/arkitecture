@@ -6,6 +6,19 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## Done
 
+- **Homebrew distribution — v0.1.0 shipped** (2026-07-12): `brew install
+  kurrik/tap/arkitecture` works. Releases are cut entirely from GitHub Actions:
+  `.github/workflows/release.yml` (manual `workflow_dispatch`; picks the version
+  from Conventional Commits since the last tag, or takes an explicit
+  bump/version; `dry_run` input previews) tags HEAD and runs GoReleaser
+  (`.goreleaser.yaml`), which builds darwin/linux × amd64/arm64, signs +
+  notarizes the darwin binaries via quill with camphor's Developer ID cert
+  (Gatekeeper: `accepted, source=Notarized Developer ID`), writes grouped
+  release notes, creates the GitHub release, and pushes a cask to
+  `kurrik/homebrew-tap`. Secrets: `HOMEBREW_TAP_GITHUB_TOKEN` plus the five
+  signing secrets shared with camphor. Rationale in
+  [decisions.md](decisions.md).
+
 - **Arrow labels — text that flows in the channel** (2026-06-28): an arrow may
   carry text via `a --> b { label: "…" }` (the same body shape a node uses). It is
   drawn centred on the midpoint of the arrow's longest segment, on an opaque plate.
@@ -224,19 +237,7 @@ for "where is this project at?". Move items between sections as work progresses:
 
 ## In progress
 
-- **Homebrew distribution** (2026-07-11). CI-side release automation is in place:
-  `.github/workflows/release.yml` (manual `workflow_dispatch`; picks the version
-  from Conventional Commits, tags, and releases) + `.goreleaser.yaml` (binaries,
-  grouped notes, cask push to `kurrik/homebrew-tap`). Rationale in
-  [decisions.md](decisions.md). Darwin binaries are signed + notarized via quill
-  using camphor's Developer ID cert. The tap repo and `HOMEBREW_TAP_GITHUB_TOKEN`
-  secret are set up (2026-07-11). Remaining: copy the five signing secrets from
-  camphor (`DEVELOPER_ID_CERT_P12_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`,
-  `NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`), merge this to `main` (a
-  `workflow_dispatch` workflow is only triggerable once it exists on the default
-  branch), and run it once — use an explicit version, e.g. `v0.1.0`; `auto` would
-  pick v1.0.0 on first release because the untagged history contains a `feat!`
-  commit.
+_Nothing in progress._
 
 ## Recently shipped — Auto edge routing (sized channels)
 

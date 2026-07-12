@@ -16,7 +16,21 @@ Unlike tools that use automatic layout algorithms, Arkitecture gives you fine-gr
 - **[docs/roadmap.md](docs/roadmap.md)** — done / in progress / planned
 - **[docs/decisions.md](docs/decisions.md)** — why the key technical choices were made
 
-## Requirements
+## Install
+
+```bash
+brew install kurrik/tap/arkitecture
+```
+
+Homebrew installs a prebuilt binary (signed and notarized on macOS). Alternatively,
+grab a tarball from the [releases page](https://github.com/kurrik/arkitecture/releases)
+(macOS/Linux, amd64/arm64), or install from source with Go:
+
+```bash
+go install github.com/kurrik/arkitecture/cmd/arkitecture@latest
+```
+
+## Requirements (building from source)
 
 - Go 1.23+
 
