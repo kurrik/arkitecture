@@ -109,15 +109,16 @@ api --&gt; database
 
     <section class="wrap">
       <h2>Quick start</h2>
-      <p>Arkitecture is a Go module. Run it straight from source, or install the binary:</p>
-<pre><code># Run without installing
+      <p>Install the CLI with Homebrew (a signed, notarized binary on macOS; Linux works too), or with Go:</p>
+<pre><code># Homebrew
+brew install kurrik/tap/arkitecture
+
+# Or via Go — install the binary, or run straight from source
+go install github.com/kurrik/arkitecture/cmd/arkitecture@latest
 go run github.com/kurrik/arkitecture/cmd/arkitecture diagram.ark diagram.svg
 
-# Or install the CLI
-go install github.com/kurrik/arkitecture/cmd/arkitecture@latest
+# Generate an SVG; validate without generating; watch and regenerate on save
 arkitecture diagram.ark diagram.svg
-
-# Validate without generating, or watch and regenerate on save
 arkitecture diagram.ark --validate-only
 arkitecture diagram.ark --watch</code></pre>
       <p>Or use it as a library:</p>
