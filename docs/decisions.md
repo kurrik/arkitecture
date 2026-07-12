@@ -18,6 +18,39 @@ deliberate non-feature, a rejected refactor. *Routine* decisions don't.
 
 ---
 
+## 2026-07-11 — Homebrew via a personal tap, released from a single GitHub Action
+**Choice:** Distribute the CLI through `kurrik/homebrew-tap` (`brew install
+kurrik/tap/arkitecture`), not homebrew-core. Releases are cut entirely in CI: a
+`workflow_dispatch` workflow (`release.yml`) computes the next version from
+Conventional Commits since the last tag (or takes an explicit bump/version), tags
+HEAD, and runs GoReleaser, which builds darwin/linux × amd64/arm64 binaries,
+generates grouped release notes, creates the GitHub release, and pushes a cask
+to the tap.
+**Why:** homebrew-core requires notability a new project doesn't have; a tap is
+self-serve and can graduate later. The tag-and-release logic lives in one workflow
+because tags pushed with the built-in `GITHUB_TOKEN` deliberately don't trigger
+other workflows — a separate tag-triggered build would never fire. The version
+logic ports camphor's `scripts/release-github.sh` so both projects share release
+semantics, but runs in Actions instead of locally. GoReleaser's `changelog.groups`
+reproduces that script's Features/Fixes/Other notes, so no bespoke notes step.
+**Implications:** Publishing needs one-time manual setup: the
+`kurrik/homebrew-tap` repo (done 2026-07-11), a fine-grained PAT with
+contents:write on it stored as the `HOMEBREW_TAP_GITHUB_TOKEN` secret (done
+2026-07-11), and the five signing/notarization secrets copied from camphor
+(`DEVELOPER_ID_CERT_P12_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `NOTARY_KEY_P8`,
+`NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`). We use `homebrew_casks` — GoReleaser's
+replacement for the deprecated `brews` section — which means casks are macOS-only
+(Linuxbrew users fall back to the release tarballs or `go install`) and there is
+no formula-style `test` block. The darwin binaries are signed and notarized with
+the same Developer ID certificate as camphor, but via **quill** rather than
+camphor's keychain + `codesign` + `notarytool` flow: quill runs on the Linux
+runner as a GoReleaser post-build hook on the darwin build id, so the release
+stays a single ubuntu job. Notarization tickets can't be stapled to bare
+executables, so Gatekeeper verifies them online on first run — normal for CLI
+tools. With no prior tag, `auto` scans all history and the `feat!` M3 commit
+makes the first auto bump v1.0.0 — pass an explicit version for the first
+release if 0.x is wanted.
+
 ## 2026-06-28 — Arrow labels are channel content
 **Choice:** Arrows carry text via a `{ label: "…" }` body (`a --> b { label:
 "login()" }`), drawn centred on the midpoint of the arrow's longest segment on an

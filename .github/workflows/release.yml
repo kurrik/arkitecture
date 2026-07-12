@@ -1,0 +1,155 @@
+# Cut a release entirely from GitHub Actions — no local script needed.
+#
+# Trigger it from the Actions tab (or `gh workflow run release.yml -f version=minor`).
+# The workflow ports scripts/release-github.sh from the camphor project: it picks
+# the next version from Conventional Commits since the last tag (or takes an
+# explicit bump/version), tags HEAD of the chosen branch, and runs GoReleaser,
+# which builds the binaries, writes categorized release notes, creates the GitHub
+# release, and pushes the Homebrew formula to kurrik/homebrew-tap.
+#
+# Everything happens in this one workflow on purpose: tags pushed with the
+# built-in GITHUB_TOKEN do not trigger other workflows, so a separate
+# tag-triggered build job would never fire.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "auto (bump per Conventional Commits), major, minor, patch, or an explicit vX.Y.Z"
+        required: false
+        default: auto
+      dry_run:
+        description: "Compute the version and list the commits without tagging or releasing"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out (full history for tags and changelog)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: version
+        env:
+          INPUT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          LAST_TAG="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+          if [ -n "$LAST_TAG" ]; then RANGE="${LAST_TAG}..HEAD"; else RANGE="HEAD"; fi
+
+          case "$INPUT" in
+            v[0-9]*.[0-9]*.[0-9]*) NEXT_TAG="$INPUT" ;;
+            [0-9]*.[0-9]*.[0-9]*) NEXT_TAG="v$INPUT" ;;
+            auto | major | minor | patch | "")
+              BASE="${LAST_TAG#v}"
+              BASE="${BASE:-0.0.0}"
+              MAJOR="${BASE%%.*}"
+              REST="${BASE#*.}"
+              MINOR="${REST%%.*}"
+              PATCH="${REST#*.}"
+
+              BUMP="$INPUT"
+              if [ "$BUMP" = "auto" ] || [ -z "$BUMP" ]; then
+                if git log "$RANGE" --format='%s%n%b' | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:|BREAKING CHANGE'; then
+                  BUMP=major
+                elif git log "$RANGE" --format='%s' | grep -qE '^feat(\([^)]*\))?:'; then
+                  BUMP=minor
+                else
+                  BUMP=patch
+                fi
+              fi
+
+              case "$BUMP" in
+                major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+                minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+                patch) PATCH=$((PATCH + 1)) ;;
+              esac
+              NEXT_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+              ;;
+            *)
+              echo "error: unknown version input '$INPUT'" >&2
+              exit 2
+              ;;
+          esac
+
+          if git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; then
+            echo "error: tag '${NEXT_TAG}' already exists" >&2
+            exit 1
+          fi
+
+          {
+            echo "## Release ${NEXT_TAG}"
+            echo
+            echo "Last tag: \`${LAST_TAG:-(none)}\`"
+            echo
+            echo "Commits since ${LAST_TAG:-the start of history}:"
+            echo
+            git log "$RANGE" --no-merges --format='- %s'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Next tag: ${NEXT_TAG} (from ${LAST_TAG:-nothing})"
+          echo "tag=${NEXT_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Dry run — stop here
+        if: ${{ inputs.dry_run }}
+        run: echo "Dry run — would have released ${{ steps.version.outputs.tag }}. Nothing was tagged or published."
+
+      - name: Tag HEAD
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "refs/tags/${{ steps.version.outputs.tag }}"
+
+      - name: Set up Go
+        if: ${{ !inputs.dry_run }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      # quill signs + notarizes the darwin binaries from this Linux runner
+      # (invoked by the darwin build's post hook in .goreleaser.yaml).
+      - name: Install quill
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          curl -sSfL https://get.anchore.io/quill | sh -s -- -b "$RUNNER_TEMP/bin" v0.7.1
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # The .p8 secret is the raw key contents; quill wants a path (or base64),
+      # so stage it as a file.
+      - name: Write notarization key
+        if: ${{ !inputs.dry_run }}
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+        run: printf '%s' "$NOTARY_KEY_P8" > "$RUNNER_TEMP/notary_key.p8"
+
+      - name: Run GoReleaser
+        if: ${{ !inputs.dry_run }}
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # Signing + notarization credentials — same values as camphor's
+          # release secrets (see camphor's docs/release.md for how they were
+          # generated).
+          QUILL_SIGN_P12: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 }}
+          QUILL_SIGN_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+          QUILL_NOTARY_KEY: ${{ runner.temp }}/notary_key.p8
+          QUILL_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          QUILL_NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+
+      - name: Clean up notarization key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/notary_key.p8"

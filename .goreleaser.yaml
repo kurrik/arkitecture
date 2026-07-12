@@ -1,0 +1,69 @@
+# GoReleaser configuration — run by .github/workflows/release.yml.
+# Builds the CLI for macOS/Linux, creates the GitHub release with
+# Conventional-Commits-grouped notes, and pushes a formula to kurrik/homebrew-tap.
+version: 2
+
+project_name: arkitecture
+
+# darwin and linux are separate build ids so the signing hook only runs on the
+# mac binaries.
+builds:
+  - id: linux
+    main: ./cmd/arkitecture
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+  - id: darwin
+    main: ./cmd/arkitecture
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+    hooks:
+      post:
+        # Sign + notarize with the Developer ID cert via quill — works from the
+        # Linux runner, no keychain or macOS needed. Credentials come from the
+        # QUILL_* env vars set in release.yml. Snapshot builds get an ad-hoc
+        # signature and skip notarization.
+        - cmd: quill sign-and-notarize "{{ .Path }}" --dry-run={{ .IsSnapshot }} --ad-hoc={{ .IsSnapshot }} -vv
+          output: true
+
+archives:
+  - formats: [tar.gz]
+
+changelog:
+  sort: asc
+  use: git
+  filters:
+    exclude:
+      - "^Merge "
+  groups:
+    - title: Features
+      regexp: '^feat(\([^)]*\))?!?:'
+      order: 0
+    - title: Fixes
+      regexp: '^fix(\([^)]*\))?!?:'
+      order: 1
+    - title: Other changes
+      order: 999
+
+release:
+  footer: |
+    **Full changelog:** https://github.com/kurrik/arkitecture/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Publishes/updates the cask in kurrik/homebrew-tap so users can
+# `brew install kurrik/tap/arkitecture`. Needs HOMEBREW_TAP_GITHUB_TOKEN —
+# a fine-grained PAT with contents:write on the tap repo (the workflow's
+# GITHUB_TOKEN cannot push to a different repository).
+homebrew_casks:
+  - repository:
+      owner: kurrik
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/kurrik/arkitecture
+    description: Compile .ark text files into SVG architecture diagrams
